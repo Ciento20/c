@@ -2028,17 +2028,13 @@ function renderCurrentView() {
             
             alert("Configuración guardada. Recargando datos...");
             location.reload();
-        }
-
-        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+        }        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
             const now = new Date();
             let prog;
             
-            // Si recibimos hora y fecha, buscamos el programa específico
             if (startTime && progDate) {
                 prog = epgData.find(p => p.channel === channelId && p.start === startTime && p.date === progDate);
             } else {
-                // Si no, buscamos lo que hay en directo ahora (comportamiento original para la pestaña Canales)
                 prog = epgData.filter(p => p.channel === channelId).find(p => {
                     const [d, m, y] = p.date.split('/');
                     const [h, min] = p.start.split(':');
@@ -2049,30 +2045,39 @@ function renderCurrentView() {
                 });
             }
 
-            if (!prog) return;
-
-            const [d, m, y] = prog.date.split('/');
-            const start = new Date(y, m - 1, d, prog.start.split(':')[0], prog.start.split(':')[1]);
-            const stop = new Date(y, m - 1, d, prog.stop.split(':')[0], prog.stop.split(':')[1]);
-            const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));
-            const diff = Math.round((stop - now) / 60000);
-
             const modal = document.getElementById('programDetailModal');
-            const bgImg = prog.iconSrc2 || prog.iconSrc;
-            
-            modal.querySelector('.detail-bg').style.backgroundImage = `url('${bgImg}')`;
-            modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
-            modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
-            modal.querySelector('.detail-desc').innerHTML = processColoredText(prog.description);
-            modal.querySelector('.detail-channel-name').textContent = prog.channel;
-            modal.querySelector('.detail-progress-fill').style.width = `${progress}%`;
-            modal.querySelector('.detail-remaining').textContent = diff > 0 ? `${diff} min restantes` : 'Finalizando';
-            
-            // Lógica para ocultar progreso si el programa no ha empezado o ya terminó
-            const isLive = now >= start && now <= stop;
-            modal.querySelector('.detail-badge').style.display = isLive ? 'block' : 'none';
-            modal.querySelector('.detail-progress-container').style.display = isLive ? 'block' : 'none';
-            const streamUrl = channelStreams[prog.channel];
+            const streamUrl = channelStreams[channelId];
+
+            if (prog) {
+                const [d, m, y] = prog.date.split('/');
+                const start = new Date(y, m - 1, d, prog.start.split(':')[0], prog.start.split(':')[1]);
+                const stop = new Date(y, m - 1, d, prog.stop.split(':')[0], prog.stop.split(':')[1]);
+                const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));
+                const diff = Math.round((stop - now) / 60000);
+                const bgImg = prog.iconSrc2 || prog.iconSrc;
+                
+                modal.querySelector('.detail-bg').style.backgroundImage = `url('${bgImg}')`;
+                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
+                modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
+                modal.querySelector('.detail-desc').innerHTML = processColoredText(prog.description);
+                modal.querySelector('.detail-channel-name').textContent = prog.channel;
+                modal.querySelector('.detail-progress-fill').style.width = `${progress}%`;
+                modal.querySelector('.detail-remaining').textContent = diff > 0 ? `${diff} min restantes` : 'Finalizando';
+                
+                const isLive = now >= start && now <= stop;
+                modal.querySelector('.detail-badge').style.display = isLive ? 'block' : 'none';
+                modal.querySelector('.detail-progress-container').style.display = isLive ? 'block' : 'none';
+            } else {
+                // Fallback si no hay programa pero queremos ver el canal
+                const channelIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
+                modal.querySelector('.detail-bg').style.backgroundImage = channelIcon ? `url('${channelIcon}')` : 'none';
+                modal.querySelector('.detail-title').textContent = channelId;
+                modal.querySelector('.detail-time').textContent = "Emisión en directo";
+                modal.querySelector('.detail-desc').textContent = "No hay información de programación disponible en este momento.";
+                modal.querySelector('.detail-channel-name').textContent = channelId;
+                modal.querySelector('.detail-badge').style.display = 'none';
+                modal.querySelector('.detail-progress-container').style.display = 'none';
+            }
             const playBtn = modal.querySelector('.detail-play-btn');            if (streamUrl) {
                 playBtn.onclick = async () => {
                     const video = document.getElementById('main-video-player');
