@@ -2134,26 +2134,38 @@ function renderCurrentView() {
                             });
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                             video.src = streamUrl;                            video.play().then(() => goFullscreenLandscape(video)).catch(() => triggerFallback('Fallo al reproducir'));
-                        }
-                    } else {
+                        }                    } else {
                         video.style.display = 'none';
                         video.pause();
                         video.src = '';
-                        iframe.style.display = 'block';                        iframe.src = streamUrl;
+                        iframe.style.display = 'block';
+                        iframe.src = streamUrl;
                         goFullscreenLandscape(iframe);
                         
-                        // Fallback temporizado: si tras 3.5s no interactúa, ofrecemos salida por si hay pantalla blanca
+                        // Mejora: Detección proactiva de bloqueos de iFrame (X-Frame-Options)
                         if(fallback) {
-                            fallback.style.display = 'none';
-                            if (!isNtv) {
-                                setTimeout(() => {
-                                    if (iframe.style.display === 'block') {
-                                        fallback.style.display = 'flex';
-                                        fallback.style.background = 'rgba(0,0,0,0.4)';
-                                        extLink.href = streamUrl;
-                                        extLink.innerHTML = `<span class="material-icons">open_in_new</span> ¿No carga? Abrir en navegador`;
-                                    }
-                                }, 3500);
+                            const urlLower = streamUrl.toLowerCase();
+                            const knownBlocked = ['mediaset', 'atresplayer', 'rtve', 'telecinco', 'cuatro'];
+                            const isProhibited = knownBlocked.some(site => urlLower.includes(site));
+
+                            if (isProhibited) {
+                                // Si sabemos que va a fallar, mostramos el aviso inmediatamente
+                                fallback.style.display = 'flex';
+                                fallback.style.background = 'rgba(0,0,0,0.95)';
+                                extLink.href = streamUrl;
+                                extLink.innerHTML = `<span class="material-icons">open_in_new</span> Web protegida: Abrir Externamente`;
+                            } else {
+                                fallback.style.display = 'none';
+                                if (!isNtv) {
+                                    setTimeout(() => {
+                                        if (iframe.style.display === 'block') {
+                                            fallback.style.display = 'flex';
+                                            fallback.style.background = 'rgba(0,0,0,0.5)';
+                                            extLink.href = streamUrl;
+                                            extLink.innerHTML = `<span class="material-icons">open_in_new</span> ¿Pantalla negra? Abrir fuera`;
+                                        }
+                                    }, 2500);
+                                }
                             }
                         }
                     }
