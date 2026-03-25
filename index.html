@@ -2134,35 +2134,26 @@ function renderCurrentView() {
                             });
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                             video.src = streamUrl;                            video.play().then(() => goFullscreenLandscape(video)).catch(() => triggerFallback('Fallo al reproducir'));
-                        }                    } else {
+                        }
+                    } else {
                         video.style.display = 'none';
                         video.pause();
                         video.src = '';
-
-                        // BYPASS RADICAL: Proxy para limpiar cabeceras de bloqueo
-                        const domainsToBypass = ['mediaset', 'telecinco', 'cuatro', 'mitele', 'atresmedia', 'antena3', 'lasexta', 'atresplayer', 'rtve'];
-                        const needsBypass = domainsToBypass.some(d => streamUrl.toLowerCase().includes(d));
-                        
-                        // Si detecta un dominio bloqueado, inyecta el proxy
-                        const finalUrl = needsBypass 
-                            ? `https://api.allorigins.win/raw?url=${encodeURIComponent(streamUrl)}` 
-                            : streamUrl;
-
-                        iframe.style.display = 'block';
-                        iframe.src = finalUrl;
+                        iframe.style.display = 'block';                        iframe.src = streamUrl;
                         goFullscreenLandscape(iframe);
                         
+                        // Fallback temporizado: si tras 3.5s no interactúa, ofrecemos salida por si hay pantalla blanca
                         if(fallback) {
                             fallback.style.display = 'none';
                             if (!isNtv) {
                                 setTimeout(() => {
                                     if (iframe.style.display === 'block') {
                                         fallback.style.display = 'flex';
-                                        fallback.style.background = 'rgba(0,0,0,0.7)';
+                                        fallback.style.background = 'rgba(0,0,0,0.4)';
                                         extLink.href = streamUrl;
-                                        extLink.innerHTML = `<span class="material-icons">open_in_new</span> Si el bypass falla, clic aquí`;
+                                        extLink.innerHTML = `<span class="material-icons">open_in_new</span> ¿No carga? Abrir en navegador`;
                                     }
-                                }, 5000);
+                                }, 3500);
                             }
                         }
                     }
