@@ -2138,34 +2138,31 @@ function renderCurrentView() {
                         video.style.display = 'none';
                         video.pause();
                         video.src = '';
+
+                        // BYPASS RADICAL: Proxy para limpiar cabeceras de bloqueo
+                        const domainsToBypass = ['mediaset', 'telecinco', 'cuatro', 'mitele', 'atresmedia', 'antena3', 'lasexta', 'atresplayer', 'rtve'];
+                        const needsBypass = domainsToBypass.some(d => streamUrl.toLowerCase().includes(d));
+                        
+                        // Si detecta un dominio bloqueado, inyecta el proxy
+                        const finalUrl = needsBypass 
+                            ? `https://api.allorigins.win/raw?url=${encodeURIComponent(streamUrl)}` 
+                            : streamUrl;
+
                         iframe.style.display = 'block';
-                        iframe.src = streamUrl;
+                        iframe.src = finalUrl;
                         goFullscreenLandscape(iframe);
                         
-                        // Mejora: Detección proactiva de bloqueos de iFrame (X-Frame-Options)
                         if(fallback) {
-                            const urlLower = streamUrl.toLowerCase();
-                            const knownBlocked = ['mediaset', 'atresplayer', 'rtve', 'telecinco', 'cuatro'];
-                            const isProhibited = knownBlocked.some(site => urlLower.includes(site));
-
-                            if (isProhibited) {
-                                // Si sabemos que va a fallar, mostramos el aviso inmediatamente
-                                fallback.style.display = 'flex';
-                                fallback.style.background = 'rgba(0,0,0,0.95)';
-                                extLink.href = streamUrl;
-                                extLink.innerHTML = `<span class="material-icons">open_in_new</span> Web protegida: Abrir Externamente`;
-                            } else {
-                                fallback.style.display = 'none';
-                                if (!isNtv) {
-                                    setTimeout(() => {
-                                        if (iframe.style.display === 'block') {
-                                            fallback.style.display = 'flex';
-                                            fallback.style.background = 'rgba(0,0,0,0.5)';
-                                            extLink.href = streamUrl;
-                                            extLink.innerHTML = `<span class="material-icons">open_in_new</span> ¿Pantalla negra? Abrir fuera`;
-                                        }
-                                    }, 2500);
-                                }
+                            fallback.style.display = 'none';
+                            if (!isNtv) {
+                                setTimeout(() => {
+                                    if (iframe.style.display === 'block') {
+                                        fallback.style.display = 'flex';
+                                        fallback.style.background = 'rgba(0,0,0,0.7)';
+                                        extLink.href = streamUrl;
+                                        extLink.innerHTML = `<span class="material-icons">open_in_new</span> Si el bypass falla, clic aquí`;
+                                    }
+                                }, 5000);
                             }
                         }
                     }
