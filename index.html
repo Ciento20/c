@@ -2147,15 +2147,12 @@ function renderCurrentView() {
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
                 }
-            };
-
-            if (sources.length > 0) {
+            };            if (sources.length > 0) {
                 playBtn.onclick = async () => {
                     const streamUrl = sources[currentSourceIdx];
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');
 
-                    // Función para forzar pantalla completa y orientación horizontal
                     const goFullscreenLandscape = async (el) => {
                         try {
                             const requestFS = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
@@ -2167,67 +2164,32 @@ function renderCurrentView() {
                             }
                         } catch (err) { console.warn('Fullscreen error:', err); }
                     };
-                    const fallback = document.getElementById('web-fallback-msg');
-                    const extLink = document.getElementById('external-web-link');
 
-                    // RESET: Limpiamos mensajes de error y paramos streams anteriores antes de cargar el nuevo
-                    if (fallback) fallback.style.display = 'none';
                     if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
                     const isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');
-                    const isNtv = streamUrl.includes('ntv.cx');
-                    const triggerFallback = (msg) => {
-                        if(fallback && !isNtv) {
-                            fallback.style.display = 'flex';
-                            fallback.style.background = 'rgba(0,0,0,0.85)';
-                            extLink.href = streamUrl;
-                            extLink.innerHTML = `<span class="material-icons">open_in_new</span> ${msg}`;
-                        }
-                    };
 
                     if (isVideo) {
-                        if(fallback) fallback.style.display = 'none';
                         iframe.style.display = 'none';
-                        iframe.src = '';
                         video.style.display = 'block';
-                        
-                        video.onerror = () => triggerFallback('Error de señal. Abrir fuera');
-
                         if (Hls.isSupported()) {
                             const hls = new Hls();
                             hls.loadSource(streamUrl);
-                            hls.attachMedia(video);                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            hls.attachMedia(video);
+                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 goFullscreenLandscape(video);
                             });
-                            hls.on(Hls.Events.ERROR, (event, data) => {
-                                if (data.fatal) triggerFallback('Stream no compatible. Abrir fuera');
-                            });
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                            video.src = streamUrl;                            video.play().then(() => goFullscreenLandscape(video)).catch(() => triggerFallback('Fallo al reproducir'));
+                            video.src = streamUrl;
+                            video.play().then(() => goFullscreenLandscape(video));
                         }
                     } else {
                         video.style.display = 'none';
-                        video.pause();
-                        video.src = '';
-                        iframe.style.display = 'block';                        iframe.src = streamUrl;
+                        iframe.style.display = 'block';
+                        iframe.src = streamUrl;
                         goFullscreenLandscape(iframe);
-                        
-                        // Fallback temporizado: si tras 3.5s no interactúa, ofrecemos salida por si hay pantalla blanca
-                        if(fallback) {
-                            fallback.style.display = 'none';
-                            if (!isNtv) {
-                                setTimeout(() => {
-                                    if (iframe.style.display === 'block') {
-                                        fallback.style.display = 'flex';
-                                        fallback.style.background = 'rgba(0,0,0,0.4)';
-                                        extLink.href = streamUrl;
-                                        extLink.innerHTML = `<span class="material-icons">open_in_new</span> ¿No carga? Abrir en navegador`;
-                                    }
-                                }, 3500);
-                            }
-                        }
                     }
                 };
                 playBtn.style.background = 'var(--color-primary)';
@@ -2283,13 +2245,10 @@ function renderCurrentView() {
 
         function closeSportCategory() {
             document.getElementById('sport-category-view').style.display = 'none';
-        }
-
-        function closeProgramDetails() {
+        }        function closeProgramDetails() {
             const modal = document.getElementById('programDetailModal');
             const video = document.getElementById('main-video-player');
             const iframe = document.getElementById('main-web-player');
-            const fallback = document.getElementById('web-fallback-msg');
             
             video.pause();
             video.src = "";
@@ -2299,7 +2258,6 @@ function renderCurrentView() {
                 iframe.src = "";
                 iframe.style.display = 'none';
             }
-            if(fallback) fallback.style.display = 'none';
             
             modal.style.display = 'none';
         }
@@ -2720,13 +2678,6 @@ function renderCurrentView() {
             </button>            <div class="detail-bg">
                 <video id="main-video-player" controls style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
-                <div id="web-fallback-msg" style="display:none; position:absolute; inset:0; z-index:6; background:rgba(0,0,0,0.9); flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
-                    <span class="material-icons" style="font-size:3rem; color:var(--color-primary); margin-bottom:10px;">language</span>
-                    <p style="font-size:0.85rem; margin-bottom:15px; color:#ccc;">Esta web requiere acceso directo por seguridad.</p>
-                    <a id="external-web-link" target="_blank" style="background:#fff; color:#000; padding:10px 20px; border-radius:12px; text-decoration:none; font-weight:700; display:flex; align-items:center; gap:8px; font-size:0.9rem;">
-                        <span class="material-icons">open_in_new</span> Abrir Canal
-                    </a>
-                </div>
             </div>
             <div class="detail-body">
                 <div class="detail-title"></div>
