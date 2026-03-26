@@ -968,13 +968,40 @@
         .detail-progress-fill {
             height: 100%;
             background: #ff0000;
-        }
-
-        .detail-remaining {
+        }        .detail-remaining {
             text-align: right;
             font-size: 0.75rem;
             color: #aaa;
             margin-top: 8px;
+        }
+        /* Estilos para selector de fuentes Premium */
+        .source-selector {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+            scrollbar-width: none;
+        }
+        .source-pill {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #888;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .source-pill.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        .source-pill:hover:not(.active) {
+            background: rgba(255,255,255,0.15);
         }
     </style>
 </head>
@@ -1993,25 +2020,42 @@ function renderCurrentView() {
                 }
             }
             console.log("Streams vinculados:", Object.keys(channelStreams).length);
-        }
-
-        function matchStreamToChannel(streamName, streamUrl) {
+        }        function matchStreamToChannel(streamName, streamUrl) {
             const normalizedStream = normalizeName(streamName);
             if (!normalizedStream) return;
 
-            // Buscamos coincidencia en nuestra lista de canales visible
             for (const channelId of channelsList) {
                 const normalizedChannel = normalizeName(channelId);
-                // Coincidencia exacta de nombres normalizados o uno contenido en otro (con longitud mínima)
-                if (normalizedChannel === normalizedStream || 
-                   (normalizedChannel.length > 3 && normalizedStream.includes(normalizedChannel)) ||
-                   (normalizedStream.length > 3 && normalizedChannel.includes(normalizedStream))) {
-                    
-                    // Guardamos la primera URL válida encontrada
-                    if (!channelStreams[channelId]) {
-                        channelStreams[channelId] = streamUrl;
-                    }
+                
+                // 1. Coincidencia Exacta (Prioridad máxima)
+                if (normalizedChannel === normalizedStream) {
+                    addStreamToChannel(channelId, streamUrl);
+                    continue;
                 }
+
+                // 2. Control estricto de números (Evita que 'Liga 1' coincida con 'Liga 10' o 'Liga')
+                const streamNum = normalizedStream.match(/\d+$/);
+                const channelNum = normalizedChannel.match(/\d+$/);
+                const sNum = streamNum ? streamNum[0] : null;
+                const cNum = channelNum ? channelNum[0] : null;
+
+                // Si uno tiene número al final y el otro no, o son números distintos, no hay match
+                if (sNum !== cNum) continue;
+
+                // 3. Comparación de raíz (Solo si los números coinciden o ambos son nulos)
+                const isMatch = (normalizedChannel.startsWith(normalizedStream)) ||
+                                (normalizedStream.length > 4 && normalizedChannel.includes(normalizedStream));
+
+                if (isMatch) {
+                    addStreamToChannel(channelId, streamUrl);
+                }
+            }
+        }
+
+        function addStreamToChannel(channelId, url) {
+            if (!channelStreams[channelId]) channelStreams[channelId] = [];
+            if (!channelStreams[channelId].includes(url)) {
+                channelStreams[channelId].push(url);
             }
         }
 
@@ -2077,9 +2121,37 @@ function renderCurrentView() {
                 modal.querySelector('.detail-channel-name').textContent = channelId;
                 modal.querySelector('.detail-badge').style.display = 'none';
                 modal.querySelector('.detail-progress-container').style.display = 'none';
+            }            const playBtn = modal.querySelector('.detail-play-btn');
+            const sources = channelStreams[channelId] || [];
+            let currentSourceIdx = 0;
+
+            // Renderizar selector de señales
+            let selectorHtml = '';
+            if (sources.length > 1) {
+                selectorHtml = '<div class="source-selector">';
+                sources.forEach((_, i) => {
+                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeSource(${i}, '${channelId}')">Señal ${i + 1}</div>`;
+                });
+                selectorHtml += '</div>';
             }
-            const playBtn = modal.querySelector('.detail-play-btn');            if (streamUrl) {
+            
+            const metaContainer = modal.querySelector('.detail-meta');
+            const existingSelector = modal.querySelector('.source-selector');
+            if (existingSelector) existingSelector.remove();
+            metaContainer.insertAdjacentHTML('afterend', selectorHtml);
+
+            window.changeSource = (idx, cid) => {
+                currentSourceIdx = idx;
+                document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
+                // Si ya está reproduciendo, forzar el click para recargar
+                if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
+                    playBtn.click();
+                }
+            };
+
+            if (sources.length > 0) {
                 playBtn.onclick = async () => {
+                    const streamUrl = sources[currentSourceIdx];
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');
 
