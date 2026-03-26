@@ -10,18 +10,21 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
     <style>
         :root {
-            /* PALETA SIMPLIFICADA (Sistema de 3 niveles de gris + Marca) */
-            --bg-deep: #0f0f0f;      /* Fondo base (reemplaza #000, #0a0a0a, #111) */
-            --bg-surface: #1a1a1a;   /* Tarjetas y secciones (reemplaza #1e1e1e, #151515, #2b2b2b) */
-            --bg-ui: #2a2a2a;        /* Botones, inputs y bordes (reemplaza #333, #444, #2e2e2e) */
-            
-            --primary: #0881aa;      /* Color corporativo principal */
-            --accent: #00e5ff;       /* Color de énfasis y hover (reemplaza #00bcd4) */
-            
-            --text-main: #ffffff;    /* Texto principal */
-            --text-muted: #94a3b8;   /* Texto secundario (reemplaza #ccc, #999, #888) */
+            /* PALETA SIMPLIFICADA */
+            --bg-deep: #0f0f0f;
+            --bg-surface: #1a1a1a;
+            --bg-ui: #2a2a2a;
+            --primary: #0881aa;
+            --accent: #00e5ff;
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
 
-            /* Variables de compatibilidad para mantener el CSS funcionando */
+            /* Espaciado unificado */
+            --nav-height: 75px;
+            --section-gap: 24px;
+            --card-gap: 16px;
+
+            /* Compatibilidad */
             --color-bg-dark-start: var(--bg-surface);
             --color-bg-dark-end: var(--bg-deep);
             --color-primary: var(--primary);
@@ -31,13 +34,17 @@
             --color-bg-input-dark: var(--bg-ui);
             --color-bg-card-dark: var(--bg-surface);
             --color-bg-controls-dark: var(--bg-ui);
-        }        body {
+        }
+
+        body {
             font-family: 'Inter', sans-serif;
             color: var(--color-text-dark);
             background: linear-gradient(180deg, var(--color-bg-dark-start), var(--color-bg-dark-end));
-            padding: 16px 16px 80px 16px; /* Añadido padding inferior para la barra */
+            padding: 16px 16px var(--nav-height) 16px;
             transition: background-color 0.3s, color 0.3s;
             font-size: 0.9rem;
+            min-height: 100vh;
+            box-sizing: border-box;
         }
 
         h1 {
@@ -132,8 +139,9 @@
         #data-list {
             display: flex;
             flex-direction: column;
-            gap: 5px;
-            margin-top: 0;
+            gap: var(--card-gap);
+            margin-top: 8px;
+            padding-bottom: 20px; /* Margen extra para que el último elemento respire */
         }        .program-card {
             position: relative;
             background-color: #000 !important;
@@ -618,6 +626,8 @@
             width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            padding-bottom: 40px; /* Margen inferior para que la tabla no pegue con la nav */
+            margin-top: 10px;
         }
 
         @media (max-width: 768px) {
@@ -1006,7 +1016,7 @@
     </style>
 </head>
 
-<body>    <div id="modern-controls-container" style="display: none; background: var(--bg-surface); margin: -16px -16px 10px -16px; padding: 10px 0 0 0;">
+<body>    <div id="modern-controls-container" style="display: none; background: var(--bg-surface); margin: -16px -16px 20px -16px; padding: 12px 0 0 0; border-bottom: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
         <div style="display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 10px; padding: 0 16px;">
             <button onclick="toggleViewMode()" id="viewToggleBtn" style="position: absolute; left: 0; width: auto !important; margin: 0 !important; background: none; border: none; cursor: pointer; padding: 0; filter: none !important; color: var(--color-primary);">
                 <span class="material-icons" style="font-size: 1.8rem;">calendar_view_day</span>
@@ -2589,7 +2599,7 @@ function renderCurrentView() {
         <div id="highlights-carousel" class="poster-carousel"></div>
     </div>
 
-    <div id="home-view" style="display: none; padding-bottom: 80px; position: relative;">
+    <div id="home-view" style="display: none; padding-bottom: 40px; position: relative;">
         
         <div style="padding: 2px 16px 10px 16px; margin-top: -14px; display: flex; justify-content: flex-start; align-items: center;">
             <button onclick="switchMainView('settings')" style="background: var(--bg-ui); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 1.2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
@@ -2613,8 +2623,8 @@ function renderCurrentView() {
         </div>
 
         
-        <div style="padding: 20px 16px;">
-            <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: white;">Deportes</h3>
+        <div style="padding: var(--section-gap) 16px;">
+            <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: white;">Categorías</h3>
             <div style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
                     <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">⚽</div>
