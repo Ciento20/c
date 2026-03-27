@@ -1992,15 +1992,14 @@ function renderCurrentView() {
         document.addEventListener('DOMContentLoaded', setDateToCurrent);        fetchXML().then(() => {
             switchMainView('home');
             loadAllStreamSources(); // Cargar streams al inicio
-        });
-
-        function normalizeName(name) {
+        });        function normalizeName(name) {
             if (!name) return '';
-            return name.toLowerCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar acentos
-                .replace(/\b(hd|sd|geo|espana|tv|24h|uhd|directo)\b/g, '') // Quitar descriptores comunes
-                .replace(/[^a-z0-9]/g, '') // Solo alfanuméricos
-                .trim();
+            let n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // Eliminación más agresiva de etiquetas comunes (incluso si no hay espacio: F1HD)
+            n = n.replace(/(hd|sd|geo|espana|es|plus|\+|premium|uhd|directo|tv|24h|1080p|720p)/g, '');
+            // Solo caracteres alfanuméricos
+            n = n.replace(/[^a-z0-9]/g, '');
+            return n.trim();
         }
 
         async function loadAllStreamSources() {
@@ -2037,24 +2036,23 @@ function renderCurrentView() {
             for (const channelId of channelsList) {
                 const normalizedChannel = normalizeName(channelId);
                 
-                // 1. Coincidencia Exacta (Prioridad máxima)
+                // 1. Coincidencia Exacta
                 if (normalizedChannel === normalizedStream) {
                     addStreamToChannel(channelId, streamUrl);
                     continue;
                 }
 
-                // 2. Control estricto de números (Evita que 'Liga 1' coincida con 'Liga 10' o 'Liga')
-                const streamNum = normalizedStream.match(/\d+$/);
-                const channelNum = normalizedChannel.match(/\d+$/);
-                const sNum = streamNum ? streamNum[0] : null;
-                const cNum = channelNum ? channelNum[0] : null;
+                // 2. Validación de Identidad Numérica
+                // Extraemos todos los números para asegurar que 'DAZN F1' no coincida con 'DAZN F2'
+                const sNums = normalizedStream.match(/\d+/g)?.join('') || '';
+                const cNums = normalizedChannel.match(/\d+/g)?.join('') || '';
 
-                // Si uno tiene número al final y el otro no, o son números distintos, no hay match
-                if (sNum !== cNum) continue;
+                if (sNums !== cNums) continue;
 
-                // 3. Comparación de raíz (Solo si los números coinciden o ambos son nulos)
-                const isMatch = (normalizedChannel.startsWith(normalizedStream)) ||
-                                (normalizedStream.length > 4 && normalizedChannel.includes(normalizedStream));
+                // 3. Coincidencia Parcial Bidireccional
+                // Si una cadena contiene a la otra y los números coinciden, es un match válido
+                const isMatch = (normalizedChannel.includes(normalizedStream)) ||
+                                (normalizedStream.includes(normalizedChannel));
 
                 if (isMatch) {
                     addStreamToChannel(channelId, streamUrl);
