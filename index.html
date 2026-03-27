@@ -2000,29 +2000,45 @@ function renderCurrentView() {
             // Solo caracteres alfanuméricos
             n = n.replace(/[^a-z0-9]/g, '');
             return n.trim();
-        }
-
-        async function loadAllStreamSources() {
+        }        async function loadAllStreamSources() {
             channelStreams = {};
             for (const url of streamSources) {
                 try {
                     const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
                     const response = await fetch(cleanUrl);
-                    const data = await response.json();
+                    const text = await response.text();
                     
-                    // Procesar formato TDTChannels (groups -> stations)
-                    if (data.groups) {
-                        data.groups.forEach(group => {
-                            group.stations.forEach(station => {
-                                matchStreamToChannel(station.name, station.url);
+                    try {
+                        const data = JSON.parse(text);
+                        if (data.groups) {
+                            data.groups.forEach(group => {
+                                group.stations.forEach(station => {
+                                    matchStreamToChannel(station.name, station.url);
+                                });
                             });
-                        });
-                    } 
-                    // Procesar formato array simple o directo
-                    else if (Array.isArray(data)) {
-                        data.forEach(item => {
-                            matchStreamToChannel(item.name || item.title, item.url);
-                        });
+                        } 
+                        else if (Array.isArray(data)) {
+                            data.forEach(item => {
+                                const finalUrl = item.hash ? `acestream://${item.hash}` : (item.url || item.link);
+                                const finalName = item.title || item.name || item.tvg_id;
+                                if (finalUrl && finalName) matchStreamToChannel(finalName, finalUrl);
+                            });
+                        }
+                    } catch (jsonErr) {
+                        // Soporte para formato M3U (Acestream y HTTP)
+                        if (text.includes('#EXTINF')) {
+                            const lines = text.split('\n');
+                            let currentName = '';
+                            lines.forEach(line => {
+                                if (line.startsWith('#EXTINF')) {
+                                    const idMatch = line.match(/tvg-id="([^"]+)"/);
+                                    const commaMatch = line.match(/,(.+)$/);
+                                    currentName = idMatch ? idMatch[1] : (commaMatch ? commaMatch[1] : '');
+                                } else if (line.trim().length > 0 && !line.startsWith('#')) {
+                                    if (currentName) matchStreamToChannel(currentName.trim(), line.trim());
+                                }
+                            });
+                        }
                     }
                 } catch (e) {
                     console.error("Error cargando fuente:", url, e);
@@ -2171,10 +2187,14 @@ function renderCurrentView() {
                                 }
                             }
                         } catch (err) { console.warn('Fullscreen error:', err); }
-                    };
-
-                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
+                    };                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+
+                    // Abrir enlaces Acestream en aplicación externa
+                    if (streamUrl.startsWith('acestream://')) {
+                        window.location.href = streamUrl;
+                        return;
+                    }
 
                     const isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');
 
