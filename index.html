@@ -169,7 +169,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.5); /* Oscuridad uniforme para legibilidad */
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.95) 100%); /* Oscuridad máxima incrementada para un contraste premium */
             z-index: 1;
             pointer-events: none;
         }
@@ -718,16 +718,35 @@
     </style>
 
     <style>        .channel-tab { min-width: 52px; height: 48px; display: flex; align-items: center; justify-content: center; background: #2a2a2a; border-radius: 6px; color: #fff; font-size: 0.70em; font-weight: bold; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; overflow: hidden; flex-shrink: 0; }
+        .channel-tab:first-child { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-radius: 6px; min-width: 52px; box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.7); margin-right: 15px; }
+        .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -15px; width: 15px; height: 100%; background: var(--bg-surface); pointer-events: none; }
         .channel-tab img { max-width: 50px; max-height: 40px; object-fit: contain; }
         .channel-tab.active { border-color: var(--color-primary) !important; }
-        .date-tab { color: #888; font-size: 1.1em; font-weight: 600; cursor: pointer; padding-bottom: 5px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex-shrink: 0; }
-        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
-        #channel-tabs::-webkit-scrollbar, #date-tabs::-webkit-scrollbar { display: none; }
+        .date-tab { color: #888; font-size: 1.1em; font-weight: 600; cursor: pointer; padding-bottom: 5px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex-shrink: 0; }        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+        #channel-tabs::-webkit-scrollbar, #date-tabs::-webkit-scrollbar, #hour-tabs::-webkit-scrollbar { display: none; }
         
+        /* Fix "Todo el día" button sticky behavior */
+        #hour-tabs .date-tab:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            background: var(--bg-surface);
+            box-shadow: -20px 0 0 var(--bg-surface), 15px 0 0 var(--bg-surface), 25px 0 15px -10px rgba(0,0,0,0.7);
+            margin-right: 10px;
+        }
+
         body.light-mode #modern-controls-container { background: #f4f4f4 !important; }
+        
+        body.light-mode #hour-tabs .date-tab:first-child {
+            background: #fff;
+            box-shadow: -20px 0 0 #fff, 15px 0 0 #fff, 25px 0 15px -10px rgba(0,0,0,0.2);
+            margin-right: 10px;
+        }
         body.light-mode #date-tabs { background: #e6e6e6 !important; border-bottom-color: #ccc !important; }
         body.light-mode #channel-tabs { border-bottom-color: #ccc !important; }
         body.light-mode .channel-tab { background: #fff; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        body.light-mode .channel-tab:first-child { background: #f4f4f4; box-shadow: -20px 0 0 #f4f4f4, 10px 0 15px -10px rgba(0,0,0,0.2); margin-right: 15px; position: relative; }
+        body.light-mode .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -15px; width: 15px; height: 100%; background: #f4f4f4; pointer-events: none; }
         body.light-mode #currentChannelLabel { color: #333 !important; }
 
         /* Estilos Vista Categoría (Estilo Móvil Premium) */
@@ -977,7 +996,8 @@
 
         .detail-progress-fill {
             height: 100%;
-            background: #ff0000;
+            background: var(--color-primary);
+            box-shadow: 0 0 10px var(--color-primary);
         }        .detail-remaining {
             text-align: right;
             font-size: 0.75rem;
@@ -1578,14 +1598,36 @@
             renderTable(true);
         }        function processColoredText(text) {
             if (!text) return '';
-            const regex = /\[COLOR\s*(\w+)\](.*?)\[\/COLOR\]/g;
+            // Añadimos 'i' para que no distinga mayúsculas de minúsculas en las etiquetas
+            const regex = /\[COLOR\s*(\w+)\](.*?)\[\/COLOR\]/gi;
             let firstMatch = true;
+            let lastWasSeason = false;
             
             return text.replace(regex, (match, colorName, content) => {
-                // Insertamos un salto de línea antes del primer elemento coloreado (T25/26, Liga, etc)
                 const breakLine = firstMatch ? '<br>' : '';
                 firstMatch = false;
-                return `${breakLine}<span style="color: ${colorName}; font-size: 0.9em; font-weight: 500;">${content}</span>`;
+                
+                let finalColor = colorName;
+                let extraStyle = '';
+                const contentTrim = content.trim();
+                
+                // Identificamos si es una temporada independientemente del nombre del color (Ej: T1, T2026, T1E2)
+                if (/^T\d+/i.test(contentTrim)) {
+                    finalColor = 'var(--primary)';
+                    lastWasSeason = true;
+                } 
+                // Si es el texto que va justo después de la temporada (letras amarillas/naranjas)
+                else if (lastWasSeason) {
+                    finalColor = 'var(--primary)';
+                    extraStyle = ' text-shadow: 1px 1px 3px rgba(0,0,0,0.8); filter: brightness(0.85);';
+                    lastWasSeason = false;
+                } 
+                // Resto de colores se mantienen sin alterar
+                else {
+                    lastWasSeason = false;
+                }
+                
+                return `${breakLine}<span style="color: ${finalColor}; font-size: 0.9em; font-weight: 500;${extraStyle}">${content}</span>`;
             });
         }
 
@@ -1903,13 +1945,17 @@ function renderCurrentView() {
                 <img src="${item.channelIcon}" style="height: 22px; width: auto; max-width: 65px; display: block; object-fit: contain;">
             </div>` : ''}
 
-          <div style="position: relative; z-index: 2; margin-bottom: 15px; padding-right: 80px;">                <div class="title" style="font-size: 0.88rem; color: var(--color-primary); font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;">${processColoredText(item.title)}</div>
+          <div style="position: relative; z-index: 2; margin-bottom: 15px; padding-right: 80px;">                <div class="title" style="font-size: 0.88rem; color: #ffffff; font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;">${processColoredText(item.title)}</div>
             </div>
           
-            <div style="display: flex; gap: 20px; position: relative; z-index: 2; align-items: flex-start; flex-grow: 1;">                <div style="position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 15px rgba(0,0,0,0.8); border: none;
-            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7);">
+            <div style="display: flex; gap: 20px; position: relative; z-index: 2; align-items: stretch; flex-grow: 1; height: 100%;">
+                
+                <div style="align-self: flex-start; position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7);">
                     ${item.iconSrc ? `<img src="${item.iconSrc}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
-                </div>                <div style="display: flex; flex-direction: column; gap: 6px; align-self: flex-end; flex-grow: 1; margin-bottom: 5px;">
+                </div>
+                
+                
+                <div style="display: flex; flex-direction: column; justify-content: flex-end; flex-grow: 1; margin-bottom: -10px; padding-bottom: 0;">
                     <div style="font-size: 0.92rem; font-weight: 700; color: #fff;">
                         ${item.start} - ${item.stop} <span style="color: #999; font-size: 0.72rem; font-weight: 400; margin-left: 8px;">(${item.duration})</span>
                     </div>
@@ -1922,14 +1968,14 @@ function renderCurrentView() {
                                 // Separamos la categoría del resto de metadata (año, calificación, etc) en el primer |
                                 category = category.replace('|', '<br>|');
                                 return `<span style="color: #a29bfe; font-size: 0.8rem; font-weight: 500; line-height: 1.3;">${category}</span>
-                                    <div class="details-btn" onclick="event.stopPropagation(); openProgramDetails('${item.channel}', '${item.start}', '${item.date}', false)" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: 5px; position: relative; z-index: 10;">
+                                    <div class="details-btn" onclick="event.stopPropagation(); openProgramDetails('${item.channel}', '${item.start}', '${item.date}', false)" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
                                         <span class="material-icons" style="font-size: 1.4rem;">more_vert</span>
                                     </div>`;
                             }
                             // Si no hay ·, procesamos el texto morado completo para separar por el primer |
                             const formattedDesc = fullDesc.replace('|', '<br>|');
                             return `<span style="color: #a29bfe; font-size: 0.8rem; line-height: 1.3;">${formattedDesc}</span>
-                                    <div class="details-btn" onclick="event.stopPropagation(); openProgramDetails('${item.channel}', '${item.start}', '${item.date}', false)" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: 5px; position: relative; z-index: 10;">
+                                    <div class="details-btn" onclick="event.stopPropagation(); openProgramDetails('${item.channel}', '${item.start}', '${item.date}', false)" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
                                         <span class="material-icons" style="font-size: 1.4rem;">more_vert</span>
                                     </div>`;
                         })()}
