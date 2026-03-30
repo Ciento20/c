@@ -2656,8 +2656,14 @@ function renderCurrentView() {
                             <h2 style="margin:0; color: #fff; font-size: 1.5rem; font-weight: 800; display: flex; align-items: center; gap: 12px;"><span class="material-icons-round" style="color:var(--primary); font-size: 1.8rem;">tune</span> Canales</h2>
                             <p style="margin: 4px 0 0 0; color: #666; font-size: 0.75rem; font-weight: 500;">Personaliza tu parrilla de televisión</p>
                         </div>
-                        <button onclick="closeChannelSelector()" style="background: var(--primary); color: #000; border: none; padding: 12px 24px; border-radius: 14px; cursor: pointer; font-weight: 800; font-size: 0.9rem; box-shadow: 0 8px 20px rgba(88, 166, 255, 0.2); transition: all 0.2s;">GUARDAR</button>
+                        <button onclick="closeChannelSelector()" style="background: var(--primary); color: #000; border: none; padding: 6px 12px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.7rem; box-shadow: 0 4px 12px rgba(88, 166, 255, 0.2); transition: all 0.2s; width: auto !important; margin: 0 !important;">GUARDAR</button>
                     </div>
+                    
+                    <div style="position: relative; margin: 5px 0;">
+                        <span class="material-icons-round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #666; font-size: 1.2rem;">search</span>
+                        <input type="text" id="selectorSearchInput" placeholder="Buscar canal..." oninput="renderChannelSelectorGrid()" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 15px 12px 42px; color: white; font-size: 0.85rem; outline: none; transition: border-color 0.2s; box-sizing: border-box;">
+                    </div>
+
                     <div style="display:flex; background: rgba(255,255,255,0.03); padding: 5px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
                         <button onclick="setSelectorMode(false)" id="btnModeSelect" style="flex: 1; background: var(--primary); color: #000; border: none; padding: 8px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size:0.75rem; transition: all 0.3s;">SELECCIÓN</button>
                         <button onclick="setSelectorMode(true)" id="btnModeOrder" style="flex: 1; background: transparent; color: #888; border: none; padding: 8px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size:0.75rem; transition: all 0.3s;">ORDENACIÓN</button>
@@ -2676,12 +2682,10 @@ function renderCurrentView() {
                     { name: 'Deportes', icon: 'sports_soccer', match: (ch) => /liga|campeones|dazn|eurosport|gol|teledeporte|real madrid|barça|f1/i.test(ch) },
                     { name: 'España', icon: 'flag', match: (ch) => /la 1|la 2|antena 3|cuatro|telecinco|la sexta|m\+ /i.test(ch) },
                     { name: 'Cine', icon: 'movie', match: (ch) => /cine|accion|drama|comedia|terror|thriller/i.test(ch) }
-                ];
-                
-                presets.forEach(p => {
+                ];                presets.forEach(p => {
                     const btn = document.createElement('button');
-                    btn.innerHTML = `<span class="material-icons-round" style="font-size:1rem;">${p.icon}</span> ${p.name}`;
-                    btn.style.cssText = 'background: #1c1c1e; color: #ccc; border: 1px solid rgba(255,255,255,0.05); padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.75rem; font-weight: 600; transition: all 0.2s; flex-shrink: 0; white-space: nowrap; display: flex; align-items: center; gap: 6px;';
+                    btn.innerHTML = `<span class="material-icons-round" style="font-size:0.9rem;">${p.icon}</span> ${p.name}`;
+                    btn.style.cssText = 'background: #1c1c1e; color: #ccc; border: 1px solid rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 0.72rem; font-weight: 600; transition: all 0.2s; flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; width: auto;';
                     btn.onclick = () => { applyChannelPreset(p.match); btn.style.background = 'var(--primary)'; btn.style.color = '#000'; setTimeout(() => { btn.style.background = '#1c1c1e'; btn.style.color = '#ccc'; }, 300); };
                     presetsDiv.appendChild(btn);
                 });
@@ -2699,11 +2703,10 @@ function renderCurrentView() {
             
             renderChannelSelectorGrid();
             modal.style.display = 'flex';
-        }
-
-        function renderChannelSelectorGrid() {
+        }        function renderChannelSelectorGrid() {
             const grid = document.getElementById('channelSelectorGrid');
             grid.innerHTML = '';
+            const searchTerm = document.getElementById('selectorSearchInput')?.value.toLowerCase() || '';
             
             if (isSortingMode) {
                 grid.style.display = 'flex';
@@ -2713,6 +2716,7 @@ function renderCurrentView() {
                 let visualIdx = 1;
                 channelsList.forEach((channelId, index) => {
                     if (!userSelectedChannels.has(channelId)) return;
+                    if (searchTerm && !channelId.toLowerCase().includes(searchTerm)) return;
                     
                     const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || '';
                     const card = document.createElement('div');
@@ -2735,9 +2739,8 @@ function renderCurrentView() {
             } else {
                 grid.style.display = 'grid';
                 grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(100px, 1fr))';
-                grid.style.gap = '12px';
-                
-                channelsList.forEach(channelId => {
+                grid.style.gap = '12px';                channelsList.forEach(channelId => {
+                    if (searchTerm && !channelId.toLowerCase().includes(searchTerm)) return;
                     const isSelected = userSelectedChannels.has(channelId);
                     const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || '';
                     const card = document.createElement('div');
