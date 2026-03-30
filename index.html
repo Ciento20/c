@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <title>🗓️</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Round" rel="stylesheet" />
     <style>
         :root {
             /* PALETA SIMPLIFICADA */
@@ -140,7 +140,7 @@
             display: flex;
             flex-direction: column;
             gap: var(--card-gap);
-            margin-top: 8px;
+            margin-top: 0px;
             padding-bottom: 20px; /* Margen extra para que el último elemento respire */
         }        .program-card {
             position: relative;
@@ -156,7 +156,7 @@
             box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7);
             width: calc(100% - 30px);
             max-width: 480px;
-            margin: 12px auto;
+            margin: 6px auto;
             background-size: 100% 100%; /* Ajuste exacto a las dimensiones del contenedor */
             background-position: center;
             background-repeat: no-repeat;
@@ -718,8 +718,8 @@
     </style>
 
     <style>        .channel-tab { min-width: 52px; height: 48px; display: flex; align-items: center; justify-content: center; background: #2a2a2a; border-radius: 6px; color: #fff; font-size: 0.70em; font-weight: bold; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; overflow: hidden; flex-shrink: 0; }
-        .channel-tab:first-child { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-radius: 6px; min-width: 52px; box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.7); margin-right: 15px; }
-        .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -15px; width: 15px; height: 100%; background: var(--bg-surface); pointer-events: none; }
+        .channel-tab:first-child { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-radius: 6px; min-width: 52px; box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.7); margin-right: 6px; } 
+        .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -6px; width: 6px; height: 100%; background: var(--bg-surface); pointer-events: none; }
         .channel-tab img { max-width: 50px; max-height: 40px; object-fit: contain; }
         .channel-tab.active { border-color: var(--color-primary) !important; }
         .date-tab { color: #888; font-size: 1.1em; font-weight: 600; cursor: pointer; padding-bottom: 5px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex-shrink: 0; }        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
@@ -745,8 +745,8 @@
         body.light-mode #date-tabs { background: #e6e6e6 !important; border-bottom-color: #ccc !important; }
         body.light-mode #channel-tabs { border-bottom-color: #ccc !important; }
         body.light-mode .channel-tab { background: #fff; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        body.light-mode .channel-tab:first-child { background: #f4f4f4; box-shadow: -20px 0 0 #f4f4f4, 10px 0 15px -10px rgba(0,0,0,0.2); margin-right: 15px; position: relative; }
-        body.light-mode .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -15px; width: 15px; height: 100%; background: #f4f4f4; pointer-events: none; }
+        body.light-mode .channel-tab:first-child { background: #f4f4f4; box-shadow: -20px 0 0 #f4f4f4, 10px 0 15px -10px rgba(0,0,0,0.2); margin-right: 6px; position: relative; }
+        body.light-mode .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -6px; width: 6px; height: 100%; background: #f4f4f4; pointer-events: none; }
         body.light-mode #currentChannelLabel { color: #333 !important; }
 
         /* Estilos Vista Categoría (Estilo Móvil Premium) */
@@ -815,6 +815,35 @@
             z-index: 2;
         }
 
+        /* Estilos Menú Contextual Quick Actions */
+        .quick-menu {
+            position: fixed;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 8px 0;
+            z-index: 10000;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            min-width: 160px;
+        }
+        .quick-menu-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .quick-menu-item:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .quick-menu-item i {
+            font-size: 1.1rem;
+            color: var(--color-primary);
+        }
         /* Estilos Barra Inferior */
         .bottom-nav {
             position: fixed;
@@ -950,10 +979,8 @@
             font-size: 0.9rem;
             color: #ccc;
             line-height: 1.5;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            /* Eliminadas restricciones para mostrar texto completo */
+            display: block;
         }
 
         .detail-meta {
@@ -1036,10 +1063,10 @@
     </style>
 </head>
 
-<body>    <div id="modern-controls-container" style="display: none; background: var(--bg-surface); margin: -16px -16px 20px -16px; padding: 12px 0 0 0; border-bottom: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+<body>    <div id="modern-controls-container" style="display: none; background: var(--bg-surface); margin: -16px -16px 0px -16px; padding: 12px 0 0 0; border-bottom: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100;">
         <div style="display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 10px; padding: 0 16px;">
             <button onclick="toggleViewMode()" id="viewToggleBtn" style="position: absolute; left: 0; width: auto !important; margin: 0 !important; background: none; border: none; cursor: pointer; padding: 0; filter: none !important; color: var(--color-primary);">
-                <span class="material-icons" style="font-size: 1.8rem;">calendar_view_day</span>
+                <span class="material-icons-round" style="font-size: 1.8rem;">calendar_view_day</span>
             </button>
             <div id="currentChannelLabel" style="color: #fff; font-size: 1rem; font-weight: 600; min-height: 19px;">Todos los canales</div>
         </div>
@@ -1287,11 +1314,13 @@
                     remainingMinutes = diff > 0 ? `${diff} min restantes` : "Finalizando";
                 }
 
-                const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || '';                const row = document.createElement('div');
+                const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || '';                const favs = JSON.parse(localStorage.getItem('userFavs') || '[]');
+                const isFav = favs.includes(channelId);
+                const row = document.createElement('div');
                 row.className = 'channel-row-modern';
+                if(isFav) row.style.borderLeft = '4px solid var(--color-primary)';
                 row.style.cursor = 'pointer';
                 row.onclick = (e) => {
-                    // Si no se hace clic específicamente en el botón de opciones, se intenta reproducir
                     if (!e.target.closest('.more-options-btn')) {
                         openProgramDetails(channelId, null, null, true);
                     }
@@ -1309,7 +1338,7 @@
                             <div class="time-remaining-modern">${remainingMinutes}</div>
                         </div>
                     </div>
-                    <div class="more-options-btn" onclick="openProgramDetails('${channelId}')">
+                    <div class="more-options-btn" onclick="showQuickMenu(event, '${channelId}', '${title.replace(/'/g, "\'")}')">
                         <span class="material-icons">more_vert</span>
                     </div>
                 `;
@@ -1598,6 +1627,10 @@
             renderTable(true);
         }        function processColoredText(text) {
             if (!text) return '';
+
+            // Reemplazo de la palabra DIRECTO por icono Material Design (Rojo con sombra)
+            text = text.replace(/\bDIRECTO\b/g, '<span class="material-icons" style="color: #ff4757; font-size: 1.1rem; vertical-align: middle; margin-right: 4px; filter: drop-shadow(0 0 3px rgba(255, 71, 87, 0.6));">sensors</span>');
+
             // Añadimos 'i' para que no distinga mayúsculas de minúsculas en las etiquetas
             const regex = /\[COLOR\s*(\w+)\](.*?)\[\/COLOR\]/gi;
             let firstMatch = true;
@@ -1717,7 +1750,7 @@
             gridView = !gridView;
             document.getElementById('data-list').style.display = gridView ? 'none' : 'block';
             document.getElementById('grid-container').style.display = gridView ? 'block' : 'none';
-            document.getElementById('viewToggleBtn').innerHTML = gridView ? '<span class="material-icons" style="font-size: 1.8rem;">view_list</span>' : '<span class="material-icons" style="font-size: 1.8rem;">calendar_view_day</span>';
+            document.getElementById('viewToggleBtn').innerHTML = gridView ? '<span class="material-icons" style="font-size: 1.8rem;">view_list</span>' : '<span class="material-icons-round" style="font-size: 1.8rem;">calendar_view_day</span>';
             if (gridView) {
                 renderCurrentView();
             }
@@ -1968,14 +2001,14 @@ function renderCurrentView() {
                                 // Separamos la categoría del resto de metadata (año, calificación, etc) en el primer |
                                 category = category.replace('|', '<br>|');
                                 return `<span style="color: #a29bfe; font-size: 0.8rem; font-weight: 500; line-height: 1.3;">${category}</span>
-                                    <div class="details-btn" onclick="event.stopPropagation(); openProgramDetails('${item.channel}', '${item.start}', '${item.date}', false)" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
+                                    <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
                                         <span class="material-icons" style="font-size: 1.4rem;">more_vert</span>
                                     </div>`;
                             }
                             // Si no hay ·, procesamos el texto morado completo para separar por el primer |
                             const formattedDesc = fullDesc.replace('|', '<br>|');
                             return `<span style="color: #a29bfe; font-size: 0.8rem; line-height: 1.3;">${formattedDesc}</span>
-                                    <div class="details-btn" onclick="event.stopPropagation(); openProgramDetails('${item.channel}', '${item.start}', '${item.date}', false)" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
+                                    <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
                                         <span class="material-icons" style="font-size: 1.4rem;">more_vert</span>
                                     </div>`;
                         })()}
@@ -2319,7 +2352,51 @@ function renderCurrentView() {
 
         function closeSportCategory() {
             document.getElementById('sport-category-view').style.display = 'none';
-        }        function closeProgramDetails() {
+        }        function toggleFavorite(channelId) {
+            let favs = JSON.parse(localStorage.getItem('userFavs') || '[]');
+            if (favs.includes(channelId)) {
+                favs = favs.filter(f => f !== channelId);
+            } else {
+                favs.push(channelId);
+            }
+            localStorage.setItem('userFavs', JSON.stringify(favs));
+            renderCurrentView();
+        }
+
+        function shareEvent(title, channel) {
+            const text = `¡No te pierdas esto! \n📺 ${title}\n📍 En: ${channel}\n📅 Mira la guía aquí: ${window.location.href}`;
+            if (navigator.share) {
+                navigator.share({ title: 'Compartir Evento', text: text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text);
+                alert('Copiado al portapapeles');
+            }
+        }
+
+        function showQuickMenu(e, channelId, title = null, start = null, date = null) {
+            e.preventDefault();
+            e.stopPropagation();
+            const menu = document.getElementById('quickContextMenu');
+            const favs = JSON.parse(localStorage.getItem('userFavs') || '[]');
+            const isFav = favs.includes(channelId);
+            
+            document.getElementById('menu-fav-opt').innerHTML = `<i class="material-icons">${isFav ? 'star' : 'star_border'}</i> ${isFav ? 'Quitar Favorito' : 'Añadir Favorito'}`;
+            
+            document.getElementById('menu-play-opt').onclick = () => { menu.style.display = 'none'; openProgramDetails(channelId, start, date, true); };
+            document.getElementById('menu-fav-opt').onclick = () => { menu.style.display = 'none'; toggleFavorite(channelId); };
+            document.getElementById('menu-share-opt').onclick = () => { menu.style.display = 'none'; shareEvent(title || channelId, channelId); };
+
+            menu.style.display = 'block';
+            const menuWidth = 160;
+            const x = Math.min(e.clientX, window.innerWidth - menuWidth - 10);
+            menu.style.left = `${x}px`;
+            menu.style.top = `${e.clientY}px`;
+
+            const closeMenu = () => { menu.style.display = 'none'; document.removeEventListener('click', closeMenu); };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
+        }
+
+        function closeProgramDetails() {
             const modal = document.getElementById('programDetailModal');
             const video = document.getElementById('main-video-player');
             const iframe = document.getElementById('main-web-player');
@@ -2745,6 +2822,19 @@ function renderCurrentView() {
         </div>    </nav>
 
     
+    
+    <div id="quickContextMenu" class="quick-menu">
+        <div class="quick-menu-item" id="menu-play-opt">
+            <i class="material-icons">play_arrow</i> Ver Directo
+        </div>
+        <div class="quick-menu-item" id="menu-fav-opt">
+            <i class="material-icons">star_border</i> Favorito
+        </div>
+        <div class="quick-menu-item" id="menu-share-opt">
+            <i class="material-icons">share</i> Compartir
+        </div>
+    </div>
+
     <div id="programDetailModal" class="detail-overlay" onclick="if(event.target === this) closeProgramDetails()">
         <div class="detail-content">
             <button class="detail-close" onclick="closeProgramDetails()">
