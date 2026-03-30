@@ -1162,11 +1162,11 @@
     <div id="grid-container" style="margin-top: 0;"></div>
 
 
-    <div id='loader' style='display: none; text-align:center; margin-top:40px;'>
-        <div class='premium-loader'>
+    <div id="loader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 15, 15, 0.8); backdrop-filter: blur(4px); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <div class="premium-loader">
             <span></span><span></span><span></span><span></span><span></span>
         </div>
-        <p style='color:var(--color-primary); font-weight: 600; letter-spacing: 1px; font-size: 0.8rem; text-transform: uppercase;'>Sincronizando Guía...</p>
+        <p style="color:var(--color-primary); font-weight: 600; letter-spacing: 1px; font-size: 0.9rem; text-transform: uppercase; margin-top: 15px;">Sincronizando Guía...</p>
     </div>
 
     <div id="data-list"></div>
@@ -1228,28 +1228,26 @@
                 const fullDesc = (p.description || '').toLowerCase();
                 const categoryPart = fullDesc.split('·')[0].trim();
                 return categoryPart.includes('cine') || categoryPart.includes('película');
-            }).slice(0, 6);
-
-            cinemaProgs.forEach((prog, idx) => {
+            }).slice(0, 6);            cinemaProgs.forEach((prog, idx) => {
                 const slide = document.createElement('div');
                 slide.style.cssText = `min-width: 100%; height: 100%; scroll-snap-align: start; position: relative; cursor: pointer; background: url('${prog.iconSrc2 || prog.iconSrc}') center/cover no-repeat;`;
                 slide.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
                 
                 slide.innerHTML = `
-                    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, #1a1a1a 0.5%, transparent 5%), linear-gradient(0deg, #0f0f0f 5%, transparent 65%);"></div>
-                    <div style="position: absolute; bottom: 25px; left: 20px; z-index: 2; padding-right: 20px;">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                            <span style="background: var(--primary); color: white; font-size: 0.65rem; font-weight: 900; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;">Cine Destacado</span>
-                            <span style="color: #fff; font-size: 0.75rem; font-weight: 600; opacity: 0.8;">${prog.channel}</span>
+                    <div style="position: absolute; inset: 0; background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 25%, transparent 60%);"></div>
+                    <div style="position: absolute; bottom: 16px; left: 16px; right: 16px; z-index: 2; display: flex; flex-direction: column;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="background: var(--primary); color: white; font-size: 0.65rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Cine Destacado</span>
+                            <span style="color: #ddd; font-size: 0.75rem; font-weight: 600;">${prog.channel}</span>
                         </div>
-                        <div style="color: white; font-weight: 800; font-size: 1.5rem; line-height: 1.1; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">${processColoredText(prog.title)}</div>
-                        <div style="color: #ccc; font-size: 0.85rem;">Hoy a las ${prog.start} • ${prog.duration}</div>
+                        <div style="color: white; font-weight: 800; font-size: 1.4rem; line-height: 1.2; margin-bottom: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${processColoredText(prog.title)}</div>
+                        <div style="color: #bbb; font-size: 0.8rem; font-weight: 500;">Hoy a las ${prog.start} • ${prog.duration}</div>
                     </div>
                 `;
                 cinemaBanner.appendChild(slide);
 
                 const dot = document.createElement('div');
-                dot.style.cssText = `width: 6px; height: 6px; background: ${idx === 0 ? 'var(--primary)' : 'rgba(255,255,255,0.3)'}; border-radius: 50%; transition: 0.3s;`;
+                dot.style.cssText = `width: 6px; height: 6px; background: ${idx === 0 ? 'var(--primary)' : 'rgba(255,255,255,0.4)'}; border-radius: 50%; transition: all 0.3s ease;`;
                 cinemaDots.appendChild(dot);
             });
 
@@ -1292,7 +1290,7 @@
                 const stop = new Date(y, m - 1, d, sh, smin);
                 const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));                const card = document.createElement('div');
                 card.className = 'program-card';
-                card.style.cssText = 'min-width: 280px; width: 280px; flex-shrink: 0; margin: 0; background-size: 100% 100%; background-repeat: no-repeat; cursor: pointer;';
+                card.style.cssText = 'min-width: 260px; width: 260px; flex-shrink: 0; margin: 0; background-size: cover; background-position: center; background-repeat: no-repeat; cursor: pointer; padding: 0; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden;';
                 card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date, true);
                 
                 // Al igual que en eventos, priorizamos iconSrc2 para el fondo si existe
@@ -1300,17 +1298,16 @@
                 if (bgImage) card.style.backgroundImage = `url('${bgImage}')`;
 
                 card.innerHTML = `
-                    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: flex-end;">
-                        <div style="font-size: 0.95rem; color: #ffffff; font-weight: 700; line-height: 1.2; margin-bottom: 6px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;">${processColoredText(prog.title)}</div>
+                    <div style="position: absolute; inset: 0; background: linear-gradient(to top, #000000 0%, rgba(0,0,0,0.7) 40%, transparent 100%); z-index: 1; pointer-events: none;"></div>
+                    <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px;">
+                        <div style="font-size: 0.95rem; color: #ffffff; font-weight: 700; line-height: 1.3; margin-bottom: 8px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${processColoredText(prog.title)}</div>
                         
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <img src="${prog.channelIcon}" style="height: 14px; width: auto; max-width: 45px;">
-                                <span style="font-size: 0.8rem; color: #fff; font-weight: 700;">${prog.start} - ${prog.stop}</span>
-                            </div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                            <img src="${prog.channelIcon}" style="height: 16px; width: auto; max-width: 50px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">
+                            <span style="font-size: 0.8rem; color: #fff; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">${prog.start} - ${prog.stop}</span>
                         </div>
                         
-                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden;">
+                        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
                             <div style="width: ${progress}%; height: 100%; background: var(--color-primary); box-shadow: 0 0 8px var(--color-primary);"></div>
                         </div>
                     </div>
@@ -1426,7 +1423,7 @@
                 return;
             }
             
-            loader.style.display = 'block';
+            loader.style.display = 'flex';
 
             try {
                 const response = await fetch(url);
@@ -2167,8 +2164,131 @@ function renderCurrentView() {
                 }
             }
             console.log("Streams vinculados:", Object.keys(channelStreams).length);
-        }        function matchStreamToChannel(streamName, streamUrl) {
-            const normalizedStream = normalizeName(streamName);
+        }        const channelAliases = {
+            "DAZN1": "DAZN 1",
+            "DAZNLIGA": "DAZN LALIGA",
+            "DAZN LA LIGA 1": "DAZN LALIGA",
+            "DAZN LA LIGA 2": "DAZN LALIGA 2",
+            "NBA DAZN": "DAZN BALONCESTO",
+            "ACB 1": "DAZN BALONCESTO",
+            "DAZN ACB 1": "DAZN BALONCESTO",
+            "ACB EVENTO 01": "DAZN BALONCESTO",
+            "DAZN ACB 2": "DAZN BALONCESTO 2",
+            "ACB EVENTO 02": "DAZN BALONCESTO 2",
+            "ACB EVENTO 03": "DAZN BALONCESTO 3",
+            "F1": "DAZN F1",
+            "F1 2": "DAZN F1",
+            "F1 3": "DAZN F1",
+            "CAMPEONES": "M+ Liga de Campeones",
+            "LIGA DE CAMPEONES": "M+ Liga de Campeones",
+            "CAMPEONES 2": "M+ Liga de Campeones 2",
+            "LIGA DE CAMPEONES 2": "M+ Liga de Campeones 2",
+            "LIGA DE CAMPEONES 3": "M+ Liga de Campeones 3",
+            "LIGA DE CAMPEONES 4": "M+ Liga de Campeones 4",
+            "LIGA DE CAMPEONES 5": "M+ Liga de Campeones 5",
+            "LIGA DE CAMPEONES 6": "M+ Liga de Campeones 6",
+            "LIGA DE CAMPEONES 7": "M+ Liga de Campeones 7",
+            "LIGA DE CAMPEONES 8": "M+ Liga de Campeones 8",
+            "LIGA DE CAMPEONES 9": "M+ Liga de Campeones 9",
+            "LIGA DE CAMPEONES 10": "M+ Liga de Campeones 10",
+            "LIGA DE CAMPEONES 11": "M+ Liga de Campeones 11",
+            "LIGA DE CAMPEONES 12": "M+ Liga de Campeones 12",
+            "VAMOS1080": "MOVISTAR VAMOS",
+            "VAMOS720": "MOVISTAR VAMOS",
+            "M+ VAMOS": "MOVISTAR VAMOS",
+            "VAMOS 2": "M+ VAMOS 2",
+            "MOVISTAR ELLAS": "M+ VAMOS 3",
+            "M+ ELLAS VAMOS": "M+ VAMOS 3",
+            "LALIGA HYPERMOTION": "LALIGA TV HYPERMOTION",
+            "LALIGA TV HYPERMOTION720": "LALIGA TV HYPERMOTION",
+            "LALIGA TV HYPERMOTION1080": "LALIGA TV HYPERMOTION",
+            "HYPERMOTION": "LALIGA TV HYPERMOTION",
+            "LALIGA HYPERMOTION 2": "LALIGA TV HYPERMOTION 2",
+            "LALIGA TV HYPERMOTION21080": "LALIGA TV HYPERMOTION 2",
+            "HYPERMOTION 2": "LALIGA TV HYPERMOTION 2",
+            "LALIGA TV HYPERMOTION31080": "LALIGA TV HYPERMOTION 3",
+            "HYPERMOTION 3": "LALIGA TV HYPERMOTION 3",
+            "DEPORTE": "M+ DEPORTES",
+            "MOVISTAR DEPORTES": "M+ DEPORTES",
+            "M. DEPORTES": "M+ DEPORTES",
+            "DEPORTE2": "M+ DEPORTES 2",
+            "MOVISTAR DEPORTES 2": "M+ DEPORTES 2",
+            "DEPORTE3": "M+ DEPORTES 3",
+            "MOVISTAR DEPORTES 3": "M+ DEPORTES 3",
+            "DEPORTE4": "M+ DEPORTES 4",
+            "MOVISTAR DEPORTES 4": "M+ DEPORTES 4",
+            "DEPORTE5": "M+ DEPORTES 5",
+            "MOVISTAR DEPORTES 5": "M+ DEPORTES 5",
+            "DEPORTE 6": "M+ DEPORTES 6",
+            "MOVISTAR DEPORTES 6": "M+ DEPORTES 6",
+            "MOVISTAR DEPORTES 7": "M+ DEPORTES 7",
+            "MOVISTAR DEPORTES 8": "M+ DEPORTES 8",
+            "MOVISTARPLUS1080": "M+ PLUS",
+            "MOVISTAR 2": "M+ PLUS",
+            "MOVISTAR PLUS+ 2": "M+ PLUS",
+            "M+ PLUS 2": "M+ PLUS",
+            "MOVISTAR PLUS+": "M+ PLUS",
+            "MOVISTAR": "M+ PLUS",
+            "MOVISTAR GOLF": "M+ GOLF",
+            "MOVISTAR GOLF 2": "M+ GOLF 2",
+            "EUROSPORT1080": "Eurosport 1",
+            "EUROSPORT720": "Eurosport 1",
+            "EUROSPORT": "Eurosport 1",
+            "EUROSPORT21080": "Eurosport 2",
+            "EUROSPORT2720": "Eurosport 2",
+            "RFEF TV": "PRIMERA FEDERACIÓN",
+            "RFEFTV": "PRIMERA FEDERACIÓN",
+            "CANAL 1 1RFEF": "PRIMERA FEDERACIÓN",
+            "CANAL 2 1RFEF": "PRIMERA FEDERACIÓN",
+            "ESPORT 3": "ESPORT3",
+            "TEN": "TEN TV",
+            "GOL PLAY": "GOL",
+            "TENNIS CHANNEL - ORANGE TV": "TENNIS CHANNEL",
+            "RETROVISION MOTOR": "MOTORVISION",
+            "FOX SPORTS 1 (US)": "FOX SPORTS",
+            "FOX SPORTS 2 (US)": "FOX SPORTS 2",
+            "FOX SPORTS 2 ARG": "FOX SPORTS 3",
+            "ESPN [US]": "ESPN",
+            "ESPN2 [US]": "ESPN 2",
+            "ESPN ARGENTINA 3": "ESPN 3",
+            "ESPN ARGENTINA": "ESPN 4",
+            "FOX SPORTS 2 COL": "ESPN 5",
+            "ESPN 2 MX": "ESPN 6",
+            "FUTBOL FEMENINO": "ESPN DEPORTES",
+            "NBA EVENTOS 1": "NBA ESPN",
+            "NBA EVENTOS 2": "NBA ON NBC",
+            "MOVISTAR ACCION": "M+ Accion",
+            "MOVISTAR COMEDIA": "M+ Comedia",
+            "M+ ORIGINALES SPAIN": "M+ ORIGINALES",
+            "M+ INDIE SPAIN": "M+ INDIE",
+            "M+ HITS SPAIN": "M+ HITS",
+            "M+ DRAMA SPAIN": "M+ DRAMA",
+            "M+ DOCUMENTALES SPAIN": "M+ DOCUMENTALES",
+            "M+ CINE ESPANOL SPAIN": "M+ CINE ESPANOL",
+            "M+ ROMANCE SPAIN": "M+ ROMANCE",
+            "M+ TERROR SPAIN": "M+ TERROR",
+            "M+ WESTERN SPAIN": "M+ WESTERN",
+            "SKY SPORTS ARENA": "UK | Sky Sports Tennis",
+            "SKY SPORTS CRICKET": "UK | Sky Sports Cricket",
+            "SKY SPORTS FOOTBALL": "UK | Sky Sports Football",
+            "SKY SPORTS MAIN EVENT": "UK | Sky Sports Main Event",
+            "CALCIO EVENTOS": "UK | Sky Sports Premier League",
+            "SKY SPORTS LALIGA": "UK | Sky Sports Mix",
+            "SKYSP PL (UK)": "UK | Sky Sports Mix",
+            "SKY SPORT MOTOGP": "UK | Sky Sports Racing",
+            "BT SPORT 1 [UK]": "TNT SPORTS 1",
+            "BT SPORT 2 [UK]": "TNT SPORTS 2",
+            "BT SPORT 3 [UK]": "TNT SPORTS 3"
+        };
+
+        function matchStreamToChannel(streamName, streamUrl) {
+            // 1. Convertimos a mayúsculas y quitamos espacios extra para asegurar la compatibilidad con el diccionario
+            const rawUpper = (streamName || '').toUpperCase().trim();
+            const aliasedName = channelAliases[rawUpper];
+            const finalStreamName = aliasedName ? aliasedName : streamName;
+
+            // 2. Pasamos por la normalización estándar con el nombre ya corregido (si aplicaba)
+            const normalizedStream = normalizeName(finalStreamName);
             if (!normalizedStream) return;
 
             for (const channelId of channelsList) {
@@ -2887,37 +3007,31 @@ function renderCurrentView() {
 
         <div class="sport-section-title">Destacados</div>
         <div id="highlights-carousel" class="poster-carousel"></div>
-    </div>
-
-    <div id="home-view" style="display: none; padding-bottom: 40px; position: relative;">        <div style="padding: 2px 16px 10px 16px; margin-top: -14px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center;">
-                <button onclick="switchMainView('settings')" style="background: rgba(255, 255, 255, 0.08); border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--color-primary); transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-                    <span class="material-icons-round" style="font-size: 22px;">settings</span>
-                </button>
-                <span style="margin-left: 15px; font-weight: 700; font-size: 1.1rem; color: white;">Inicio</span>
-            </div>
-            <button onclick="openGlobalSearch()" style="background: rgba(255, 255, 255, 0.08); border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--accent); transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+    </div>    <div id="home-view" style="display: none; padding-bottom: 40px; position: relative;">
+        <div style="padding: 10px 16px 20px 16px; margin-top: -14px; display: flex; justify-content: space-between; align-items: center; position: relative;">
+            <button onclick="switchMainView('settings')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--color-primary); transition: all 0.2s ease; z-index: 2;">
+                <span class="material-icons-round" style="font-size: 22px;">settings</span>
+            </button>
+            <span style="position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; font-size: 1.25rem; color: white; letter-spacing: 0.3px;">Inicio</span>
+            <button onclick="openGlobalSearch()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--accent); transition: all 0.2s ease; z-index: 2;">
                 <span class="material-icons-round" style="font-size: 22px;">search</span>
             </button>
         </div>
 
-        <div id="cinema-banner-container" style="width: 100%; aspect-ratio: 16/9; position: relative; border-radius: 0 0 24px 24px; margin-bottom: 25px; overflow: hidden; background: #000; shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <div id="cinema-banner-container" style="width: calc(100% - 32px); margin: 0 16px 25px 16px; aspect-ratio: 16/9; position: relative; border-radius: 16px; overflow: hidden; background: #1a1a1a; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);">
             <div id="cinema-banner-carousel" style="display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; transition: all 0.5s ease;">
                 
             </div>
             
-            <div id="cinema-banner-dots" style="position: absolute; bottom: 15px; right: 20px; display: flex; gap: 6px; z-index: 10;"></div>
+            <div id="cinema-banner-dots" style="position: absolute; bottom: 16px; right: 16px; display: flex; gap: 6px; z-index: 10;"></div>
+        </div>        <div style="padding: 0 16px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Ahora en Deportes</h3>
+            <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 10px; margin: 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
         </div>
 
         
-        <div style="padding: 0 16px;">
-            <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: white;">Ahora en Deportes</h3>
-            <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 15px; scrollbar-width: none; padding-bottom: 10px;"></div>
-        </div>
-
-        
-        <div style="padding: var(--section-gap) 16px;">
-            <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: white;">Categorías</h3>
+        <div style="padding: 24px 16px 10px 16px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías</h3>
             <div style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
                     <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
@@ -3007,7 +3121,6 @@ function renderCurrentView() {
                     <div class="detail-meta" style="margin-top: 12px; display: flex; align-items: center; gap: 10px;">
                         <span id="detail-rating-badge" style="background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">TP</span>
                         <span class="detail-channel-name" style="font-size: 0.8rem; color: #aaa;"></span>
-                        <span style="color: #00e5ff; font-size: 0.75rem; margin-left: auto;">✓ Disponible</span>
                     </div>
                 </div>
                 
