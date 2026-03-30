@@ -909,11 +909,20 @@
             background: #121212;
             width: 100%;
             max-width: 420px;
+            max-height: 90vh;
             border-radius: 24px;
             overflow: hidden;
             position: relative;
             color: white;
+            display: flex;
+            flex-direction: column;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .detail-bg {
@@ -949,7 +958,41 @@
         }
 
         .detail-body {
-            padding: 20px 24px 30px 24px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .detail-header-fixed {
+            padding: 20px 24px 10px 24px;
+            flex-shrink: 0;
+            background: #121212;
+        }
+
+        .detail-scroll-content {
+            padding: 0 24px 20px 24px;
+            overflow-y: auto;
+            flex-grow: 1;
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-primary) transparent;
+        }
+
+        .detail-scroll-content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .detail-scroll-content::-webkit-scrollbar-thumb {
+            background: var(--color-primary);
+            border-radius: 10px;
+        }
+
+        .detail-footer-fixed {
+            padding: 15px 24px 30px 24px;
+            flex-shrink: 0;
+            background: #121212;
+            border-top: 1px solid rgba(255,255,255,0.05);
         }
 
         .detail-title {
@@ -1193,7 +1236,7 @@
                 slide.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
                 
                 slide.innerHTML = `
-                    <div style="position: absolute; inset: 0; background: linear-gradient(to top, #0f0f0f 5%, transparent 70%);"></div>
+                    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, #1a1a1a 0.5%, transparent 5%), linear-gradient(0deg, #0f0f0f 5%, transparent 65%);"></div>
                     <div style="position: absolute; bottom: 25px; left: 20px; z-index: 2; padding-right: 20px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                             <span style="background: var(--primary); color: white; font-size: 0.65rem; font-weight: 900; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;">Cine Destacado</span>
@@ -2203,10 +2246,32 @@ function renderCurrentView() {
                 const diff = Math.round((stop - now) / 60000);
                 const bgImg = prog.iconSrc2 || prog.iconSrc;
                 
-                modal.querySelector('.detail-bg').style.backgroundImage = `url('${bgImg}')`;
-                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
+                modal.querySelector('.detail-bg').style.backgroundImage = `url('${bgImg}')`;                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
                 modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
-                modal.querySelector('.detail-desc').innerHTML = processColoredText(prog.description);
+                
+                const rawDesc = processColoredText(prog.description);
+                const splitIndex = rawDesc.indexOf('·');
+                
+                if (splitIndex !== -1) {
+                    let metaInfo = rawDesc.substring(0, splitIndex).trim();
+                    const plotInfo = rawDesc.substring(splitIndex + 1).trim();
+                    
+                    // Extraer calificación de edad para el badge fijo
+                    const ratingMatch = metaInfo.match(/(\d{1,2}\+|⑫|⑦|⑱|TP|\(\d+\))/);
+                    const ratingBadge = document.getElementById('detail-rating-badge');
+                    if (ratingMatch && ratingBadge) {
+                        ratingBadge.textContent = ratingMatch[0].replace(/[()]/g, '');
+                    }
+
+                    // Colocar Metadatos en la zona fija
+                    document.getElementById('detail-metadata-fixed').innerHTML = metaInfo.replace(/\|/g, '<span style="margin: 0 5px; opacity: 0.3;">|</span>');
+                    // Colocar Trama en la zona de scroll
+                    modal.querySelector('.detail-desc').innerHTML = plotInfo;
+                } else {
+                    document.getElementById('detail-metadata-fixed').style.display = 'none';
+                    modal.querySelector('.detail-desc').innerHTML = rawDesc;
+                }
+                
                 modal.querySelector('.detail-channel-name').textContent = prog.channel;
                 modal.querySelector('.detail-progress-fill').style.width = `${progress}%`;
                 modal.querySelector('.detail-remaining').textContent = diff > 0 ? `${diff} min restantes` : 'Finalizando';
@@ -2743,8 +2808,8 @@ function renderCurrentView() {
     <div id="home-view" style="display: none; padding-bottom: 40px; position: relative;">
         
         <div style="padding: 2px 16px 10px 16px; margin-top: -14px; display: flex; justify-content: flex-start; align-items: center;">
-            <button onclick="switchMainView('settings')" style="background: var(--bg-ui); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 1.2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
-                ⚙️
+            <button onclick="switchMainView('settings')" style="background: rgba(255, 255, 255, 0.08); border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--color-primary); transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                <span class="material-icons-round" style="font-size: 22px;">settings</span>
             </button>
             <span style="margin-left: 15px; font-weight: 700; font-size: 1.1rem; color: white;">Inicio</span>
         </div>
@@ -2768,39 +2833,39 @@ function renderCurrentView() {
             <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: white;">Categorías</h3>
             <div style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">⚽</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Fútbol</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Baloncesto')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🏀</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #ff9800;">sports_basketball</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Basket</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Tenis')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🎾</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #cddc39;">sports_tennis</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Tenis</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Motor')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🏎️</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #f44336;">sports_motorsports</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Motor</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Ciclismo')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🚲</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #03a9f4;">directions_bike</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Ciclismo</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Golf')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">⛳</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #8bc34a;">sports_golf</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Golf</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Boxeo')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🥊</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #9e9e9e;">sports_mma</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Boxeo</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Balonmano')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🤾</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #e91e63;">sports_handball</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Balonmano</span>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Voleibol')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🏐</div>
+                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #ffeb3b;">sports_volleyball</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Voleibol</span>
                 </div>
             </div>
@@ -2842,28 +2907,38 @@ function renderCurrentView() {
             </button>            <div class="detail-bg">
                 <video id="main-video-player" controls style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
-            </div>
-            <div class="detail-body">
-                <div class="detail-title"></div>
-                <div style="display: flex; align-items: center;">
-                    <span class="detail-badge">En directo ahora</span>
-                    <span class="detail-time"></span>
-                </div>
-                <div class="detail-desc"></div>
-                <div class="detail-meta">
-                    <span style="background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">13+</span>
-                    <span class="detail-channel-name"></span>
-                    <span style="color: #00e5ff; font-size: 0.75rem;">✓ Disponible</span>
-                </div>
-                <button class="detail-play-btn">
-                    <span class="material-icons">play_circle</span>
-                    Ver Directo
-                </button>
-                <div class="detail-progress-container">
-                    <div class="detail-progress-bar">
-                        <div class="detail-progress-fill"></div>
+            </div>            <div class="detail-body">
+                <div class="detail-header-fixed">
+                    <div class="detail-title"></div>
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <span class="detail-badge">En directo ahora</span>
+                        <span class="detail-time"></span>
                     </div>
-                    <div class="detail-remaining"></div>
+                    
+                    <div id="detail-metadata-fixed" style="color: #a29bfe; font-size: 0.85rem; font-weight: 600; line-height: 1.4; padding: 10px 12px; background: rgba(162, 155, 254, 0.08); border-radius: 10px; margin-top: 5px; border-left: 3px solid #a29bfe;"></div>
+                    
+                    <div class="detail-meta" style="margin-top: 12px; display: flex; align-items: center; gap: 10px;">
+                        <span id="detail-rating-badge" style="background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">TP</span>
+                        <span class="detail-channel-name" style="font-size: 0.8rem; color: #aaa;"></span>
+                        <span style="color: #00e5ff; font-size: 0.75rem; margin-left: auto;">✓ Disponible</span>
+                    </div>
+                </div>
+                
+                <div class="detail-scroll-content" style="padding-top: 10px;">
+                    <div class="detail-desc" style="font-size: 0.95rem; line-height: 1.6; color: #eee;"></div>
+                </div>
+
+                <div class="detail-footer-fixed">
+                    <button class="detail-play-btn" style="margin-top: 0;">
+                        <span class="material-icons">play_circle</span>
+                        Ver Directo
+                    </button>
+                    <div class="detail-progress-container">
+                        <div class="detail-progress-bar">
+                            <div class="detail-progress-fill"></div>
+                        </div>
+                        <div class="detail-remaining"></div>
+                    </div>
                 </div>
             </div>
         </div>
