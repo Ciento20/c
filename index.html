@@ -2513,7 +2513,11 @@ function renderCurrentView() {
                     modal.querySelector('.detail-desc').innerHTML = rawDesc;
                 }
                 
-                modal.querySelector('.detail-channel-name').textContent = prog.channel;
+                const channelLogoImg = modal.querySelector('.detail-channel-logo');
+                if (channelLogoImg) {
+                    channelLogoImg.src = prog.channelIcon || '';
+                    channelLogoImg.style.display = prog.channelIcon ? 'block' : 'none';
+                }
                 modal.querySelector('.detail-progress-fill').style.width = `${progress}%`;
                 modal.querySelector('.detail-remaining').textContent = diff > 0 ? `${diff} min restantes` : 'Finalizando';
                 
@@ -2527,7 +2531,12 @@ function renderCurrentView() {
                 modal.querySelector('.detail-title').textContent = channelId;
                 modal.querySelector('.detail-time').textContent = "Emisión en directo";
                 modal.querySelector('.detail-desc').textContent = "No hay información de programación disponible en este momento.";
-                modal.querySelector('.detail-channel-name').textContent = channelId;
+                const fallbackIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
+                const channelLogoImg = modal.querySelector('.detail-channel-logo');
+                if (channelLogoImg) {
+                    channelLogoImg.src = fallbackIcon;
+                    channelLogoImg.style.display = fallbackIcon ? 'block' : 'none';
+                }
                 modal.querySelector('.detail-badge').style.display = 'none';
                 modal.querySelector('.detail-progress-container').style.display = 'none';
             }            const playBtn = modal.querySelector('.detail-play-btn');
@@ -3329,7 +3338,7 @@ function renderCurrentView() {
                     
                     <div class="detail-meta" style="margin-top: 12px; display: flex; align-items: center; gap: 10px;">
                         <span id="detail-rating-badge" style="background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">TP</span>
-                        <span class="detail-channel-name" style="font-size: 0.8rem; color: #aaa;"></span>
+                        <img class="detail-channel-logo" style="height: 24px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
                     </div>
                 </div>
                 
