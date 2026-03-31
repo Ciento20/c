@@ -2440,7 +2440,26 @@ function renderCurrentView() {
                 
                 if (splitIndex !== -1) {
                     let metaInfo = rawDesc.substring(0, splitIndex).trim();
-                    const plotInfo = rawDesc.substring(splitIndex + 1).trim();                    // Extraer calificación de edad para el badge fijo
+                    let plotInfo = rawDesc.substring(splitIndex + 1).trim();
+
+                    // EXTRAER AÑO: Buscamos 4 dígitos (19xx o 20xx)
+                    const yearMatch = metaInfo.match(/\b(19|20)\d{2}\b/);
+                    let foundYear = "";                    if (yearMatch) {
+                        foundYear = yearMatch[0];
+                        // Limpiamos el año de la cabecera y corregimos pipes dobles
+                        metaInfo = metaInfo.replace(foundYear, "").replace(/\|\s*\|/g, "|").replace(/^\s*\|\s*|\s*\|\s*$/g, "").trim();
+                    }
+
+                    // EXTRAER PUNTUACIÓN (★) y moverla arriba a la derecha (izquierda visual para no solapar cerrar)
+                    const starMatch = metaInfo.match(/★\s?(\d+(\.\d+)?\/\d+)/);
+                    const starFloating = document.getElementById('detail-rating-floating');
+                    if (starMatch && starFloating) {
+                        starFloating.innerHTML = `<span class="material-icons" style="font-size: 1rem;">star</span> ${starMatch[1]}`;
+                        starFloating.style.display = 'flex';
+                        metaInfo = metaInfo.replace(starMatch[0], "").replace(/\|\s*\|/g, "|").replace(/^\s*\|\s*|\s*\|\s*$/g, "").trim();
+                    } else if (starFloating) {
+                        starFloating.style.display = 'none';
+                    }                    // Extraer calificación de edad para el badge fijo
                     const ratingMatch = metaInfo.match(/(\d{1,2}\+|⑫|⑦|⑱|TP|\(\d+\))/);
                     const ratingBadge = document.getElementById('detail-rating-badge');
                     if (ratingMatch && ratingBadge) {
@@ -2451,27 +2470,33 @@ function renderCurrentView() {
                         let textColor = '#fff';
                         
                         if (rText === 'TP') {
-                            bgColor = '#4caf50'; // Verde
+                            bgColor = '#4caf50'; 
                         } else if (rText.includes('7') || rText.includes('⑦')) {
-                            bgColor = '#2196f3'; // Azul
+                            bgColor = '#2196f3'; 
                         } else if (rText.includes('12') || rText.includes('⑫')) {
-                            bgColor = '#ffc107'; // Amarillo
+                            bgColor = '#ffc107'; 
                             textColor = '#000';
                         } else if (rText.includes('16')) {
-                            bgColor = '#ff9800'; // Naranja
+                            bgColor = '#ff9800'; 
                         } else if (rText.includes('18') || rText.includes('⑱')) {
-                            bgColor = '#e53935'; // Rojo
+                            bgColor = '#e53935'; 
                         }
                         
                         ratingBadge.style.background = bgColor;
                         ratingBadge.style.color = textColor;
                         ratingBadge.style.border = 'none';
+
+                        // Eliminamos el rating del texto para que no se duplique
+                        metaInfo = metaInfo.replace(ratingMatch[0], "").trim();
                     }
 
-                    // Colocar Metadatos en la zona fija
-                    document.getElementById('detail-metadata-fixed').innerHTML = metaInfo.replace(/\|/g, '<span style="margin: 0 5px; opacity: 0.3;">|</span>');
-                    // Colocar Trama en la zona de scroll
-                    modal.querySelector('.detail-desc').innerHTML = plotInfo;
+                    // Colocar Metadatos limpios eliminando tuberías y espacios sobrantes
+                    metaInfo = metaInfo.replace(/\|/g, '').replace(/\s+/g, ' ').trim();
+                    document.getElementById('detail-metadata-fixed').innerHTML = metaInfo;
+                    
+                    // Colocar Trama + Año al final
+                    const yearFooter = foundYear ? `<br><br><span style="opacity:0.6; font-weight:bold;">Año: ${foundYear}</span>` : "";
+                    modal.querySelector('.detail-desc').innerHTML = plotInfo + yearFooter;
                 } else {
                     document.getElementById('detail-metadata-fixed').style.display = 'none';
                     modal.querySelector('.detail-desc').innerHTML = rawDesc;
@@ -2609,7 +2634,7 @@ function renderCurrentView() {
                 
                 card.innerHTML = `
                     <div class="poster-info">
-                        <div style="color: #aaa; font-size: 0.55rem; text-transform: uppercase; margin-bottom: 4px;">Deportes, ${sportName} | 2026 | TP</div>
+                        <div style="color: #aaa; font-size: 0.55rem; text-transform: uppercase; margin-bottom: 4px;">Deportes, ${sportName} | TP</div>
                         <div style="color: var(--color-primary); font-size: 0.75rem; font-weight: 800; margin-bottom: 2px;">Hoy | ${prog.start}</div>
                         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.7rem; font-weight: 600; color: #fff;">${prog.title}</div>
                         <div style="color: #f1c40f; font-size: 0.6rem; margin-top: 3px;">★ 6.0/10</div>
@@ -2679,12 +2704,13 @@ function renderCurrentView() {
 
             const closeMenu = () => { menu.style.display = 'none'; document.removeEventListener('click', closeMenu); };
             setTimeout(() => document.addEventListener('click', closeMenu), 10);
-        }
-
-        function closeProgramDetails() {
+        }        function closeProgramDetails() {
             const modal = document.getElementById('programDetailModal');
             const video = document.getElementById('main-video-player');
             const iframe = document.getElementById('main-web-player');
+            const starFloating = document.getElementById('detail-rating-floating');
+            
+            if (starFloating) starFloating.style.display = 'none';
             
             video.pause();
             video.src = "";
@@ -3276,7 +3302,8 @@ function renderCurrentView() {
         <div class="detail-content">
             <button class="detail-close" onclick="closeProgramDetails()">
                 <span class="material-icons">close</span>
-            </button>            <div class="detail-bg">
+            </button>
+            <div id="detail-rating-floating" style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 12px; color: #f1c40f; font-weight: 800; font-size: 0.85rem; z-index: 20; display: none; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.5);"></div>            <div class="detail-bg">
                 <video id="main-video-player" controls style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
             </div>            <div class="detail-body">
