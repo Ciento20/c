@@ -1386,7 +1386,7 @@
             const now = new Date();
 
             visibleChannelsList.forEach(channelId => {
-                if (hideNoVideoChannels && !channelStreams[channelId]) return;
+                if (hideNoVideoChannels && streamSources.length > 0 && !channelStreams[channelId]) return;
                 const channelPrograms = epgData.filter(p => p.channel === channelId);
                 const currentProg = channelPrograms.find(p => {
                     const [d, m, y] = p.date.split('/');
@@ -1783,7 +1783,7 @@
                 const isPlaceholder = t.length > 2 && (t.includes(c) || c.includes(t) || t.includes('programacion'));
                 if (!item.iconSrc && !item.iconSrc2 || isPlaceholder) return false;
             }
-            if (hideNoVideoChannels && !channelStreams[item.channel]) return false;
+            if (hideNoVideoChannels && streamSources.length > 0 && !channelStreams[item.channel]) return false;
             if (filters.channel && !item.channel.toLowerCase().includes(filters.channel)) return false;
             if (filters.title && !item.title.toLowerCase().includes(filters.title)) return false;
             if (filters.description && !item.description.toLowerCase().includes(filters.description)) return false;
@@ -1875,7 +1875,7 @@ function renderCurrentView() {
                 const isPlaceholder = t.length > 2 && (t.includes(c) || c.includes(t) || t.includes('programacion'));
                 if (!item.iconSrc && !item.iconSrc2 || isPlaceholder) return false;
             }
-            if (hideNoVideoChannels && !channelStreams[item.channel]) return false;
+            if (hideNoVideoChannels && streamSources.length > 0 && !channelStreams[item.channel]) return false;
             if (filters.channel && !item.channel.toLowerCase().includes(filters.channel)) return false;
             if (filters.title && !item.title.toLowerCase().includes(filters.title)) return false;
             if (filters.description && !item.description.toLowerCase().includes(filters.description)) return false;
@@ -2432,13 +2432,32 @@ function renderCurrentView() {
                 
                 if (splitIndex !== -1) {
                     let metaInfo = rawDesc.substring(0, splitIndex).trim();
-                    const plotInfo = rawDesc.substring(splitIndex + 1).trim();
-                    
-                    // Extraer calificación de edad para el badge fijo
+                    const plotInfo = rawDesc.substring(splitIndex + 1).trim();                    // Extraer calificación de edad para el badge fijo
                     const ratingMatch = metaInfo.match(/(\d{1,2}\+|⑫|⑦|⑱|TP|\(\d+\))/);
                     const ratingBadge = document.getElementById('detail-rating-badge');
                     if (ratingMatch && ratingBadge) {
-                        ratingBadge.textContent = ratingMatch[0].replace(/[()]/g, '');
+                        const rText = ratingMatch[0].replace(/[()]/g, '');
+                        ratingBadge.textContent = rText;
+                        
+                        let bgColor = '#333';
+                        let textColor = '#fff';
+                        
+                        if (rText === 'TP') {
+                            bgColor = '#4caf50'; // Verde
+                        } else if (rText.includes('7') || rText.includes('⑦')) {
+                            bgColor = '#2196f3'; // Azul
+                        } else if (rText.includes('12') || rText.includes('⑫')) {
+                            bgColor = '#ffc107'; // Amarillo
+                            textColor = '#000';
+                        } else if (rText.includes('16')) {
+                            bgColor = '#ff9800'; // Naranja
+                        } else if (rText.includes('18') || rText.includes('⑱')) {
+                            bgColor = '#e53935'; // Rojo
+                        }
+                        
+                        ratingBadge.style.background = bgColor;
+                        ratingBadge.style.color = textColor;
+                        ratingBadge.style.border = 'none';
                     }
 
                     // Colocar Metadatos en la zona fija
