@@ -851,6 +851,27 @@
             font-size: 1.1rem;
             color: var(--color-primary);
         }
+        /* Estilos Temporadas y Episodios (Estilo App) */
+        .season-tabs { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; margin: 15px 0 5px 0; }
+        .season-tabs::-webkit-scrollbar { display: none; }
+        .season-pill { background: #1c1c1e; color: #888; padding: 8px 20px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap; border: 1px solid rgba(255,255,255,0.05); transition: all 0.2s; }
+        .season-pill.active { background: var(--primary); color: #000; box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3); }
+        
+        .episodes-list { display: flex; flex-direction: column; gap: 18px; margin-top: 15px; padding-bottom: 20px; }
+        .episode-item { display: flex; gap: 14px; cursor: pointer; align-items: flex-start; }
+        .episode-item:active { opacity: 0.7; transform: scale(0.98); }
+        
+        .ep-thumb-box { position: relative; width: 130px; height: 75px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+        .ep-thumb-box img { width: 100%; height: 100%; object-fit: cover; }
+        .ep-play-tag { position: absolute; top: 6px; right: 6px; background: #f1c40f; color: #000; border-radius: 4px; padding: 2px; display: flex; align-items: center; justify-content: center; }
+        .ep-play-tag span { font-size: 14px !important; font-weight: 900; }
+
+        .ep-content { flex: 1; min-width: 0; }
+        .ep-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+        .ep-name { font-size: 0.9rem; font-weight: 700; color: #fff; line-height: 1.2; }
+        .ep-date { font-size: 0.75rem; color: #666; font-weight: 500; white-space: nowrap; }
+        .ep-summary { font-size: 0.78rem; color: #888; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
         /* Estilos Barra Inferior */        .bottom-nav {
             position: fixed;
             bottom: 20px;
@@ -2513,32 +2534,58 @@ function renderCurrentView() {
                 }
 
                 if (fullMeta.type === 'series' && fullMeta.videos && fullMeta.videos.length > 0) {
-                    const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a,b) => a-b);
-                    const selectorHtml = `
-                        <div class="stremio-series-selectors" style="display: flex; gap: 10px; margin-top: 15px; width: 100%;">
-                            <select id="seasonSelect" style="flex: 1; padding: 10px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; outline: none; font-size: 0.9rem; cursor: pointer;">
-                                ${seasons.map(s => `<option value="${s}">Temporada ${s}</option>`).join('')}
-                            </select>
-                            <select id="episodeSelect" style="flex: 1; padding: 10px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; outline: none; font-size: 0.9rem; cursor: pointer;">
-                            </select>
+                    const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a, b) => a - b);                    const selectorHtml = `
+                        <div class="stremio-series-selectors" style="width: 100%;">
+                            <div class="season-tabs" id="seasonTabs"></div>
+                            <div class="episodes-list" id="episodesList"></div>
                         </div>
                     `;
-                    metaContainer.insertAdjacentHTML('afterend', selectorHtml);
+                    modal.querySelector('.detail-scroll-content').insertAdjacentHTML('afterbegin', selectorHtml);
 
-                    const seasonSelect = document.getElementById('seasonSelect');
-                    const episodeSelect = document.getElementById('episodeSelect');
+                    const seasonContainer = document.getElementById('seasonTabs');
+                    const listContainer = document.getElementById('episodesList');
 
-                    const updateEpisodes = () => {
-                        const selectedSeason = parseInt(seasonSelect.value);
-                        const episodes = fullMeta.videos.filter(v => v.season === selectedSeason).sort((a,b) => a.episode - b.episode);
-                        episodeSelect.innerHTML = episodes.map(e => `<option value="${e.id}">Capítulo ${e.episode} ${e.title ? '- '+e.title : ''}</option>`).join('');
-                        fetchStreamsForId(episodeSelect.value);
+                    const updateEpisodes = (seasonNum) => {
+                        // Actualizar UI de pestañas
+                        document.querySelectorAll('.season-pill').forEach(p => {
+                            p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum);
+                        });
+
+                        const episodes = fullMeta.videos
+                            .filter(v => v.season === seasonNum)
+                            .sort((a, b) => a.episode - b.episode);
+
+                        listContainer.innerHTML = episodes.map(e => `
+                            <div class="episode-item" onclick="this.parentElement.querySelectorAll('.episode-item').forEach(el=>el.style.opacity='0.5'); this.style.opacity='1'; window.fetchStreamsForId('${e.id}')">
+                                <div class="ep-thumb-box">
+                                    <img src="${e.thumbnail || meta.background || meta.poster}" onerror="this.src='${meta.poster}'">
+                                    <div class="ep-play-tag"><span class="material-icons">visibility</span></div>
+                                </div>
+                                <div class="ep-content">
+                                    <div class="ep-title-row">
+                                        <div class="ep-name">${e.episode}. ${e.title || 'Episodio ' + e.episode}</div>
+                                        <div class="ep-date">${e.released ? new Date(e.released).toLocaleDateString('es-ES', {month:'short', day:'numeric', year:'numeric'}) : ''}</div>
+                                    </div>
+                                    <div class="ep-summary">${e.overview || 'Sin descripción disponible para este episodio.'}</div>
+                                </div>
+                            </div>
+                        `).join('');
+                        
+                        // Cargar streams del primer episodio por defecto al cambiar temporada
+                        if (episodes.length > 0) fetchStreamsForId(episodes[0].id);
                     };
 
-                    seasonSelect.onchange = updateEpisodes;
-                    episodeSelect.onchange = () => fetchStreamsForId(episodeSelect.value);
+                    // Generar pestañas de temporadas
+                    seasonContainer.innerHTML = seasons.map(s => `
+                        <div class="season-pill ${s === seasons[0] ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">
+                            Temporada ${s}
+                        </div>
+                    `).join('');
 
-                    updateEpisodes();
+                    window.updateSeason = (s) => updateEpisodes(s);
+                    
+                    // Cargar primera temporada
+                    updateEpisodes(seasons[0]);
                 } else {
                     fetchStreamsForId(meta.id);
                 }
