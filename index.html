@@ -2459,13 +2459,22 @@ function renderCurrentView() {
                         metaInfo = metaInfo.replace(starMatch[0], "").replace(/\|\s*\|/g, "|").replace(/^\s*\|\s*|\s*\|\s*$/g, "").trim();
                     } else if (starFloating) {
                         starFloating.style.display = 'none';
-                    }
-
-                    // Extraer calificación de edad para el badge fijo
-                    const ratingMatch = metaInfo.match(/(\d{1,2}\+|⑫|⑦|⑱|TP|\(\d+\))/);
+                    }                    // Extraer calificación de edad (Soporte total: 7, 12, 16, 18, TP y símbolos ⑦, ⑫, ⑯, ⑱)
+                    const ratingMatch = metaInfo.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
                     const ratingBadge = document.getElementById('detail-rating-badge');
+                    
                     if (ratingMatch && ratingBadge) {
-                        const rText = ratingMatch[0].replace(/[()]/g, '');
+                        const symbolMap = { '⑦': '7', '⑫': '12', '⑬': '13', '⑯': '16', '⑱': '18' };
+                        let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
+                        
+                        // Normalizamos el texto: si es símbolo pasamos a número, si es número añadimos '+'
+                        if (symbolMap[rText]) {
+                            rText = symbolMap[rText];
+                        } else if (rText !== 'TP') {
+                            let num = rText.match(/\d+/);
+                            if (num) rText = num[0] + '+';
+                        }
+                        
                         ratingBadge.textContent = rText;
                         
                         let bgColor = '#333';
@@ -2473,24 +2482,28 @@ function renderCurrentView() {
                         
                         if (rText === 'TP') {
                             bgColor = '#4caf50'; 
-                        } else if (rText.includes('7') || rText.includes('⑦')) {
-                            bgColor = '#2196f3'; 
-                        } else if (rText.includes('12') || rText.includes('⑫')) {
+                        } else if (rText.startsWith('7')) {
+                            bgColor = '#2196f3'; // Azul para el 7
+                        } else if (rText.startsWith('12') || rText.startsWith('13')) {
                             bgColor = '#ffc107'; 
                             textColor = '#000';
-                        } else if (rText.includes('16')) {
+                        } else if (rText.startsWith('16')) {
                             bgColor = '#ff9800'; 
-                        } else if (rText.includes('18') || rText.includes('⑱')) {
-                            bgColor = '#e53935'; 
+                        } else if (rText.startsWith('18')) {
+                            bgColor = '#e53935'; // Rojo para el 18
                         }
                         
                         ratingBadge.style.background = bgColor;
                         ratingBadge.style.color = textColor;
                         ratingBadge.style.border = 'none';
+
+                        // Eliminamos la calificación del texto original
+                        metaInfo = metaInfo.replace(ratingMatch[0], "").trim();
                     }
 
-                    // Colocar Metadatos limpios en la zona fija
-                    document.getElementById('detail-metadata-fixed').innerHTML = metaInfo.replace(/\|/g, '<span style="margin: 0 5px; opacity: 0.3;">|</span>');
+                    // Limpieza final de metadatos (quitar tuberías y comas sueltas)
+                    let cleanMeta = metaInfo.replace(/\|/g, '').replace(/,\s*$/, '').replace(/^\s*,/, '').trim();
+                    document.getElementById('detail-metadata-fixed').innerHTML = cleanMeta;
                     
                     // Colocar Trama + Año al final
                     const yearFooter = foundYear ? `<br><br><span style="opacity:0.6; font-weight:bold;">Año: ${foundYear}</span>` : "";
