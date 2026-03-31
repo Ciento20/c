@@ -2063,11 +2063,17 @@ function renderCurrentView() {
                     if (!e.target.closest('.details-btn')) {
                         openProgramDetails(item.channel, item.start, item.date, true);
                     }
-                };
-                
-                // Aplicar la imagen grande (iconSrc2) como fondo sin zoom
+                };                // Lógica de Fondo: Si no hay iconSrc2, aplicamos mosaico del logo del canal
                 if (item.iconSrc2) {
                     card.style.backgroundImage = `url('${item.iconSrc2}')`;
+                    card.style.backgroundSize = 'cover';
+                } else if (item.channelIcon) {
+                    card.style.backgroundImage = `url('${item.channelIcon}')`;
+                    card.style.backgroundSize = '75px'; // Tamaño del patrón
+                    card.style.backgroundRepeat = 'repeat';
+                    card.style.backgroundColor = '#0a0c10'; // Fondo oscuro base
+                    card.style.backgroundBlendMode = 'overlay';
+                    card.style.opacity = '0.9';
                 }
 
                 card.innerHTML = `
@@ -2081,8 +2087,10 @@ function renderCurrentView() {
           
             <div style="display: flex; gap: 20px; position: relative; z-index: 2; align-items: stretch; flex-grow: 1; height: 100%;">
                 
-                <div style="align-self: flex-start; position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7);">
-                    ${item.iconSrc ? `<img src="${item.iconSrc}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+                <div style="align-self: flex-start; position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7); background: #000; display: flex; align-items: center; justify-content: center;">
+                    <img src="${item.iconSrc || item.channelIcon}" 
+                         style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
+                         onerror="this.src='${item.channelIcon}'; this.style.padding='15px'; this.style.objectFit='contain';">
                 </div>
                 
                 
