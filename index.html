@@ -2502,8 +2502,11 @@ function renderCurrentView() {
             let selectorHtml = '';
             if (sources.length > 1) {
                 selectorHtml = '<div class="source-selector">';
-                sources.forEach((_, i) => {
-                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeSource(${i}, '${channelId}')">Señal ${i + 1}</div>`;
+                sources.forEach((url, i) => {
+                    const isAce = url.startsWith('acestream://');
+                    const aceStyle = isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15); color: #e0aaff;' : '';
+                    const icon = isAce ? '<span class="material-icons" style="font-size: 0.85rem; vertical-align: middle; margin-right: 4px;">bolt</span>' : '';
+                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" style="${aceStyle}" onclick="window.changeSource(${i}, '${channelId}')">${icon}Señal ${i + 1}</div>`;
                 });
                 selectorHtml += '</div>';
             }
