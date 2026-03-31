@@ -863,7 +863,7 @@
         
         .ep-thumb-box { position: relative; width: 130px; height: 75px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
         .ep-thumb-box img { width: 100%; height: 100%; object-fit: cover; }
-        .ep-play-tag { position: absolute; top: 6px; right: 6px; background: #f1c40f; color: #000; border-radius: 4px; padding: 2px; display: flex; align-items: center; justify-content: center; }
+        .ep-play-tag { position: absolute; top: 6px; right: 6px; background: var(--primary); color: #fff; border-radius: 4px; padding: 2px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(88, 166, 255, 0.6); }
         .ep-play-tag span { font-size: 14px !important; font-weight: 900; }
 
         .ep-content { flex: 1; min-width: 0; }
@@ -2543,9 +2543,8 @@ function renderCurrentView() {
                     modal.querySelector('.detail-scroll-content').insertAdjacentHTML('afterbegin', selectorHtml);
 
                     const seasonContainer = document.getElementById('seasonTabs');
-                    const listContainer = document.getElementById('episodesList');
-
-                    const updateEpisodes = (seasonNum) => {
+                    const listContainer = document.getElementById('episodesList');                    const updateEpisodes = (seasonNum) => {
+                        const watched = JSON.parse(localStorage.getItem('watchedEps') || '[]');
                         // Actualizar UI de pestañas
                         document.querySelectorAll('.season-pill').forEach(p => {
                             p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum);
@@ -2556,10 +2555,10 @@ function renderCurrentView() {
                             .sort((a, b) => a.episode - b.episode);
 
                         listContainer.innerHTML = episodes.map(e => `
-                            <div class="episode-item" onclick="this.parentElement.querySelectorAll('.episode-item').forEach(el=>el.style.opacity='0.5'); this.style.opacity='1'; window.fetchStreamsForId('${e.id}')">
+                            <div class="episode-item" onclick="const w=JSON.parse(localStorage.getItem('watchedEps')||'[]'); if(!w.includes('${e.id}')){w.push('${e.id}'); localStorage.setItem('watchedEps', JSON.stringify(w)); this.querySelector('.ep-play-tag').style.display='flex';} this.parentElement.querySelectorAll('.episode-item').forEach(el=>el.style.opacity='0.5'); this.style.opacity='1'; window.fetchStreamsForId('${e.id}')">
                                 <div class="ep-thumb-box">
                                     <img src="${e.thumbnail || meta.background || meta.poster}" onerror="this.src='${meta.poster}'">
-                                    <div class="ep-play-tag"><span class="material-icons">visibility</span></div>
+                                    <div class="ep-play-tag" style="display: ${watched.includes(e.id) ? 'flex' : 'none'}"><span class="material-icons">visibility</span></div>
                                 </div>
                                 <div class="ep-content">
                                     <div class="ep-title-row">
