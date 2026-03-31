@@ -2289,16 +2289,14 @@ function renderCurrentView() {
                         const data = JSON.parse(text);
                         if (data.groups) {
                             data.groups.forEach(group => {
-                                group.stations.forEach(station => {
-                                    matchStreamToChannel(station.name, station.url);
+                                group.stations.forEach(station => {                                    matchStreamToChannel(station.name, station.url, station.name);
                                 });
                             });
                         } 
                         else if (Array.isArray(data)) {
                             data.forEach(item => {
                                 const finalUrl = item.hash ? `acestream://${item.hash}` : (item.url || item.link);
-                                const finalName = item.title || item.name || item.tvg_id;
-                                if (finalUrl && finalName) matchStreamToChannel(finalName, finalUrl);
+                                const finalName = item.title || item.name || item.tvg_id;                                if (finalUrl && finalName) matchStreamToChannel(finalName, finalUrl, finalName);
                             });
                         }
                     } catch (jsonErr) {
@@ -2311,8 +2309,7 @@ function renderCurrentView() {
                                     const idMatch = line.match(/tvg-id="([^"]+)"/);
                                     const commaMatch = line.match(/,(.+)$/);
                                     currentName = idMatch ? idMatch[1] : (commaMatch ? commaMatch[1] : '');
-                                } else if (line.trim().length > 0 && !line.startsWith('#')) {
-                                    if (currentName) matchStreamToChannel(currentName.trim(), line.trim());
+                                } else if (line.trim().length > 0 && !line.startsWith('#')) {                                    if (currentName) matchStreamToChannel(currentName.trim(), line.trim(), currentName.trim());
                                 }
                             });
                         }
@@ -2437,9 +2434,7 @@ function renderCurrentView() {
             "BT SPORT 1 [UK]": "TNT SPORTS 1",
             "BT SPORT 2 [UK]": "TNT SPORTS 2",
             "BT SPORT 3 [UK]": "TNT SPORTS 3"
-        };
-
-        function matchStreamToChannel(streamName, streamUrl) {
+        };        function matchStreamToChannel(streamName, streamUrl, rawName = '') {
             // 1. Convertimos a mayúsculas y quitamos espacios extra para asegurar la compatibilidad con el diccionario
             const rawUpper = (streamName || '').toUpperCase().trim();
             const aliasedName = channelAliases[rawUpper];
@@ -2453,8 +2448,7 @@ function renderCurrentView() {
                 const normalizedChannel = normalizeName(channelId);
                 
                 // 1. Coincidencia Exacta
-                if (normalizedChannel === normalizedStream) {
-                    addStreamToChannel(channelId, streamUrl);
+                if (normalizedChannel === normalizedStream) {                    addStreamToChannel(channelId, streamUrl, rawName);
                     continue;
                 }
 
@@ -2470,16 +2464,18 @@ function renderCurrentView() {
                 const isMatch = (normalizedChannel.includes(normalizedStream)) ||
                                 (normalizedStream.includes(normalizedChannel));
 
-                if (isMatch) {
-                    addStreamToChannel(channelId, streamUrl);
+                if (isMatch) {                    addStreamToChannel(channelId, streamUrl, rawName);
                 }
             }
-        }
-
-        function addStreamToChannel(channelId, url) {
+        }        function addStreamToChannel(channelId, url, streamName = '') {
             if (!channelStreams[channelId]) channelStreams[channelId] = [];
-            if (!channelStreams[channelId].includes(url)) {
-                channelStreams[channelId].push(url);
+            const quality = streamName.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+            const lang = streamName.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'ES';
+            const addonName = streamName.split(' ')[0] || 'Stream';
+            const info = `${quality} | ${lang} | ${addonName}`;
+            
+            if (!channelStreams[channelId].find(s => s.url === url)) {
+                channelStreams[channelId].push({ url, info });
             }
         }
 
@@ -2543,9 +2539,75 @@ function renderCurrentView() {
                     modal.querySelector('.detail-scroll-content').insertAdjacentHTML('afterbegin', selectorHtml);
 
                     const seasonContainer = document.getElementById('seasonTabs');
-                    const listContainer = document.getElementById('episodesList');                    const updateEpisodes = (seasonNum) => {
+                    const listContainer = document.getElementById('episodesList');                    // Definir fetchStreamsForId primero y asignarlo a window para que el HTML dinámico lo encuentre
+                    window.fetchStreamsForId = async function(streamId) {
+                        playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
+                        playBtn.onclick = null;
+                        playBtn.style.background = '#333';
+                        playBtn.style.color = '#777';
+                        
+                        let allStreams = [];
+                        for (const url of stremioAddons) {
+                            try {
+                                const addonBase = url.replace('/manifest.json', '');
+                                const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
+                                if (streamRes.ok) {
+                                    const streamData = await streamRes.json();
+                                    if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
+                                }
+                            } catch (err) { console.warn("Stream fetch failed for", url); }
+                        }                        if (allStreams.length > 0) {
+                            playBtn.style.background = 'var(--color-primary)';
+                            playBtn.style.color = '#000';
+                            playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
+                            
+                            const oldSelector = document.querySelector('.stremio-stream-selector');
+                            if (oldSelector) oldSelector.remove();
+
+                            if (allStreams.length > 1) {
+                                let selectorHtml = '<div class="source-selector stremio-stream-selector" style="margin-top: 15px; width: 100%;">';                            allStreams.forEach((st, i) => {
+                                    const raw = st.title || st.name || "";
+                                    const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                                    const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
+                                    const addonName = st.name || "Addon";
+                                    const display = `<span style='color:var(--primary)'>${quality}</span> • ${lang} • <small>${addonName}</small>`;
+                                    
+                                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}" style="font-size:0.65rem; padding: 4px 10px;">${display}</div>`;
+                                });
+                                selectorHtml += '</div>';
+                                playBtn.insertAdjacentHTML('beforebegin', selectorHtml);
+                            }
+
+                            window.currentStremioStreamIdx = 0;
+                            window.changeStremioSource = (idx) => {
+                                window.currentStremioStreamIdx = idx;
+                                document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
+                                    p.classList.toggle('active', i === idx);
+                                });
+                            };
+
+                            playBtn.onclick = () => {
+                                const stream = allStreams[window.currentStremioStreamIdx || 0];
+                                if (stream.url) {
+                                    const video = document.getElementById('main-video-player');
+                                    video.style.display = 'block';
+                                    video.src = stream.url;
+                                    video.play();
+                                } else if (stream.infoHash) {
+                                    window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
+                                }
+                            };
+                        } else {
+                            const oldSelector = document.querySelector('.stremio-stream-selector');
+                            if (oldSelector) oldSelector.remove();
+                            playBtn.style.background = '#333';
+                            playBtn.style.color = '#777';
+                            playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
+                        }
+                    };
+
+                    const updateEpisodes = (seasonNum) => {
                         const watched = JSON.parse(localStorage.getItem('watchedEps') || '[]');
-                        // Actualizar UI de pestañas
                         document.querySelectorAll('.season-pill').forEach(p => {
                             p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum);
                         });
@@ -2570,11 +2632,9 @@ function renderCurrentView() {
                             </div>
                         `).join('');
                         
-                        // Cargar streams del primer episodio por defecto al cambiar temporada
-                        if (episodes.length > 0) fetchStreamsForId(episodes[0].id);
+                        if (episodes.length > 0) window.fetchStreamsForId(episodes[0].id);
                     };
 
-                    // Generar pestañas de temporadas
                     seasonContainer.innerHTML = seasons.map(s => `
                         <div class="season-pill ${s === seasons[0] ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">
                             Temporada ${s}
@@ -2582,51 +2642,9 @@ function renderCurrentView() {
                     `).join('');
 
                     window.updateSeason = (s) => updateEpisodes(s);
-                    
-                    // Cargar primera temporada
                     updateEpisodes(seasons[0]);
                 } else {
-                    fetchStreamsForId(meta.id);
-                }
-
-                async function fetchStreamsForId(streamId) {
-                    playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
-                    playBtn.onclick = null;
-                    playBtn.style.background = '#333';
-                    playBtn.style.color = '#777';
-                    
-                    let allStreams = [];
-                    for (const url of stremioAddons) {
-                        try {
-                            const addonBase = url.replace('/manifest.json', '');
-                            const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
-                            if (streamRes.ok) {
-                                const streamData = await streamRes.json();
-                                if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
-                            }
-                        } catch (err) { console.warn("Stream fetch failed for", url); }
-                    }
-
-                    if (allStreams.length > 0) {
-                        playBtn.style.background = 'var(--color-primary)';
-                        playBtn.style.color = '#000';
-                        playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
-                        playBtn.onclick = () => {
-                            const stream = allStreams[0];
-                            if (stream.url) {
-                                const video = document.getElementById('main-video-player');
-                                video.style.display = 'block';
-                                video.src = stream.url;
-                                video.play();
-                            } else if (stream.infoHash) {
-                                window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
-                            }
-                        };
-                    } else {
-                        playBtn.style.background = '#333';
-                        playBtn.style.color = '#777';
-                        playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
-                    }
+                    window.fetchStreamsForId(meta.id);
                 }
             } catch (e) { 
                 playBtn.style.background = '#333';
@@ -2777,12 +2795,13 @@ function renderCurrentView() {
             // Renderizar selector de señales
             let selectorHtml = '';
             if (sources.length > 1) {
-                selectorHtml = '<div class="source-selector">';
-                sources.forEach((url, i) => {
+                selectorHtml = '<div class="source-selector">';            sources.forEach((sourceObj, i) => {
+                    const url = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
+                    const info = typeof sourceObj === 'string' ? `Señal ${i+1}` : sourceObj.info;
                     const isAce = url.startsWith('acestream://');
                     const aceStyle = isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15); color: #e0aaff;' : '';
                     const icon = isAce ? '<span class="material-icons" style="font-size: 0.85rem; vertical-align: middle; margin-right: 4px;">bolt</span>' : '';
-                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" style="${aceStyle}" onclick="window.changeSource(${i}, '${channelId}')">${icon}Señal ${i + 1}</div>`;
+                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" style="${aceStyle}; font-size:0.6rem;" onclick="window.changeSource(${i}, '${channelId}')">${icon}${info}</div>`;
                 });
                 selectorHtml += '</div>';
             }
@@ -2799,9 +2818,9 @@ function renderCurrentView() {
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
                 }
-            };            if (sources.length > 0) {
-                playBtn.onclick = async () => {
-                    const streamUrl = sources[currentSourceIdx];
+            };            if (sources.length > 0) {                playBtn.onclick = async () => {
+                    const sourceObj = sources[currentSourceIdx];
+                    const streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');
 
