@@ -1240,7 +1240,15 @@
                 const fullDesc = (p.description || '').toLowerCase();
                 const categoryPart = fullDesc.split('·')[0].trim();
                 return categoryPart.includes('cine') || categoryPart.includes('película');
-            }).slice(0, 6);            cinemaProgs.forEach((prog, idx) => {
+            }).slice(0, 6);
+
+            // Ocultar el contenedor si no hay películas para evitar el hueco vacío
+            const bannerContainer = document.getElementById('cinema-banner-container');
+            if (bannerContainer) {
+                bannerContainer.style.display = cinemaProgs.length > 0 ? 'block' : 'none';
+            }
+
+            cinemaProgs.forEach((prog, idx) => {
                 const slide = document.createElement('div');
                 slide.style.cssText = `min-width: 100%; height: 100%; scroll-snap-align: start; position: relative; cursor: pointer; background: url('${prog.iconSrc2 || prog.iconSrc}') center/cover no-repeat;`;
                 slide.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
@@ -1294,7 +1302,14 @@
                 const start = new Date(y, m - 1, d, h, min);
                 const stop = new Date(y, m - 1, d, sh, smin);
                 return now >= start && now <= stop;
-            }).slice(0, 15); liveProgs.forEach(prog => {
+            }).slice(0, 15); 
+
+            // Ocultar sección de deportes en Inicio si está vacía
+            if (carousel && carousel.parentElement) {
+                carousel.parentElement.style.display = liveProgs.length > 0 ? 'block' : 'none';
+            }
+
+            liveProgs.forEach(prog => {
                 const [d, m, y] = prog.date.split('/');
                 const [h, min] = prog.start.split(':');
                 const [sh, smin] = prog.stop.split(':');
@@ -1326,6 +1341,31 @@
                 `;
                 carousel.appendChild(card);
             });
+
+            // --- LÓGICA FILTRADO DE ICONOS DE CATEGORÍA ---
+            const catContainer = document.getElementById('categories-container');
+            const catSection = document.getElementById('categories-section');
+            if (catContainer && catSection) {
+                let visibleCats = 0;
+                Array.from(catContainer.children).forEach(cat => {
+                    const sportName = cat.querySelector('span').textContent;
+                    // Mapeo especial para Basket/Balonmano para asegurar el match con el EPG
+                    const searchTerms = [sportName.toLowerCase()];
+                    if (sportName === 'Basket') searchTerms.push('baloncesto');
+                    
+                    const hasEvents = epgData.some(p => {
+                        if (!userSelectedChannels.has(p.channel)) return false;
+                        const fullDesc = (p.description || '').toLowerCase();
+                        const categoryPart = fullDesc.split('·')[0].trim();
+                        return searchTerms.some(term => categoryPart.includes(term));
+                    });
+
+                    cat.style.display = hasEvents ? 'flex' : 'none';
+                    if (hasEvents) visibleCats++;
+                });
+
+                catSection.style.display = visibleCats > 0 ? 'block' : 'none';
+            }
         }
 
         function renderChannelsView() {
@@ -2544,6 +2584,18 @@ function renderCurrentView() {
                 else containers[1].appendChild(card.cloneNode(true));
             });
 
+            // Ocultar subsecciones vacías en la vista de categoría
+            if (containers[0]) {
+                const hasUpcoming = filteredEvents.length > 0;
+                containers[0].style.display = hasUpcoming ? 'flex' : 'none';
+                if(containers[0].previousElementSibling) containers[0].previousElementSibling.style.display = hasUpcoming ? 'block' : 'none';
+            }
+            if (containers[1]) {
+                const hasHighlights = filteredEvents.length > 7;
+                containers[1].style.display = hasHighlights ? 'flex' : 'none';
+                if(containers[1].previousElementSibling) containers[1].previousElementSibling.style.display = hasHighlights ? 'block' : 'none';
+            }
+
             view.style.display = 'flex';
         }
 
@@ -3113,9 +3165,9 @@ function renderCurrentView() {
         </div>
 
         
-        <div style="padding: 24px 16px 10px 16px;">
+        <div id="categories-section" style="padding: 24px 16px 10px 16px;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías</h3>
-            <div style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
+            <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
                     <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Fútbol</span>
