@@ -1184,14 +1184,42 @@
     <div id="data-list"></div>
     <div id="result-count"></div>
 
-    <script>
-        let epgData = [];
-        let channelStreams = {}; // Mapeo de ID de canal -> URL de streaming
+    <script>        let epgData = [];
+        let channelStreams = {}; 
         let streamSources = JSON.parse(localStorage.getItem('streamSources') || '[]');
+        let stremioAddons = JSON.parse(localStorage.getItem('stremioAddons') || '[]');
         let currentMainView = 'home';
         let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
         let hideNoImageEvents = localStorage.getItem('hideNoImageEvents') === 'true';
-        let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';        function switchMainView(mode) {
+        let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';
+
+        async function fetchStremioCatalog(addonUrl) {
+            try {
+                const manifestRes = await fetch(addonUrl);
+                const manifest = await manifestRes.json();
+                const baseUrl = addonUrl.replace('/manifest.json', '');
+                const catalogsData = [];
+
+                // Iteramos por todos los catálogos definidos en el manifest
+                for (const cat of (manifest.catalogs || [])) {
+                    try {
+                        const catalogRes = await fetch(`${baseUrl}/catalog/${cat.type}/${cat.id}.json`);
+                        const data = await catalogRes.json();
+                        catalogsData.push({
+                            addonName: manifest.name,
+                            catalogName: cat.name || cat.id,
+                            metas: data.metas || [],
+                            type: cat.type,
+                            baseUrl: baseUrl
+                        });
+                    } catch (err) { console.error("Error cargando catálogo:", cat.id, err); }
+                }
+                return catalogsData;
+            } catch (e) {
+                console.error("Error Stremio:", e);
+                return null;
+            }
+        }        function switchMainView(mode) {
             currentMainView = mode;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             const dataList = document.getElementById('data-list');
@@ -1223,9 +1251,46 @@
             } else if(mode === 'settings') {
                 settingsView.style.display = 'block';
             }
-        }        function renderHomeView() {
+        }        async function renderHomeView() {
             const carousel = document.getElementById('live-sports-carousel');
-            const cinemaBanner = document.getElementById('cinema-banner-carousel');
+            const cinemaBanner = document.getElementById('cinema-banner-carousel');            // Cargar Catálogos Stremio (Muestra el catálogo completo independientemente de la señal de TV)
+            const stremioContainer = document.getElementById('stremio-catalogs-container');
+            const stremioSection = document.getElementById('stremio-section');
+            if (stremioContainer) {
+                stremioContainer.innerHTML = '';
+                if (stremioSection) stremioSection.style.display = stremioAddons.length > 0 ? 'block' : 'none';
+
+                for (const url of stremioAddons) {
+                    const catalogs = await fetchStremioCatalog(url);
+                    if (catalogs && catalogs.length > 0) {
+                        catalogs.forEach(cat => {
+                            if (!cat.metas || cat.metas.length === 0) return;
+                            
+                            const section = document.createElement('div');
+                            section.style.marginBottom = "25px";
+                            // Título de Categoría: Addon + Nombre del Catálogo
+                            section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${cat.addonName} <span style="color:var(--primary); margin: 0 5px;">•</span> ${cat.catalogName}</h4>`;
+                            
+                            const row = document.createElement('div');
+                            row.className = 'poster-carousel';
+                            row.style.margin = "0 -16px";
+                            row.style.padding = "0 16px";
+                            
+                            // Se elimina el .slice(0, 15) para mostrar todos los elementos del catálogo
+                            cat.metas.forEach(meta => {
+                                const card = document.createElement('div');
+                                card.className = 'poster-card';
+                                card.style.backgroundImage = `url('${meta.poster}')`;
+                                card.onclick = () => openStremioDetails(meta, cat.baseUrl);
+                                card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${meta.name}</div></div>`;
+                                row.appendChild(card);
+                            });
+                            section.appendChild(row);
+                            stremioContainer.appendChild(section);
+                        });
+                    }
+                }
+            }
             const cinemaDots = document.getElementById('cinema-banner-dots');
             
             carousel.innerHTML = '';
@@ -2404,7 +2469,40 @@ function renderCurrentView() {
             
             alert("Configuración guardada. Recargando datos...");
             location.reload();
-        }        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+        }        async function openStremioDetails(meta, baseUrl) {
+            const modal = document.getElementById('programDetailModal');
+            modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
+            modal.querySelector('.detail-title').textContent = meta.name;
+            modal.querySelector('.detail-desc').textContent = meta.description || 'Sin descripción';
+            
+            const playBtn = modal.querySelector('.detail-play-btn');
+            playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
+            
+            try {
+                const streamRes = await fetch(`${baseUrl}/stream/${meta.type}/${meta.id}.json`);
+                const streamData = await streamRes.json();
+                if (streamData.streams && streamData.streams.length > 0) {
+                    playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
+                    playBtn.onclick = () => {
+                        const stream = streamData.streams[0];
+                        if (stream.url) {
+                            const video = document.getElementById('main-video-player');
+                            video.style.display = 'block';
+                            video.src = stream.url;
+                            video.play();
+                        } else if (stream.infoHash) {
+                            window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
+                        }
+                    };
+                } else {
+                    playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
+                }
+            } catch (e) { playBtn.innerHTML = "Error al cargar streams"; }
+            
+            modal.style.display = 'flex';
+        }
+
+        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
             const now = new Date();
             let prog;
             
@@ -3244,11 +3342,12 @@ function renderCurrentView() {
         </div>        <div style="padding: 0 16px;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Ahora en Deportes</h3>
             <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 10px; margin: 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
+        </div>        <div id="stremio-section" style="padding: 0 16px; display: none;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Streaming Catalogs</h3>
+            <div id="stremio-catalogs-container"></div>
         </div>
-
-        
         <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías Live</h3>
             <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
                     <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
@@ -3390,12 +3489,16 @@ function renderCurrentView() {
                 <div style="background: rgba(0,229,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(0,229,255,0.1); margin-bottom: 15px;">
                     <label style="font-size: 0.55rem; font-weight: 800; color: #00e5ff; margin-bottom: 6px; display: block; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7;">Guía EPG (XML)</label>
                     <input type="text" id="epgSourceInput" class="modern-input" style="margin-bottom: 0; background: #000; border: 1px solid #333; font-size: 0.75rem;" placeholder="URL del archivo XML...">
-                </div>
-
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="newAddonUrl" class="modern-input" style="margin: 0; flex-grow: 1; background: #000; border: 1px solid #333; font-size: 0.75rem;" placeholder="Nueva URL (M3U/JSON)">
+                </div>                <div style="display: flex; gap: 8px; margin-bottom:10px;">
+                    <input type="text" id="newAddonUrl" class="modern-input" style="margin: 0; flex-grow: 1; background: #000; border: 1px solid #333; font-size: 0.75rem;" placeholder="URL Lista (M3U/JSON)">
                     <button onclick="addNewAddonRow()" style="background: #00e5ff; color: #000; border: none; min-width: 42px; height: 42px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                        <span class="material-icons-round">add</span>
+                        <span class="material-icons-round">playlist_add</span>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="stremioAddonUrl" class="modern-input" style="margin: 0; flex-grow: 1; background: #000; border: 1px solid #333; font-size: 0.75rem;" placeholder="URL Stremio (manifest.json)">
+                    <button onclick="const u = document.getElementById('stremioAddonUrl').value; if(u){stremioAddons.push(u); localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons)); location.reload();}" style="background: #7b2cbf; color: #fff; border: none; min-width: 42px; height: 42px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <span class="material-icons-round">movie</span>
                     </button>
                 </div>
             </div>
