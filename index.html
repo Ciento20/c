@@ -2476,15 +2476,23 @@ function renderCurrentView() {
             modal.querySelector('.detail-desc').textContent = meta.description || 'Sin descripción';
             
             const playBtn = modal.querySelector('.detail-play-btn');
-            playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
-            
-            try {
-                const streamRes = await fetch(`${baseUrl}/stream/${meta.type}/${meta.id}.json`);
-                const streamData = await streamRes.json();
-                if (streamData.streams && streamData.streams.length > 0) {
+            playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;            try {
+                let allStreams = [];
+                for (const url of stremioAddons) {
+                    try {
+                        const addonBase = url.replace('/manifest.json', '');
+                        const streamRes = await fetch(`${addonBase}/stream/${meta.type}/${meta.id}.json`);
+                        if (streamRes.ok) {
+                            const streamData = await streamRes.json();
+                            if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
+                        }
+                    } catch (err) { console.warn("Stream fetch failed for", url); }
+                }
+
+                if (allStreams.length > 0) {
                     playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
                     playBtn.onclick = () => {
-                        const stream = streamData.streams[0];
+                        const stream = allStreams[0];
                         if (stream.url) {
                             const video = document.getElementById('main-video-player');
                             video.style.display = 'block';
