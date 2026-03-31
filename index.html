@@ -2459,7 +2459,9 @@ function renderCurrentView() {
                         metaInfo = metaInfo.replace(starMatch[0], "").replace(/\|\s*\|/g, "|").replace(/^\s*\|\s*|\s*\|\s*$/g, "").trim();
                     } else if (starFloating) {
                         starFloating.style.display = 'none';
-                    }                    // Extraer calificación de edad para el badge fijo
+                    }
+
+                    // Extraer calificación de edad para el badge fijo
                     const ratingMatch = metaInfo.match(/(\d{1,2}\+|⑫|⑦|⑱|TP|\(\d+\))/);
                     const ratingBadge = document.getElementById('detail-rating-badge');
                     if (ratingMatch && ratingBadge) {
@@ -2485,14 +2487,10 @@ function renderCurrentView() {
                         ratingBadge.style.background = bgColor;
                         ratingBadge.style.color = textColor;
                         ratingBadge.style.border = 'none';
-
-                        // Eliminamos el rating del texto para que no se duplique
-                        metaInfo = metaInfo.replace(ratingMatch[0], "").trim();
                     }
 
-                    // Colocar Metadatos limpios eliminando tuberías y espacios sobrantes
-                    metaInfo = metaInfo.replace(/\|/g, '').replace(/\s+/g, ' ').trim();
-                    document.getElementById('detail-metadata-fixed').innerHTML = metaInfo;
+                    // Colocar Metadatos limpios en la zona fija
+                    document.getElementById('detail-metadata-fixed').innerHTML = metaInfo.replace(/\|/g, '<span style="margin: 0 5px; opacity: 0.3;">|</span>');
                     
                     // Colocar Trama + Año al final
                     const yearFooter = foundYear ? `<br><br><span style="opacity:0.6; font-weight:bold;">Año: ${foundYear}</span>` : "";
