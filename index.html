@@ -1341,6 +1341,37 @@
                 `;
                 carousel.appendChild(card);
             });
+
+            // --- LÓGICA OCULTAR CATEGORÍAS SIN EVENTOS ---
+            const categoriesSection = document.getElementById('categories-section');
+            const categoriesContainer = document.getElementById('categories-container');
+            
+            if (categoriesSection && categoriesContainer) {
+                const categoryItems = categoriesContainer.querySelectorAll('div[onclick*="openSportCategory"]');
+                let totalVisibleCategories = 0;
+
+                categoryItems.forEach(item => {
+                    // Extraer el nombre de la categoría del atributo onclick
+                    const categoryName = item.getAttribute('onclick').match(/'([^']+)'/)[1];
+                    
+                    // Verificar si existe al menos un programa en el EPG para esta categoría
+                    const hasEvents = epgData.some(p => {
+                        if (!userSelectedChannels.has(p.channel)) return false;
+                        const categoryPart = (p.description || '').split('·')[0].toLowerCase();
+                        return categoryPart.includes(categoryName.toLowerCase());
+                    });
+
+                    if (hasEvents) {
+                        item.style.display = 'flex';
+                        totalVisibleCategories++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                // Mostrar la sección completa solo si hay al menos una categoría con eventos
+                categoriesSection.style.display = totalVisibleCategories > 0 ? 'block' : 'none';
+            }
         }
 
         function renderChannelsView() {
@@ -3140,9 +3171,9 @@ function renderCurrentView() {
         </div>
 
         
-        <div style="padding: 24px 16px 10px 16px;">
+        <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías</h3>
-            <div style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
+            <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
                     <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
                     <span style="font-size: 0.75rem; color: #999;">Fútbol</span>
