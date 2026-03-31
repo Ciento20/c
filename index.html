@@ -1264,12 +1264,18 @@
                     const catalogs = await fetchStremioCatalog(url);
                     if (catalogs && catalogs.length > 0) {
                         catalogs.forEach(cat => {
-                            if (!cat.metas || cat.metas.length === 0) return;
-                            
-                            const section = document.createElement('div');
+                            if (!cat.metas || cat.metas.length === 0) return;                            const section = document.createElement('div');
                             section.style.marginBottom = "25px";
-                            // Título de Categoría: Addon + Nombre del Catálogo
-                            section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${cat.addonName} <span style="color:var(--primary); margin: 0 5px;">•</span> ${cat.catalogName}</h4>`;
+                            // Recuperamos el nombre de la plataforma (cat.catalogName) y añadimos el tipo (Película/Serie)
+                            const platform = cat.catalogName || 'Streaming';
+                            const typeLabel = cat.type === 'movie' ? 'Película' : (cat.type === 'series' ? 'Series' : '');
+                            
+                            // Evitamos duplicar si el nombre ya contiene el tipo (ej: "Netflix Películas")
+                            const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase())
+                                ? `${platform} — ${typeLabel}`
+                                : platform;
+
+                            section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
                             
                             const row = document.createElement('div');
                             row.className = 'poster-carousel';
@@ -2476,38 +2482,111 @@ function renderCurrentView() {
             modal.querySelector('.detail-desc').textContent = meta.description || 'Sin descripción';
             
             const playBtn = modal.querySelector('.detail-play-btn');
-            playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;            try {
-                let allStreams = [];
-                for (const url of stremioAddons) {
-                    try {
-                        const addonBase = url.replace('/manifest.json', '');
-                        const streamRes = await fetch(`${addonBase}/stream/${meta.type}/${meta.id}.json`);
-                        if (streamRes.ok) {
-                            const streamData = await streamRes.json();
-                            if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
-                        }
-                    } catch (err) { console.warn("Stream fetch failed for", url); }
+            const metaContainer = modal.querySelector('.detail-meta');
+            
+            modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
+            
+            playBtn.onclick = null;
+            playBtn.style.background = '#333';
+            playBtn.style.color = '#777';
+            playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Cargando información...`;
+            modal.style.display = 'flex';
+
+            try {
+                let fullMeta = meta;
+                
+                // Si es serie, necesitamos obtener la metadata completa (temporadas y capítulos)
+                if (meta.type === 'series') {
+                    for (const addonUrl of stremioAddons) {
+                        try {
+                            const addonBaseUrl = addonUrl.replace('/manifest.json', '');
+                            const metaRes = await fetch(`${addonBaseUrl}/meta/${meta.type}/${meta.id}.json`);
+                            if (metaRes.ok) {
+                                const metaData = await metaRes.json();
+                                if (metaData.meta && metaData.meta.videos && metaData.meta.videos.length > 0) {
+                                    fullMeta = metaData.meta;
+                                    break;
+                                }
+                            }
+                        } catch (err) { console.warn("Meta fetch failed for", addonUrl); }
+                    }
                 }
 
-                if (allStreams.length > 0) {
-                    playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
-                    playBtn.onclick = () => {
-                        const stream = allStreams[0];
-                        if (stream.url) {
-                            const video = document.getElementById('main-video-player');
-                            video.style.display = 'block';
-                            video.src = stream.url;
-                            video.play();
-                        } else if (stream.infoHash) {
-                            window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
-                        }
+                if (fullMeta.type === 'series' && fullMeta.videos && fullMeta.videos.length > 0) {
+                    const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a,b) => a-b);
+                    const selectorHtml = `
+                        <div class="stremio-series-selectors" style="display: flex; gap: 10px; margin-top: 15px; width: 100%;">
+                            <select id="seasonSelect" style="flex: 1; padding: 10px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; outline: none; font-size: 0.9rem; cursor: pointer;">
+                                ${seasons.map(s => `<option value="${s}">Temporada ${s}</option>`).join('')}
+                            </select>
+                            <select id="episodeSelect" style="flex: 1; padding: 10px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; outline: none; font-size: 0.9rem; cursor: pointer;">
+                            </select>
+                        </div>
+                    `;
+                    metaContainer.insertAdjacentHTML('afterend', selectorHtml);
+
+                    const seasonSelect = document.getElementById('seasonSelect');
+                    const episodeSelect = document.getElementById('episodeSelect');
+
+                    const updateEpisodes = () => {
+                        const selectedSeason = parseInt(seasonSelect.value);
+                        const episodes = fullMeta.videos.filter(v => v.season === selectedSeason).sort((a,b) => a.episode - b.episode);
+                        episodeSelect.innerHTML = episodes.map(e => `<option value="${e.id}">Capítulo ${e.episode} ${e.title ? '- '+e.title : ''}</option>`).join('');
+                        fetchStreamsForId(episodeSelect.value);
                     };
+
+                    seasonSelect.onchange = updateEpisodes;
+                    episodeSelect.onchange = () => fetchStreamsForId(episodeSelect.value);
+
+                    updateEpisodes();
                 } else {
-                    playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
+                    fetchStreamsForId(meta.id);
                 }
-            } catch (e) { playBtn.innerHTML = "Error al cargar streams"; }
-            
-            modal.style.display = 'flex';
+
+                async function fetchStreamsForId(streamId) {
+                    playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
+                    playBtn.onclick = null;
+                    playBtn.style.background = '#333';
+                    playBtn.style.color = '#777';
+                    
+                    let allStreams = [];
+                    for (const url of stremioAddons) {
+                        try {
+                            const addonBase = url.replace('/manifest.json', '');
+                            const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
+                            if (streamRes.ok) {
+                                const streamData = await streamRes.json();
+                                if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
+                            }
+                        } catch (err) { console.warn("Stream fetch failed for", url); }
+                    }
+
+                    if (allStreams.length > 0) {
+                        playBtn.style.background = 'var(--color-primary)';
+                        playBtn.style.color = '#000';
+                        playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
+                        playBtn.onclick = () => {
+                            const stream = allStreams[0];
+                            if (stream.url) {
+                                const video = document.getElementById('main-video-player');
+                                video.style.display = 'block';
+                                video.src = stream.url;
+                                video.play();
+                            } else if (stream.infoHash) {
+                                window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
+                            }
+                        };
+                    } else {
+                        playBtn.style.background = '#333';
+                        playBtn.style.color = '#777';
+                        playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
+                    }
+                }
+            } catch (e) { 
+                playBtn.style.background = '#333';
+                playBtn.style.color = '#777';
+                playBtn.innerHTML = "Error al cargar información"; 
+            }
         }
 
         function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
@@ -2837,6 +2916,7 @@ function renderCurrentView() {
             const starFloating = document.getElementById('detail-rating-floating');
             
             if (starFloating) starFloating.style.display = 'none';
+            modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
             
             video.pause();
             video.src = "";
@@ -3147,18 +3227,13 @@ function renderCurrentView() {
 
         function closeAddonManager() {
             document.getElementById('addonManagerModal').style.display = 'none';
-        }
-
-        function performGlobalSearch(query) {
+        }        async function performGlobalSearch(query) {
             const resultsContainer = document.getElementById('globalSearchResults');
             resultsContainer.innerHTML = '';
             const q = query.toLowerCase().trim();
 
-            // MODO RECOMENDACIONES (Si no hay búsqueda suficiente)
             if (q.length < 2) {
                 resultsContainer.innerHTML = '<div style="color:var(--primary); font-size:0.75rem; font-weight:800; margin: 10px 0 15px 5px; letter-spacing:1px; text-transform:uppercase; opacity:0.8;">Sugerencias destacadas</div>';
-                
-                // Filtramos eventos que tengan imagen extendida (iconSrc2) y sean Cine o Deporte para que sean atractivos
                 const recommendations = epgData.filter(p => 
                     p.iconSrc2 && (p.description.toLowerCase().includes('cine') || p.description.toLowerCase().includes('deporte'))
                 ).sort(() => 0.5 - Math.random()).slice(0, 10);
@@ -3167,12 +3242,9 @@ function renderCurrentView() {
                     const card = document.createElement('div');
                     card.className = 'channel-row-modern';
                     card.style.background = 'rgba(255,255,255,0.03)';
-                    card.style.border = '1px solid rgba(255,255,255,0.05)';
                     card.onclick = () => { closeGlobalSearch(); openProgramDetails(item.channel, item.start, item.date, true); };
                     card.innerHTML = `
-                        <div class="channel-logo-modern" style="width:52px; height:52px; padding:0; overflow:hidden; border-radius:10px;">
-                            <img src="${item.iconSrc2}" style="width:100%; height:100%; object-fit:cover;">
-                        </div>
+                        <div class="channel-logo-modern" style="width:52px; height:52px; padding:0; overflow:hidden; border-radius:10px;"><img src="${item.iconSrc2}" style="width:100%; height:100%; object-fit:cover;"></div>
                         <div class="channel-info-modern">
                             <div class="prog-title-modern" style="font-size:0.9rem; color:#fff;">${item.title}</div>
                             <div style="font-size:0.75rem; color:var(--primary); font-weight:600;">${item.channel} • ${item.start}</div>
@@ -3184,38 +3256,64 @@ function renderCurrentView() {
                 return;
             }
 
-            // MODO BÚSQUEDA ACTIVA
-            const filtered = epgData.filter(p => 
+            // 1. RESULTADOS TV (EPG)
+            const filteredEpg = epgData.filter(p => 
                 p.title.toLowerCase().includes(q) || 
-                p.description.toLowerCase().includes(q) ||
                 p.channel.toLowerCase().includes(q)
-            ).slice(0, 50);
+            ).slice(0, 20);
 
-            if (filtered.length === 0) {
-                resultsContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#666;"><span class="material-icons" style="font-size:3rem; display:block; margin-bottom:10px;">search_off</span>No se encontraron resultados</div>';
-                return;
+            if (filteredEpg.length > 0) {
+                resultsContainer.insertAdjacentHTML('beforeend', '<div style="color:#888; font-size:0.65rem; font-weight:800; margin: 5px 0 10px 5px; text-transform:uppercase; letter-spacing:1px;">Televisión en vivo</div>');
+                filteredEpg.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'channel-row-modern';
+                    card.onclick = () => { closeGlobalSearch(); openProgramDetails(item.channel, item.start, item.date, true); };
+                    card.innerHTML = `
+                        <div class="channel-logo-modern" style="width:40px; height:40px;"><img src="${item.channelIcon}" style="max-width:100%;"></div>
+                        <div class="channel-info-modern">
+                            <div class="prog-title-modern" style="font-size:0.85rem;">${item.title}</div>
+                            <div style="font-size:0.65rem; color:#666;">${item.channel} • ${item.start}</div>
+                        </div>
+                        <span class="material-icons" style="color:#333; font-size:1rem;">live_tv</span>
+                    `;
+                    resultsContainer.appendChild(card);
+                });
             }
 
-            filtered.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'channel-row-modern';
-                card.style.margin = '5px 0';
-                card.onclick = () => { 
-                    closeGlobalSearch(); 
-                    openProgramDetails(item.channel, item.start, item.date, true); 
-                };
-                card.innerHTML = `
-                    <div class="channel-logo-modern" style="width:44px; height:44px;">
-                        <img src="${item.channelIcon}" style="max-width:100%;">
-                    </div>
-                    <div class="channel-info-modern">
-                        <div class="prog-title-modern" style="font-size:0.85rem;">${item.title}</div>
-                        <div style="font-size:0.7rem; color:#888;">${item.channel} • ${item.date} ${item.start}</div>
-                    </div>
-                    <span class="material-icons" style="color:#444; font-size:1rem;">chevron_right</span>
-                `;
-                resultsContainer.appendChild(card);
-            });
+            // 2. RESULTADOS STREMIO (CINE/SERIES)
+            if (stremioAddons.length > 0) {
+                resultsContainer.insertAdjacentHTML('beforeend', '<div id="stremio-search-loading" style="color:var(--primary); font-size:0.65rem; font-weight:800; margin: 20px 0 10px 5px; text-transform:uppercase; letter-spacing:1px;">Buscando en Stremio...</div>');
+                
+                for (const url of stremioAddons) {
+                    const catalogs = await fetchStremioCatalog(url);
+                    if (catalogs) {
+                        catalogs.forEach(cat => {
+                            const matches = cat.metas.filter(m => m.name.toLowerCase().includes(q));
+                            matches.forEach(meta => {
+                                const card = document.createElement('div');
+                                card.className = 'channel-row-modern';
+                                card.style.borderLeft = '3px solid #7b2cbf';
+                                card.onclick = () => { closeGlobalSearch(); openStremioDetails(meta, cat.baseUrl); };
+                                card.innerHTML = `
+                                    <div class="channel-logo-modern" style="width:40px; height:56px; border-radius:4px;"><img src="${meta.poster}" style="height:100%; object-fit:cover;"></div>
+                                    <div class="channel-info-modern">
+                                        <div class="prog-title-modern" style="font-size:0.85rem;">${meta.name}</div>
+                                        <div style="font-size:0.65rem; color:#7b2cbf; font-weight:700;">STREAMING • ${cat.addonName}</div>
+                                    </div>
+                                    <span class="material-icons" style="color:#7b2cbf; font-size:1rem;">movie</span>
+                                `;
+                                resultsContainer.appendChild(card);
+                            });
+                        });
+                    }
+                }
+                const loadingTag = document.getElementById('stremio-search-loading');
+                if (loadingTag) loadingTag.textContent = 'Catálogo de Streaming';
+            }
+
+            if (resultsContainer.children.length === 0) {
+                resultsContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#666;"><span class="material-icons" style="font-size:3rem; display:block; margin-bottom:10px;">search_off</span>Sin resultados</div>';
+            }
         }
 
         function closeChannelSelector() {
