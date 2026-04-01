@@ -41,9 +41,8 @@
             link.href = URL.createObjectURL(manifestBlob);
             document.head.appendChild(link);
             const swCode = "self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('activate', e => e.waitUntil(clients.claim())); self.addEventListener('fetch', e => {});";
-            const swBlob = new Blob([swCode], {type: 'application/javascript'});            if ('serviceWorker' in navigator) {
-                // Limpiar registros antiguos para evitar versiones 'congeladas' de la app
-                navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+            const swBlob = new Blob([swCode], {type: 'application/javascript'});
+            if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                     navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(err => console.log('SW Error:', err));
                 });
@@ -1259,15 +1258,16 @@
         let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';
 
         async function fetchStremioCatalog(addonUrl) {
-            try {                const manifestRes = await fetch(addonUrl + (addonUrl.includes('?') ? '&t=' : '?t=') + Date.now(), { cache: 'no-store' });
+            try {
+                const manifestRes = await fetch(addonUrl);
                 const manifest = await manifestRes.json();
                 const baseUrl = addonUrl.replace('/manifest.json', '');
                 const catalogsData = [];
 
                 // Iteramos por todos los catálogos definidos en el manifest
                 for (const cat of (manifest.catalogs || [])) {
-                    try {                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json`;
-                        const catalogRes = await fetch(catalogUrl + (catalogUrl.includes('?') ? '&t=' : '?t=') + Date.now(), { cache: 'no-store' });
+                    try {
+                        const catalogRes = await fetch(`${baseUrl}/catalog/${cat.type}/${cat.id}.json`);
                         const data = await catalogRes.json();
                         catalogsData.push({
                             addonName: manifest.name,
@@ -1618,8 +1618,8 @@
             
             loader.style.display = 'flex';
 
-            try {                const cacheBuster = url.includes('?') ? `&t=${Date.now()}` : `?t=${Date.now()}`;
-                const response = await fetch(url + cacheBuster, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } });
+            try {
+                const response = await fetch(url);
                 if (!response.ok) throw new Error("No se pudo cargar el archivo EPG.");
                 const xmlText = await response.text();
 
@@ -2324,8 +2324,8 @@ function renderCurrentView() {
             channelStreams = {};
             for (const url of streamSources) {
                 try {
-                    const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;                    const cacheBuster = cleanUrl.includes('?') ? `&t=${Date.now()}` : `?t=${Date.now()}`;
-                    const response = await fetch(cleanUrl + cacheBuster, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } });
+                    const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
+                    const response = await fetch(cleanUrl);
                     const text = await response.text();
                     
                     try {
@@ -3554,7 +3554,10 @@ function renderCurrentView() {
                         if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;
                     }, 200);
                 });
-            </script>            <div class="settings-card" style="cursor: pointer; margin-bottom: 12px;" onclick="openChannelSelector()">                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            </script>
+
+            <div class="settings-card" style="cursor: pointer; margin-bottom: 0;" onclick="openChannelSelector()">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--color-primary); font-size: 1.4rem;">settings</span></div>
                         <div>
@@ -3563,18 +3566,6 @@ function renderCurrentView() {
                         </div>
                     </div>
                     <span class="material-icons" style="color: #00e5ff; font-size: 1.2rem;">arrow_forward_ios</span>
-                </div>
-            </div>
-
-            <div class="settings-card" style="cursor: pointer; border: 1px dashed #ff4757; margin-top: 10px;" onclick="if(confirm('¿Forzar limpieza de caché y refrescar datos remotos?')){ location.reload(true); }">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #ff4757; font-size: 1.4rem;">cached</span></div>
-                        <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Limpiar Caché y Refrescar</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Fuerza la descarga de XML y listas más recientes</div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
