@@ -1255,11 +1255,10 @@
         let currentMainView = 'home';
         let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
         let hideNoImageEvents = localStorage.getItem('hideNoImageEvents') === 'true';
-        let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';
-
-        async function fetchStremioCatalog(addonUrl) {
+        let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';        async function fetchStremioCatalog(addonUrl) {
             try {
-                const manifestRes = await fetch(addonUrl);
+                const cacheBuster = `?t=${Date.now()}`;
+                const manifestRes = await fetch(addonUrl + (addonUrl.includes('?') ? '&t=' : '?t=') + Date.now());
                 const manifest = await manifestRes.json();
                 const baseUrl = addonUrl.replace('/manifest.json', '');
                 const catalogsData = [];
@@ -1267,7 +1266,8 @@
                 // Iteramos por todos los catálogos definidos en el manifest
                 for (const cat of (manifest.catalogs || [])) {
                     try {
-                        const catalogRes = await fetch(`${baseUrl}/catalog/${cat.type}/${cat.id}.json`);
+                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json`;
+                        const catalogRes = await fetch(catalogUrl + (catalogUrl.includes('?') ? '&t=' : '?t=') + Date.now());
                         const data = await catalogRes.json();
                         catalogsData.push({
                             addonName: manifest.name,
@@ -1605,9 +1605,7 @@
             // Establecer la hora actual en el selector
             const currentHour = now.getHours();
             document.getElementById('hourFilter').value = currentHour;
-        }
-
-        async function fetchXML() {
+        }        async function fetchXML() {
             const loader = document.getElementById('loader');
             const url = localStorage.getItem('epgSourceUrl');
             
@@ -1619,7 +1617,9 @@
             loader.style.display = 'flex';
 
             try {
-                const response = await fetch(url);
+                // Cache-buster para asegurar que se descarga la versión más reciente del XML
+                const cacheBuster = url.includes('?') ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+                const response = await fetch(url + cacheBuster);
                 if (!response.ok) throw new Error("No se pudo cargar el archivo EPG.");
                 const xmlText = await response.text();
 
@@ -2325,7 +2325,9 @@ function renderCurrentView() {
             for (const url of streamSources) {
                 try {
                     const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
-                    const response = await fetch(cleanUrl);
+                    // Cache-buster para forzar la actualización de los Gists y listas remotas
+                    const cacheBuster = cleanUrl.includes('?') ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+                    const response = await fetch(cleanUrl + cacheBuster);
                     const text = await response.text();
                     
                     try {
