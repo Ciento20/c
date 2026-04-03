@@ -3388,35 +3388,53 @@ function renderCurrentView() {
                 });
             }
 
-            // 2. RESULTADOS STREMIO (CINE/SERIES)
+            // 2. RESULTADOS STREMIO (BÚSQUEDA PROFUNDA EN ADDONS)
             if (stremioAddons.length > 0) {
-                resultsContainer.insertAdjacentHTML('beforeend', '<div id="stremio-search-loading" style="color:var(--primary); font-size:0.65rem; font-weight:800; margin: 20px 0 10px 5px; text-transform:uppercase; letter-spacing:1px;">Buscando en Stremio...</div>');
+                const loadingHtml = '<div id="stremio-search-loading" style="color:var(--primary); font-size:0.65rem; font-weight:800; margin: 20px 0 10px 5px; text-transform:uppercase; letter-spacing:1px;"><i class="fas fa-circle-notch fa-spin"></i> Buscando en la nube...</div>';
+                resultsContainer.insertAdjacentHTML('beforeend', loadingHtml);
                 
                 for (const url of stremioAddons) {
-                    const catalogs = await fetchStremioCatalog(url);
-                    if (catalogs) {
-                        catalogs.forEach(cat => {
-                            const matches = cat.metas.filter(m => m.name.toLowerCase().includes(q));
-                            matches.forEach(meta => {
+                    try {
+                        const manifestRes = await fetch(url);
+                        const manifest = await manifestRes.json();
+                        const baseUrl = url.replace('/manifest.json', '');
+                        
+                        // Buscamos en cada tipo de catálogo que soporte el addon (movie, series)
+                        const types = [...new Set((manifest.catalogs || []).map(c => c.type))];
+                        
+                        for (const type of types) {
+                            if (type !== 'movie' && type !== 'series') continue;
+                            
+                            // Endpoint estándar de Stremio para búsqueda
+                            const searchUrl = `${baseUrl}/catalog/${type}/top/search=${encodeURIComponent(q)}.json`;
+                            const searchRes = await fetch(searchUrl);
+                            if (!searchRes.ok) continue;
+                            
+                            const searchData = await searchRes.json();
+                            const metas = searchData.metas || [];
+
+                            metas.forEach(meta => {
                                 const card = document.createElement('div');
                                 card.className = 'channel-row-modern';
                                 card.style.borderLeft = '3px solid #7b2cbf';
-                                card.onclick = () => { closeGlobalSearch(); openStremioDetails(meta, cat.baseUrl); };
+                                card.onclick = () => { closeGlobalSearch(); openStremioDetails(meta, baseUrl); };
                                 card.innerHTML = `
-                                    <div class="channel-logo-modern" style="width:40px; height:56px; border-radius:4px;"><img src="${meta.poster}" style="height:100%; object-fit:cover;"></div>
+                                    <div class="channel-logo-modern" style="width:40px; height:56px; border-radius:4px; background:#000;">
+                                        <img src="${meta.poster}" style="height:100%; width:100%; object-fit:cover;" onerror="this.src='https://via.placeholder.com/40x56?text=?'">
+                                    </div>
                                     <div class="channel-info-modern">
                                         <div class="prog-title-modern" style="font-size:0.85rem;">${meta.name}</div>
-                                        <div style="font-size:0.65rem; color:#7b2cbf; font-weight:700;">STREAMING • ${cat.addonName}</div>
+                                        <div style="font-size:0.65rem; color:#7b2cbf; font-weight:700;">${type.toUpperCase()} • ${manifest.name}</div>
                                     </div>
-                                    <span class="material-icons" style="color:#7b2cbf; font-size:1rem;">movie</span>
+                                    <span class="material-icons" style="color:#7b2cbf; font-size:1rem;">cloud_download</span>
                                 `;
                                 resultsContainer.appendChild(card);
                             });
-                        });
-                    }
+                        }
+                    } catch (err) { console.error("Error buscando en addon:", url, err); }
                 }
                 const loadingTag = document.getElementById('stremio-search-loading');
-                if (loadingTag) loadingTag.textContent = 'Catálogo de Streaming';
+                if (loadingTag) loadingTag.innerHTML = 'Resultados de Streaming';
             }
 
             if (resultsContainer.children.length === 0) {
@@ -3604,11 +3622,7 @@ function renderCurrentView() {
         </div>        <div style="padding: 0 16px;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Ahora en Deportes</h3>
             <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 10px; margin: 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
-        </div>        <div id="stremio-section" style="padding: 0 16px; display: none;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Streaming Catalogs</h3>
-            <div id="stremio-catalogs-container"></div>
-        </div>
-        <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
+        </div>        <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías Live</h3>
             <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
@@ -3648,6 +3662,10 @@ function renderCurrentView() {
                     <span style="font-size: 0.75rem; color: #999;">Voleibol</span>
                 </div>
             </div>
+        </div>
+        <div id="stremio-section" style="padding: 0 16px; display: none;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Streaming Catalogs</h3>
+            <div id="stremio-catalogs-container"></div>
         </div>
     </div>
 
