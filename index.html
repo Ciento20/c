@@ -480,15 +480,6 @@
             20% { transform: scaleY(1.2); opacity: 1; }
         }
 
-        /* Estilo para navegación con Mando TV */
-        .remote-focus {
-            outline: 3px solid var(--primary) !important;
-            box-shadow: 0 0 20px var(--primary) !important;
-            transform: scale(1.03) !important;
-            z-index: 1000 !important;
-            transition: all 0.2s ease !important;
-        }
-
         /* Light mode overrides */
         body.light-mode {
             background: linear-gradient(180deg, var(--color-bg-light-start), var(--color-bg-light-end));
@@ -3124,20 +3115,12 @@ function renderCurrentView() {
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');
             const fsBtn = document.getElementById('customFSBtn');
-            let fsTimeout;
-
-            const showFsBtn = () => {
+            let fsTimeout;            const showFsBtn = () => {
                 if (!fsBtn) return;
                 fsBtn.style.display = 'flex';
                 fsBtn.style.opacity = '1';
                 fsBtn.style.pointerEvents = 'auto';
-                clearTimeout(fsTimeout);
-                if (document.fullscreenElement) {
-                    fsTimeout = setTimeout(() => {
-                        fsBtn.style.opacity = '0';
-                        fsBtn.style.pointerEvents = 'none';
-                    }, 3000);
-                }
+                // Lógica de temporizador eliminada: el botón ahora es permanentemente visible
             };
 
             if (container) {
@@ -3166,11 +3149,12 @@ function renderCurrentView() {
                     }
                     showFsBtn();
                 } catch (err) { console.warn('FS Error:', err); }
-            };
-
-            document.addEventListener('fullscreenchange', () => {
+            };            document.addEventListener('fullscreenchange', () => {
                 if (!document.fullscreenElement && fsBtn) {
                     fsBtn.innerHTML = '<span class="material-icons">fullscreen</span>';
+                }
+                // Forzamos que la opacidad se mantenga siempre al 100%
+                if (fsBtn) {
                     fsBtn.style.opacity = '1';
                     fsBtn.style.pointerEvents = 'auto';
                 }
@@ -3793,95 +3777,20 @@ function renderCurrentView() {
 
         function closeChannelSelector() {
             document.getElementById('channelSelectorModal').style.display = 'none';
+            
+            // Guardar selección y orden personalizado
             localStorage.setItem('userSelectedChannels', JSON.stringify([...userSelectedChannels]));
             localStorage.setItem('customChannelOrder', JSON.stringify(channelsList));
+            
             visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
             populateChannelDropdown();
-            if (currentMainView === 'channels') renderChannelsView();
-            else if (currentMainView === 'events') renderCurrentView();
-        }
-
-        /* --- LÓGICA MANDO TV Y SIMULACIÓN POR RATÓN --- */
-        let isRemoteActive = localStorage.getItem('remoteMode') === 'true';
-        let remoteIndex = 0;
-        let lastMouseX = 0, lastMouseY = 0;
-        const SENSITIVITY = 50; 
-
-        function toggleRemoteMode(active) {
-            isRemoteActive = active;
-            localStorage.setItem('remoteMode', active);
-            if (!active) {
-                document.querySelectorAll('.remote-focus').forEach(el => el.classList.remove('remote-focus'));
-            } else {
-                updateRemoteFocus();
-            }
-        }
-
-        function getFocusableElements() {
-            const selectors = [
-                '.program-card', '.nav-item', '.channel-tab', '.date-tab', 
-                '.source-pill', '.channel-row-modern', '.poster-card', '.modern-btn'
-            ];
-            return Array.from(document.querySelectorAll(selectors.join(',')))
-                .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0 && window.getComputedStyle(el).display !== 'none');
-        }
-
-        function updateRemoteFocus() {
-            if (!isRemoteActive) return;
-            const items = getFocusableElements();
-            items.forEach(el => el.classList.remove('remote-focus'));
-            if (items[remoteIndex]) {
-                items[remoteIndex].classList.add('remote-focus');
-                items[remoteIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-
-        // Navegación por teclado
-        window.addEventListener('keydown', (e) => {
-            if (!isRemoteActive) return;
-            const items = getFocusableElements();
-            if (e.key === 'ArrowRight') remoteIndex = (remoteIndex + 1) % items.length;
-            else if (e.key === 'ArrowLeft') remoteIndex = (remoteIndex - 1 + items.length) % items.length;
-            else if (e.key === 'ArrowDown') {
-                const rect = items[remoteIndex].getBoundingClientRect();
-                const next = items.findIndex((el, i) => i > remoteIndex && el.getBoundingClientRect().top > rect.bottom - 10);
-                if (next !== -1) remoteIndex = next;
-            }
-            else if (e.key === 'ArrowUp') {
-                const rect = items[remoteIndex].getBoundingClientRect();
-                const prev = items.findLastIndex((el, i) => i < remoteIndex && el.getBoundingClientRect().bottom < rect.top + 10);
-                if (prev !== -1) remoteIndex = prev;
-            }
-            else if (e.key === 'Enter') items[remoteIndex]?.click();
-            else if (e.key === 'Backspace' || e.key === 'Escape') closeProgramDetails();
             
-            updateRemoteFocus();
-        });
-
-        // Simulación por gestos de ratón
-        window.addEventListener('mousemove', (e) => {
-            if (!isRemoteActive) return;
-            const dx = e.clientX - lastMouseX;
-            const dy = e.clientY - lastMouseY;
-
-            if (Math.abs(dx) > SENSITIVITY || Math.abs(dy) > SENSITIVITY) {
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    window.dispatchEvent(new KeyboardEvent('keydown', { key: dx > 0 ? 'ArrowRight' : 'ArrowLeft' }));
-                } else {
-                    window.dispatchEvent(new KeyboardEvent('keydown', { key: dy > 0 ? 'ArrowDown' : 'ArrowUp' }));
-                }
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
+            if (currentMainView === 'channels') {
+                renderChannelsView();
+            } else if (currentMainView === 'events') {
+                renderCurrentView();
             }
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                const toggle = document.getElementById('remoteModeToggle');
-                if (toggle) toggle.checked = isRemoteActive;
-                if (isRemoteActive) updateRemoteFocus();
-            }, 500);
-        });
+        }
     </script>    <style>
         .settings-card { background: #1c1c1e; border-radius: 16px; margin-bottom: 12px; padding: 16px; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.03); }
         .settings-icon-wrapper { width: 44px; height: 44px; background: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
@@ -3919,22 +3828,6 @@ function renderCurrentView() {
             <p style="color: #666; font-size: 0.85rem; margin: 25px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">Configuración del sistema</p>
             
             
-
-            <div class="settings-card">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #4caf50; font-size: 1.4rem;">settings_remote</span></div>
-                        <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Modo Mando TV</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Navegar con teclado o gestos de ratón</div>
-                        </div>
-                    </div>
-                    <label style="margin: 0;">
-                        <input type="checkbox" id="remoteModeToggle" onchange="toggleRemoteMode(this.checked)" style="display: none;">
-                        <div class="ios-toggle"></div>
-                    </label>
-                </div>
-            </div>
 
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
