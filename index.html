@@ -2639,9 +2639,7 @@ function renderCurrentView() {
                             document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
                                 p.classList.toggle('active', i === idx);
                             });
-                        };
-
-                        playBtn.onclick = () => {
+                        };                        playBtn.onclick = async () => {
                             // Guardar en Continuar Viendo (Historial Reciente) - Ahora funciona para Películas y Series
                             const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');                            const itemToSave = {
                                 id: fullMeta.id,
@@ -2674,14 +2672,7 @@ function renderCurrentView() {
                                         // Lógica de Siguiente Capítulo (90 segundos antes)
                                         if (fullMeta.type === 'series' && remaining <= 90) {
                                             const currentIndex = fullMeta.videos.findIndex(v => v.id === streamId);
-                                            const nextEp = fullMeta.videos[currentIndex + 1];
-                                            
-                                            if (nextEp && !document.getElementById('next-ep-overlay')) {
-                                                // Forzar orientación horizontal inmediata para evitar saltos al salir de F11
-                                                if (screen.orientation && screen.orientation.lock) {
-                                                    screen.orientation.lock('landscape').catch(() => {});
-                                                }
-
+                                            const nextEp = fullMeta.videos[currentIndex + 1];                                            if (nextEp && !document.getElementById('next-ep-overlay')) {
                                                 const overlay = document.createElement('div');
                                                 overlay.id = 'next-ep-overlay';
                                                 overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
@@ -2709,14 +2700,18 @@ function renderCurrentView() {
                                         localStorage.setItem('videoProgress', JSON.stringify(progress));
                                     }
                                 };                            video.play();
-                            // Forzar horizontal al empezar para asegurar consistencia
-                            if (screen.orientation && screen.orientation.lock) {
-                                screen.orientation.lock('landscape').catch(() => {});
-                            }
-                            // Ir a pantalla completa sobre el contenedor para que los botones (overlay) sean visibles
+                            
+                            // Ir a pantalla completa y rotar
                             const container = video.parentElement;
                             const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
-                            if (requestFS) requestFS.call(container);
+                            if (requestFS) {
+                                try {
+                                    await requestFS.call(container);
+                                    if (screen.orientation && screen.orientation.lock) {
+                                        await screen.orientation.lock('landscape').catch(() => {});
+                                    }
+                                } catch (e) { console.error('Error en pantalla completa/rotación:', e); }
+                            }
 
                             } else if (stream.infoHash) {
                                 window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
@@ -3453,6 +3448,32 @@ function renderCurrentView() {
 
         function closeAddonManager() {
             document.getElementById('addonManagerModal').style.display = 'none';
+        }
+
+        async function importMasterConfig() {
+            const url = document.getElementById('masterGistInput').value.trim();
+            if(!url) return alert("Introduce la URL del Gist");
+            
+            const rawUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
+            const loader = document.getElementById('loader');
+            loader.style.display = 'flex';
+
+            try {
+                const response = await fetch(rawUrl);
+                const config = await response.json();
+
+                if(config.epg) localStorage.setItem('epgSourceUrl', config.epg);
+                if(config.m3u) localStorage.setItem('streamSources', JSON.stringify(config.m3u));
+                if(config.stremio) localStorage.setItem('stremioAddons', JSON.stringify(config.stremio));
+
+                alert("¡Sincronización Maestra completada! La aplicación se reiniciará.");
+                location.reload();
+            } catch (e) {
+                alert("Error al importar el Gist. Asegúrate de que sea un JSON válido.");
+                console.error(e);
+            } finally {
+                loader.style.display = 'none';
+            }
         }        async function performGlobalSearch(query) {
             const resultsContainer = document.getElementById('globalSearchResults');
             resultsContainer.innerHTML = '';
@@ -3891,6 +3912,17 @@ function renderCurrentView() {
                 </div>
                 
                 
+                <div style="background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); padding: 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label style="font-size: 0.6rem; font-weight: 800; color: var(--primary); letter-spacing: 1px; text-transform: uppercase;">Configuración Maestra (Gist)</label>
+                        <span class="material-icons-round" style="font-size: 1rem; color: var(--primary);">cloud_sync</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="masterGistInput" class="modern-input" style="margin-bottom: 0; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 10px; flex-grow:1;" placeholder="URL de tu Gist JSON...">
+                        <button onclick="importMasterConfig()" style="background: var(--primary); color: #000; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.7rem;">IMPORTAR</button>
+                    </div>
+                </div>
+
                 <div style="background: linear-gradient(135deg, rgba(88,166,255,0.1) 0%, rgba(88,166,255,0.02) 100%); padding: 16px; border-radius: 18px; border: 1px solid rgba(88,166,255,0.2);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <label style="font-size: 0.6rem; font-weight: 800; color: #58a6ff; letter-spacing: 1px; text-transform: uppercase;">Fuente de Guía (EPG)</label>
