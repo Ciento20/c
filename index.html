@@ -2560,6 +2560,43 @@ function renderCurrentView() {
             location.reload();
         }        async function openStremioDetails(meta, baseUrl) {
             const modal = document.getElementById('programDetailModal');
+            
+            // ELIMINAR enlaces de canales de TV previos y limpiar interfaz
+            modal.querySelectorAll('.source-selector').forEach(el => el.remove());
+            const channelLogo = modal.querySelector('.detail-channel-logo');
+            if (channelLogo) channelLogo.style.display = 'none';
+            const tvMeta = document.getElementById('detail-metadata-fixed');
+            if (tvMeta) tvMeta.style.display = 'none';
+            const ratingFloating = document.getElementById('detail-rating-floating');
+            if (ratingFloating) ratingFloating.style.display = 'none';
+            modal.querySelector('.detail-badge').style.display = 'none';
+            modal.querySelector('.detail-progress-container').style.display = 'none';
+
+            // Actualizar la edad recomendada específica de la película/serie
+            const ratingBadge = document.getElementById('detail-rating-badge');
+            if (ratingBadge) {
+                const certification = meta.certification || '';
+                if (certification) {
+                    ratingBadge.style.display = 'block';
+                    ratingBadge.textContent = certification;
+                    
+                    let rText = certification.toUpperCase();
+                    let bgColor = '#333';
+                    let textColor = '#fff';
+                    
+                    if (rText === 'TP' || rText === 'G') bgColor = '#4caf50'; 
+                    else if (rText.includes('7')) bgColor = '#2196f3';
+                    else if (rText.includes('12') || rText.includes('13')) { bgColor = '#ffc107'; textColor = '#000'; }
+                    else if (rText.includes('16')) bgColor = '#ff9800';
+                    else if (rText.includes('18') || rText.includes('R')) bgColor = '#e53935';
+                    
+                    ratingBadge.style.background = bgColor;
+                    ratingBadge.style.color = textColor;
+                } else {
+                    ratingBadge.style.display = 'none';
+                }
+            }
+
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
             modal.querySelector('.detail-title').textContent = meta.name;
             modal.querySelector('.detail-desc').textContent = meta.description || 'Sin descripción';
