@@ -848,6 +848,7 @@
             position: relative;
             flex-shrink: 0;
             box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            overflow: hidden; /* Asegura que el gradiente inferior respete las esquinas redondeadas */
         }
 
         .poster-card::after {
@@ -1323,6 +1324,27 @@
             if (stremioContainer) {
                 stremioContainer.innerHTML = '';
                 if (stremioSection) stremioSection.style.display = stremioAddons.length > 0 ? 'block' : 'none';
+
+            // --- LÓGICA CONTINUAR VIENDO ---
+            const continueSection = document.getElementById('continue-watching-section');
+            const continueContainer = document.getElementById('continue-watching-container');
+            const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
+
+            if (continueSection && continueContainer) {
+                continueContainer.innerHTML = '';
+                if (continueData.length > 0) {
+                    continueSection.style.display = 'block';
+                    continueData.forEach(item => {
+                        const card = document.createElement('div');
+                        card.className = 'poster-card';
+                        card.style.backgroundImage = `url('${item.poster}')`;                        card.onclick = () => { item.autoPlay = true; openStremioDetails(item, item.baseUrl); };
+                        card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${item.name}</div></div>`;
+                        continueContainer.appendChild(card);
+                    });
+                } else {
+                    continueSection.style.display = 'none';
+                }
+            }
 
                 for (const url of stremioAddons) {
                     const catalogs = await fetchStremioCatalog(url);
@@ -2550,9 +2572,7 @@ function renderCurrentView() {
             playBtn.style.background = '#333';
             playBtn.style.color = '#777';
             playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Cargando información...`;
-            modal.style.display = 'flex';
-
-            try {
+            modal.style.display = 'flex';            try {
                 let fullMeta = meta;
                 
                 // Si es serie, necesitamos obtener la metadata completa (temporadas y capítulos)
@@ -2572,8 +2592,155 @@ function renderCurrentView() {
                     }
                 }
 
+                // Definir fetchStreamsForId para que sea accesible tanto para películas como para series
+                window.fetchStreamsForId = async function(streamId) {
+                    playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
+                    playBtn.onclick = null;
+                    playBtn.style.background = '#333';
+                    playBtn.style.color = '#777';
+                    
+                    let allStreams = [];
+                    for (const url of stremioAddons) {
+                        try {
+                            const addonBase = url.replace('/manifest.json', '');
+                            const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
+                            if (streamRes.ok) {
+                                const streamData = await streamRes.json();
+                                if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
+                            }
+                        } catch (err) { console.warn("Stream fetch failed for", url); }
+                    }
+
+                    if (allStreams.length > 0) {
+                        playBtn.style.background = 'var(--color-primary)';
+                        playBtn.style.color = '#000';
+                        playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
+                        
+                        const oldSelector = document.querySelector('.stremio-stream-selector');
+                        if (oldSelector) oldSelector.remove();
+
+                        if (allStreams.length > 1) {
+                            let selectorHtml = '<div class="source-selector stremio-stream-selector" style="margin-top: 15px; width: 100%;">';
+                            allStreams.forEach((st, i) => {
+                                const raw = st.title || st.name || "";
+                                const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                                const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
+                                const addonName = st.name || "Addon";
+                                const display = `<span style='color:var(--primary)'>${quality}</span> • ${lang} • <small>${addonName}</small>`;
+                                selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}" style="font-size:0.65rem; padding: 4px 10px;">${display}</div>`;
+                            });
+                            selectorHtml += '</div>';
+                            playBtn.insertAdjacentHTML('beforebegin', selectorHtml);
+                        }
+
+                        window.currentStremioStreamIdx = 0;
+                        window.changeStremioSource = (idx) => {
+                            window.currentStremioStreamIdx = idx;
+                            document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
+                                p.classList.toggle('active', i === idx);
+                            });
+                        };
+
+                        playBtn.onclick = () => {
+                            // Guardar en Continuar Viendo (Historial Reciente) - Ahora funciona para Películas y Series
+                            const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');                            const itemToSave = {
+                                id: fullMeta.id,
+                                name: fullMeta.name,
+                                poster: fullMeta.poster,
+                                background: fullMeta.background,
+                                type: fullMeta.type,
+                                baseUrl: baseUrl,
+                                lastStreamId: streamId
+                            };
+                            const filtered = continueData.filter(i => i.id !== itemToSave.id);
+                            filtered.unshift(itemToSave);
+                            localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 15)));
+
+                            const stream = allStreams[window.currentStremioStreamIdx || 0];
+                            if (stream.url) {
+                                const video = document.getElementById('main-video-player');
+                                video.style.display = 'block';
+                                video.src = stream.url;
+                                
+                                const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
+                                if (savedProg[streamId] && savedProg[streamId].time) {
+                                    video.currentTime = savedProg[streamId].time;
+                                }                                video.ontimeupdate = () => {
+                                    if (video.currentTime > 5 && video.duration) {
+                                        const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
+                                        const percentage = (video.currentTime / video.duration) * 100;
+                                        const remaining = video.duration - video.currentTime;
+
+                                        // Lógica de Siguiente Capítulo (90 segundos antes)
+                                        if (fullMeta.type === 'series' && remaining <= 90) {
+                                            const currentIndex = fullMeta.videos.findIndex(v => v.id === streamId);
+                                            const nextEp = fullMeta.videos[currentIndex + 1];
+                                            
+                                            if (nextEp && !document.getElementById('next-ep-overlay')) {
+                                                // Forzar orientación horizontal inmediata para evitar saltos al salir de F11
+                                                if (screen.orientation && screen.orientation.lock) {
+                                                    screen.orientation.lock('landscape').catch(() => {});
+                                                }
+
+                                                const overlay = document.createElement('div');
+                                                overlay.id = 'next-ep-overlay';
+                                                overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
+                                                overlay.innerHTML = `
+                                                    <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
+                                                    <div style="text-align:left;">
+                                                        <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
+                                                        <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
+                                                    </div>
+                                                    <button onclick="this.parentElement.remove(); window.fetchStreamsForId('${nextEp.id}')" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
+                                                `;
+                                                video.parentElement.appendChild(overlay);
+                                            }
+                                        }
+
+                                        if (remaining < 180 || percentage > 95) {
+                                            delete progress[streamId];
+                                            if (fullMeta.type === 'series') {
+                                                const w = JSON.parse(localStorage.getItem('watchedEps') || '[]');
+                                                if (!w.includes(streamId)) { w.push(streamId); localStorage.setItem('watchedEps', JSON.stringify(w)); }
+                                            }
+                                        } else {
+                                            progress[streamId] = { time: video.currentTime, percent: percentage };
+                                        }
+                                        localStorage.setItem('videoProgress', JSON.stringify(progress));
+                                    }
+                                };                            video.play();
+                            // Forzar horizontal al empezar para asegurar consistencia
+                            if (screen.orientation && screen.orientation.lock) {
+                                screen.orientation.lock('landscape').catch(() => {});
+                            }
+                            // Ir a pantalla completa sobre el contenedor para que los botones (overlay) sean visibles
+                            const container = video.parentElement;
+                            const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
+                            if (requestFS) requestFS.call(container);
+
+                            } else if (stream.infoHash) {
+                                window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
+                            }
+                        };
+                        
+                        if (meta.autoPlay) {
+                            setTimeout(() => {
+                                playBtn.click();
+                                meta.autoPlay = false;
+                            }, 400);
+                        }
+                    } else {
+                        const oldSelector = document.querySelector('.stremio-stream-selector');
+                        if (oldSelector) oldSelector.remove();
+                        playBtn.style.background = '#333';
+                        playBtn.style.color = '#777';
+                        playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
+                    }
+                };
+
                 if (fullMeta.type === 'series' && fullMeta.videos && fullMeta.videos.length > 0) {
-                    const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a, b) => a - b);                    const selectorHtml = `
+                    const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a, b) => a - b);
+                    const selectorHtml = `
                         <div class="stremio-series-selectors" style="width: 100%;">
                             <div class="season-tabs" id="seasonTabs"></div>
                             <div class="episodes-list" id="episodesList"></div>
@@ -2582,75 +2749,11 @@ function renderCurrentView() {
                     modal.querySelector('.detail-scroll-content').insertAdjacentHTML('afterbegin', selectorHtml);
 
                     const seasonContainer = document.getElementById('seasonTabs');
-                    const listContainer = document.getElementById('episodesList');                    // Definir fetchStreamsForId primero y asignarlo a window para que el HTML dinámico lo encuentre
-                    window.fetchStreamsForId = async function(streamId) {
-                        playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
-                        playBtn.onclick = null;
-                        playBtn.style.background = '#333';
-                        playBtn.style.color = '#777';
-                        
-                        let allStreams = [];
-                        for (const url of stremioAddons) {
-                            try {
-                                const addonBase = url.replace('/manifest.json', '');
-                                const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
-                                if (streamRes.ok) {
-                                    const streamData = await streamRes.json();
-                                    if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
-                                }
-                            } catch (err) { console.warn("Stream fetch failed for", url); }
-                        }                        if (allStreams.length > 0) {
-                            playBtn.style.background = 'var(--color-primary)';
-                            playBtn.style.color = '#000';
-                            playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
-                            
-                            const oldSelector = document.querySelector('.stremio-stream-selector');
-                            if (oldSelector) oldSelector.remove();
-
-                            if (allStreams.length > 1) {
-                                let selectorHtml = '<div class="source-selector stremio-stream-selector" style="margin-top: 15px; width: 100%;">';                            allStreams.forEach((st, i) => {
-                                    const raw = st.title || st.name || "";
-                                    const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
-                                    const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
-                                    const addonName = st.name || "Addon";
-                                    const display = `<span style='color:var(--primary)'>${quality}</span> • ${lang} • <small>${addonName}</small>`;
-                                    
-                                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}" style="font-size:0.65rem; padding: 4px 10px;">${display}</div>`;
-                                });
-                                selectorHtml += '</div>';
-                                playBtn.insertAdjacentHTML('beforebegin', selectorHtml);
-                            }
-
-                            window.currentStremioStreamIdx = 0;
-                            window.changeStremioSource = (idx) => {
-                                window.currentStremioStreamIdx = idx;
-                                document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
-                                    p.classList.toggle('active', i === idx);
-                                });
-                            };
-
-                            playBtn.onclick = () => {
-                                const stream = allStreams[window.currentStremioStreamIdx || 0];
-                                if (stream.url) {
-                                    const video = document.getElementById('main-video-player');
-                                    video.style.display = 'block';
-                                    video.src = stream.url;
-                                    video.play();
-                                } else if (stream.infoHash) {
-                                    window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
-                                }
-                            };
-                        } else {
-                            const oldSelector = document.querySelector('.stremio-stream-selector');
-                            if (oldSelector) oldSelector.remove();
-                            playBtn.style.background = '#333';
-                            playBtn.style.color = '#777';
-                            playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
-                        }
-                    };
+                    const listContainer = document.getElementById('episodesList');
 
                     const updateEpisodes = (seasonNum) => {
                         const watched = JSON.parse(localStorage.getItem('watchedEps') || '[]');
+                        const progData = JSON.parse(localStorage.getItem('videoProgress') || '{}');
                         document.querySelectorAll('.season-pill').forEach(p => {
                             p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum);
                         });
@@ -2659,10 +2762,14 @@ function renderCurrentView() {
                             .filter(v => v.season === seasonNum)
                             .sort((a, b) => a.episode - b.episode);
 
-                        listContainer.innerHTML = episodes.map(e => `
+                        listContainer.innerHTML = episodes.map(e => {
+                            const percent = progData[e.id] ? progData[e.id].percent : 0;
+                            const barHtml = percent > 0 ? `<div style="position:absolute;bottom:0;left:0;height:4px;background:var(--primary);width:${percent}%;z-index:10;box-shadow:0 0 5px var(--primary);"></div>` : '';
+                            return `
                             <div class="episode-item" onclick="const w=JSON.parse(localStorage.getItem('watchedEps')||'[]'); if(!w.includes('${e.id}')){w.push('${e.id}'); localStorage.setItem('watchedEps', JSON.stringify(w)); this.querySelector('.ep-play-tag').style.display='flex';} this.parentElement.querySelectorAll('.episode-item').forEach(el=>el.style.opacity='0.5'); this.style.opacity='1'; window.fetchStreamsForId('${e.id}')">
                                 <div class="ep-thumb-box">
                                     <img src="${e.thumbnail || meta.background || meta.poster}" onerror="this.src='${meta.poster}'">
+                                    ${barHtml}
                                     <div class="ep-play-tag" style="display: ${watched.includes(e.id) ? 'flex' : 'none'}"><span class="material-icons">visibility</span></div>
                                 </div>
                                 <div class="ep-content">
@@ -2673,24 +2780,35 @@ function renderCurrentView() {
                                     <div class="ep-summary">${e.overview || 'Sin descripción disponible para este episodio.'}</div>
                                 </div>
                             </div>
-                        `).join('');
-                        
-                        if (episodes.length > 0) window.fetchStreamsForId(episodes[0].id);
+                        `;}).join('');                        if (episodes.length > 0) {
+                            let epIdToPlay = episodes[0].id;
+                            if (meta.autoPlay && meta.lastStreamId) {
+                                const found = episodes.find(e => e.id === meta.lastStreamId);
+                                if (found) epIdToPlay = found.id;
+                            }
+                            window.fetchStreamsForId(epIdToPlay);
+                        }
                     };
 
+                    let initialSeason = seasons[0];
+                    if (meta.lastStreamId) {
+                        const lastEp = fullMeta.videos.find(v => v.id === meta.lastStreamId);
+                        if (lastEp) initialSeason = lastEp.season;
+                    }
+
                     seasonContainer.innerHTML = seasons.map(s => `
-                        <div class="season-pill ${s === seasons[0] ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">
+                        <div class="season-pill ${s === initialSeason ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">
                             Temporada ${s}
                         </div>
                     `).join('');
 
                     window.updateSeason = (s) => updateEpisodes(s);
-                    updateEpisodes(seasons[0]);
+                    updateEpisodes(initialSeason);
                 } else {
+                    // Si es película, simplemente buscamos sus streams directamente
                     window.fetchStreamsForId(meta.id);
                 }
-            } catch (e) { 
-                playBtn.style.background = '#333';
+            } catch (e) { playBtn.style.background = '#333';
                 playBtn.style.color = '#777';
                 playBtn.innerHTML = "Error al cargar información"; 
             }
@@ -3623,7 +3741,7 @@ function renderCurrentView() {
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Ahora en Deportes</h3>
             <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 10px; margin: 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
         </div>        <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Categorías Live</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Por Deporte</h3>
             <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
                     <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
@@ -3663,8 +3781,12 @@ function renderCurrentView() {
                 </div>
             </div>
         </div>
+        <div id="continue-watching-section" style="padding: 0 16px; display: none; margin-bottom: 25px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Continuar viendo</h3>
+            <div id="continue-watching-container" class="poster-carousel" style="margin: 0 -16px; padding: 0 16px;"></div>
+        </div>
         <div id="stremio-section" style="padding: 0 16px; display: none;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Streaming Catalogs</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Bajo Demanda</h3>
             <div id="stremio-catalogs-container"></div>
         </div>
     </div>
