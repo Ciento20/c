@@ -1255,6 +1255,7 @@
         let stremioAddons = JSON.parse(localStorage.getItem('stremioAddons') || '[]');
         let currentMainView = 'home';
         let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
+        let isP2PEnabled = localStorage.getItem('isP2PEnabled') === 'true';
         let hideNoImageEvents = localStorage.getItem('hideNoImageEvents') === 'true';
         let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';
 
@@ -2655,6 +2656,14 @@ function renderCurrentView() {
                             localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 15)));
 
                             const stream = allStreams[window.currentStremioStreamIdx || 0];
+                            
+                            if (isP2PEnabled) {
+                                // Modo Especial: Abrir vía protocolo stremio:// para evitar buffer en navegador
+                                const stremioLink = `stremio://detail/${fullMeta.type}/${fullMeta.id}/${streamId}`;
+                                window.location.href = stremioLink;
+                                return;
+                            }
+
                             if (stream.url) {
                                 const video = document.getElementById('main-video-player');
                                 video.style.display = 'block';
@@ -3670,6 +3679,22 @@ function renderCurrentView() {
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #7b2cbf; font-size: 1.4rem;">bolt</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Streaming P2P (Stremio)</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Abrir en App externa para evitar buffering</div>
+                        </div>
+                    </div>
+                    <label style="margin: 0;">
+                        <input type="checkbox" id="p2pToggle" onchange="toggleP2P(this.checked)" style="display: none;">
+                        <div class="ios-toggle"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: #00e5ff; font-size: 1.4rem;">videocam_off</span></div>
                         <div>
                             <div style="font-weight: 700; color: white; font-size: 1.05rem;">Ocultar sin señal</div>
@@ -3699,6 +3724,11 @@ function renderCurrentView() {
                     localStorage.setItem('hideNoVideoChannels', isToggled);
                 }
 
+                function toggleP2P(isToggled) {
+                    isP2PEnabled = isToggled;
+                    localStorage.setItem('isP2PEnabled', isToggled);
+                }
+
                 document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         const chkDirecto = document.getElementById('directoToggle');
@@ -3709,6 +3739,9 @@ function renderCurrentView() {
                         
                         const chkNoVideo = document.getElementById('noVideoToggle');
                         if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;
+                        
+                        const chkP2P = document.getElementById('p2pToggle');
+                        if(chkP2P) chkP2P.checked = isP2PEnabled;
                     }, 200);
                 });
             </script>
