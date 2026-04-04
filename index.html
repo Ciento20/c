@@ -1027,8 +1027,9 @@
             justify-content: center;
             cursor: pointer;
             backdrop-filter: blur(10px);
-            transition: all 0.2s ease;
-            pointer-events: auto;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+            pointer-events: none;
+            opacity: 0;
         }
 
         .custom-fullscreen-btn:hover {
@@ -2796,7 +2797,12 @@ function renderCurrentView() {
                                 const video = document.getElementById('main-video-player');
                                 const fsBtn = document.getElementById('customFSBtn');
                                 video.style.display = 'block';
-                                if(fsBtn) fsBtn.style.display = 'flex';
+                                if(fsBtn) {
+                                    fsBtn.style.display = 'flex';
+                                    fsBtn.style.opacity = '0';
+                                    video.onplay = () => { fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; };
+                                    video.onpause = () => { fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; };
+                                }
                                 video.src = stream.url;
                                 
                                 const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
@@ -3115,23 +3121,16 @@ function renderCurrentView() {
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');
             const fsBtn = document.getElementById('customFSBtn');
-            let fsTimeout;            const showFsBtn = () => {
-                if (!fsBtn) return;
-                fsBtn.style.display = 'flex';
-                fsBtn.style.opacity = '1';
-                fsBtn.style.pointerEvents = 'auto';
-                // Lógica de temporizador eliminada: el botón ahora es permanentemente visible
-            };
 
-            if (container) {
-                container.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    showFsBtn();
-                });
-                container.addEventListener('touchstart', (e) => {
-                    showFsBtn();
-                });
-            }
+            // El botón solo es visible cuando el video está en pausa
+            video.onplay = () => { 
+                fsBtn.style.opacity = '0'; 
+                fsBtn.style.pointerEvents = 'none'; 
+            };
+            video.onpause = () => { 
+                fsBtn.style.opacity = '1'; 
+                fsBtn.style.pointerEvents = 'auto'; 
+            };
 
             window.toggleAppFullscreen = async () => {
                 try {
@@ -3171,6 +3170,7 @@ function renderCurrentView() {
                         iframe.style.display = 'none';
                         video.style.display = 'block';
                         fsBtn.style.display = 'flex';
+                        fsBtn.style.opacity = '0'; // Oculto inicialmente al reproducir
                         if (Hls.isSupported()) {
                             const hls = new Hls();
                             hls.loadSource(streamUrl);
