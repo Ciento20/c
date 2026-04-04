@@ -16,7 +16,7 @@
             const manifest = {
                 "name": "TV Guide Premium",
                 "short_name": "TV Guide",
-                "start_url": "https://ciento20.github.io/c/",
+                "start_url": "https://carlostropico.github.io/c/",
                 "display": "standalone",
                 "background_color": "#0a0c10",
                 "theme_color": "#0a0c10",
@@ -478,6 +478,15 @@
         @keyframes loader-wave {
             0%, 40%, 100% { transform: scaleY(0.4); opacity: 0.5; }
             20% { transform: scaleY(1.2); opacity: 1; }
+        }
+
+        /* Estilo para navegación con Mando TV */
+        .remote-focus {
+            outline: 3px solid var(--primary) !important;
+            box-shadow: 0 0 20px var(--primary) !important;
+            transform: scale(1.03) !important;
+            z-index: 1000 !important;
+            transition: all 0.2s ease !important;
         }
 
         /* Light mode overrides */
@@ -1011,28 +1020,35 @@
 
         /* Ocultar botón fullscreen nativo para evitar el modo F11 del video solo */
         video::-webkit-media-controls-fullscreen-button { display: none !important; }
-        video::-internal-media-controls-fullscreen-button { display: none !important; }
-
-        .custom-fullscreen-btn {
+        video::-internal-media-controls-fullscreen-button { display: none !important; }        .custom-fullscreen-btn {
             position: absolute;
-            bottom: 15px;
+            top: 15px;
             right: 15px;
             z-index: 100;
-            background: rgba(0,0,0,0.5);
-            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            color: rgba(255, 255, 255, 0.8);
             border: none;
             border-radius: 8px;
-            width: 38px;
-            height: 38px;
-            display: flex;
+            width: 32px;
+            height: 32px;
+            display: none;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            backdrop-filter: blur(5px);
-            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+            pointer-events: auto;
         }
 
-        .custom-fullscreen-btn:hover { background: rgba(88, 166, 255, 0.4); transform: scale(1.1); }
+        .custom-fullscreen-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            transform: scale(1.1);
+        }
+
+        .custom-fullscreen-btn span {
+            font-size: 20px !important;
+        }
 
         .detail-bg::after {
             content: '';
@@ -2785,11 +2801,11 @@ function renderCurrentView() {
                                 const stremioLink = `stremio://detail/${fullMeta.type}/${fullMeta.id}/${streamId}`;
                                 window.location.href = stremioLink;
                                 return;
-                            }
-
-                            if (stream.url) {
+                            }                            if (stream.url) {
                                 const video = document.getElementById('main-video-player');
+                                const fsBtn = document.getElementById('customFSBtn');
                                 video.style.display = 'block';
+                                if(fsBtn) fsBtn.style.display = 'flex';
                                 video.src = stream.url;
                                 
                                 const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
@@ -3108,20 +3124,57 @@ function renderCurrentView() {
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');
             const fsBtn = document.getElementById('customFSBtn');
+            let fsTimeout;
+
+            const showFsBtn = () => {
+                if (!fsBtn) return;
+                fsBtn.style.display = 'flex';
+                fsBtn.style.opacity = '1';
+                fsBtn.style.pointerEvents = 'auto';
+                clearTimeout(fsTimeout);
+                if (document.fullscreenElement) {
+                    fsTimeout = setTimeout(() => {
+                        fsBtn.style.opacity = '0';
+                        fsBtn.style.pointerEvents = 'none';
+                    }, 3000);
+                }
+            };
+
+            if (container) {
+                container.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showFsBtn();
+                });
+                container.addEventListener('touchstart', (e) => {
+                    showFsBtn();
+                });
+            }
 
             window.toggleAppFullscreen = async () => {
                 try {
                     if (!document.fullscreenElement) {
                         const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
                         await requestFS.call(container);
+                        if (fsBtn) fsBtn.innerHTML = '<span class="material-icons">fullscreen_exit</span>';
                         if (screen.orientation && screen.orientation.lock) {
                             await screen.orientation.lock('landscape').catch(() => {});
                         }
                     } else {
-                        document.exitFullscreen();
+                        if (document.exitFullscreen) await document.exitFullscreen();
+                        else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
+                        if (fsBtn) fsBtn.innerHTML = '<span class="material-icons">fullscreen</span>';
                     }
-                } catch (err) { console.warn('Fullscreen error:', err); }
-            };                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
+                    showFsBtn();
+                } catch (err) { console.warn('FS Error:', err); }
+            };
+
+            document.addEventListener('fullscreenchange', () => {
+                if (!document.fullscreenElement && fsBtn) {
+                    fsBtn.innerHTML = '<span class="material-icons">fullscreen</span>';
+                    fsBtn.style.opacity = '1';
+                    fsBtn.style.pointerEvents = 'auto';
+                }
+            });                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
                     // Abrir enlaces Acestream en aplicación externa
@@ -3261,7 +3314,33 @@ function renderCurrentView() {
 
             const closeMenu = () => { menu.style.display = 'none'; document.removeEventListener('click', closeMenu); };
             setTimeout(() => document.addEventListener('click', closeMenu), 10);
-        }        function closeProgramDetails() {
+        }        window.toggleAppFullscreen = async function(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            try {
+                const d = document;
+                const container = document.getElementById('player-container');
+                const isFS = !!(d.fullscreenElement || d.webkitFullscreenElement || d.mozFullScreenElement || d.msFullscreenElement);
+                
+                if (isFS) {
+                    const exit = d.exitFullscreen || d.webkitExitFullscreen || d.mozCancelFullScreen || d.msExitFullscreen;
+                    if (exit) await exit.call(d).catch(()=>{});
+                    if (screen.orientation && screen.orientation.unlock) { screen.orientation.unlock().catch(()=>{}); }
+                } else {
+                    const reqFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
+                    if (reqFS) await reqFS.call(container).catch(()=>{});
+                    if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock('landscape').catch(()=>{}); }
+                }
+            } catch(err) {}
+        };
+
+        const updateFSIcon = () => {
+            const btn = document.getElementById('customFSBtn');
+            const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+            if (btn) btn.innerHTML = isFS ? '<span class="material-icons">fullscreen_exit</span>' : '<span class="material-icons">fullscreen</span>';
+        };
+        ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => document.addEventListener(evt, updateFSIcon));
+
+        function closeProgramDetails() {
             const modal = document.getElementById('programDetailModal');
             const video = document.getElementById('main-video-player');
             const iframe = document.getElementById('main-web-player');
@@ -3714,20 +3793,95 @@ function renderCurrentView() {
 
         function closeChannelSelector() {
             document.getElementById('channelSelectorModal').style.display = 'none';
-            
-            // Guardar selección y orden personalizado
             localStorage.setItem('userSelectedChannels', JSON.stringify([...userSelectedChannels]));
             localStorage.setItem('customChannelOrder', JSON.stringify(channelsList));
-            
             visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
             populateChannelDropdown();
-            
-            if (currentMainView === 'channels') {
-                renderChannelsView();
-            } else if (currentMainView === 'events') {
-                renderCurrentView();
+            if (currentMainView === 'channels') renderChannelsView();
+            else if (currentMainView === 'events') renderCurrentView();
+        }
+
+        /* --- LÓGICA MANDO TV Y SIMULACIÓN POR RATÓN --- */
+        let isRemoteActive = localStorage.getItem('remoteMode') === 'true';
+        let remoteIndex = 0;
+        let lastMouseX = 0, lastMouseY = 0;
+        const SENSITIVITY = 50; 
+
+        function toggleRemoteMode(active) {
+            isRemoteActive = active;
+            localStorage.setItem('remoteMode', active);
+            if (!active) {
+                document.querySelectorAll('.remote-focus').forEach(el => el.classList.remove('remote-focus'));
+            } else {
+                updateRemoteFocus();
             }
         }
+
+        function getFocusableElements() {
+            const selectors = [
+                '.program-card', '.nav-item', '.channel-tab', '.date-tab', 
+                '.source-pill', '.channel-row-modern', '.poster-card', '.modern-btn'
+            ];
+            return Array.from(document.querySelectorAll(selectors.join(',')))
+                .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0 && window.getComputedStyle(el).display !== 'none');
+        }
+
+        function updateRemoteFocus() {
+            if (!isRemoteActive) return;
+            const items = getFocusableElements();
+            items.forEach(el => el.classList.remove('remote-focus'));
+            if (items[remoteIndex]) {
+                items[remoteIndex].classList.add('remote-focus');
+                items[remoteIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // Navegación por teclado
+        window.addEventListener('keydown', (e) => {
+            if (!isRemoteActive) return;
+            const items = getFocusableElements();
+            if (e.key === 'ArrowRight') remoteIndex = (remoteIndex + 1) % items.length;
+            else if (e.key === 'ArrowLeft') remoteIndex = (remoteIndex - 1 + items.length) % items.length;
+            else if (e.key === 'ArrowDown') {
+                const rect = items[remoteIndex].getBoundingClientRect();
+                const next = items.findIndex((el, i) => i > remoteIndex && el.getBoundingClientRect().top > rect.bottom - 10);
+                if (next !== -1) remoteIndex = next;
+            }
+            else if (e.key === 'ArrowUp') {
+                const rect = items[remoteIndex].getBoundingClientRect();
+                const prev = items.findLastIndex((el, i) => i < remoteIndex && el.getBoundingClientRect().bottom < rect.top + 10);
+                if (prev !== -1) remoteIndex = prev;
+            }
+            else if (e.key === 'Enter') items[remoteIndex]?.click();
+            else if (e.key === 'Backspace' || e.key === 'Escape') closeProgramDetails();
+            
+            updateRemoteFocus();
+        });
+
+        // Simulación por gestos de ratón
+        window.addEventListener('mousemove', (e) => {
+            if (!isRemoteActive) return;
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+
+            if (Math.abs(dx) > SENSITIVITY || Math.abs(dy) > SENSITIVITY) {
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: dx > 0 ? 'ArrowRight' : 'ArrowLeft' }));
+                } else {
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: dy > 0 ? 'ArrowDown' : 'ArrowUp' }));
+                }
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const toggle = document.getElementById('remoteModeToggle');
+                if (toggle) toggle.checked = isRemoteActive;
+                if (isRemoteActive) updateRemoteFocus();
+            }, 500);
+        });
     </script>    <style>
         .settings-card { background: #1c1c1e; border-radius: 16px; margin-bottom: 12px; padding: 16px; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.03); }
         .settings-icon-wrapper { width: 44px; height: 44px; background: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
@@ -3765,6 +3919,22 @@ function renderCurrentView() {
             <p style="color: #666; font-size: 0.85rem; margin: 25px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">Configuración del sistema</p>
             
             
+
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #4caf50; font-size: 1.4rem;">settings_remote</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Modo Mando TV</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Navegar con teclado o gestos de ratón</div>
+                        </div>
+                    </div>
+                    <label style="margin: 0;">
+                        <input type="checkbox" id="remoteModeToggle" onchange="toggleRemoteMode(this.checked)" style="display: none;">
+                        <div class="ios-toggle"></div>
+                    </label>
+                </div>
+            </div>
 
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
@@ -4002,11 +4172,8 @@ function renderCurrentView() {
             </button>
             <div id="detail-rating-floating" style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 12px; color: #f1c40f; font-weight: 800; font-size: 0.85rem; z-index: 20; display: none; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.5);"></div>            <div class="detail-bg" id="player-container">
                 <video id="main-video-player" controls style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
-                <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
-                
-                
-                <button class="custom-fullscreen-btn" id="customFSBtn" onclick="toggleAppFullscreen()" style="display:none;">
-                    <span class="material-icons">fullscreen</span>
+                <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>                <button class="custom-fullscreen-btn" id="customFSBtn" onclick="toggleAppFullscreen(event)" ontouchstart="toggleAppFullscreen(event)" style="display:none; z-index:2147483647 !important;">
+                    <span class="material-icons">fullscreen_exit</span>
                 </button>
             </div>            <div class="detail-body">
                 <div class="detail-header-fixed">
