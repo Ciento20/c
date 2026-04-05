@@ -3244,14 +3244,8 @@ function renderCurrentView() {
             const fsBtn = document.getElementById('customFSBtn');
 
             // El botón solo es visible cuando el video está en pausa
-            video.onplay = () => { 
-                fsBtn.style.opacity = '0'; 
-                fsBtn.style.pointerEvents = 'none'; 
-            };
-            video.onpause = () => { 
-                fsBtn.style.opacity = '1'; 
-                fsBtn.style.pointerEvents = 'auto'; 
-            };
+            video.onplay = () => { fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; };
+                                    video.onpause = () => { fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; };
 
             window.toggleAppFullscreen = async () => {
                 try {
@@ -4273,10 +4267,15 @@ function renderCurrentView() {
 
     <div id="programDetailModal" class="detail-overlay" onclick="if(event.target === this) closeProgramDetails()">
         <div class="detail-content">
-            <button class="detail-close" onclick="closeProgramDetails()">
-                <span class="material-icons">close</span>
-            </button>
-            <div id="detail-rating-floating" style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 12px; color: #f1c40f; font-weight: 800; font-size: 0.85rem; z-index: 20; display: none; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.5);"></div>            <div class="detail-bg" id="player-container">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #121212; border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 30;">
+                <div id="detail-rating-floating" style="background: rgba(241, 196, 15, 0.1); padding: 4px 10px; border-radius: 8px; color: #f1c40f; font-weight: 800; font-size: 0.85rem; display: none; align-items: center; gap: 6px; border: 1px solid rgba(241, 196, 15, 0.3);"></div>
+                <div style="flex-grow: 1;"></div>
+                <button class="detail-close" onclick="closeProgramDetails()" style="position: static; background: rgba(255,255,255,0.05); color: #fff; border: none; border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="detail-bg" id="player-container">
                 <video id="main-video-player" controls style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>                <button class="custom-fullscreen-btn" id="customFSBtn" onclick="toggleAppFullscreen(event)" ontouchstart="toggleAppFullscreen(event)" style="display:none; z-index:2147483647 !important;">
                     <span class="material-icons">fullscreen_exit</span>
