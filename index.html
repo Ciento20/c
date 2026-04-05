@@ -1394,51 +1394,84 @@
                     continueData.forEach(item => {
                         const card = document.createElement('div');
                         card.className = 'poster-card';
-                        card.style.backgroundImage = `url('${item.poster}')`;                        card.onclick = () => { item.autoPlay = true; openStremioDetails(item, item.baseUrl); };
-                        card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${item.name}</div></div>`;
+                        card.style.backgroundImage = `url('${item.poster}')`;                        card.onclick = (e) => {
+                            if (e.target.closest('.continue-menu-btn')) return;
+                            item.autoPlay = true; 
+                            openStremioDetails(item, item.baseUrl);
+                        };
+                        card.innerHTML = `
+                            <div class="continue-menu-btn" onclick="showContinueWatchingMenu(event, '${item.id}')" style="position:absolute; top:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; backdrop-filter:blur(5px); border:1px solid rgba(255,255,255,0.1);">
+                                <span class="material-icons" style="font-size:18px;">more_vert</span>
+                            </div>
+                            <div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${item.name}</div></div>`;
                         continueContainer.appendChild(card);
                     });
                 } else {
                     continueSection.style.display = 'none';
                 }
-            }
-
+            }                // Recopilamos los IDs que ya están en las listas de arriba para que no se repitan abajo
+                const idsInLists = new Set([
+                    ...(JSON.parse(localStorage.getItem('continueWatching') || '[]')).map(i => i.id),
+                    ...(JSON.parse(localStorage.getItem('userMyList') || '[]')).map(i => i.id)
+                ]);                const allCatalogs = [];
                 for (const url of stremioAddons) {
                     const catalogs = await fetchStremioCatalog(url);
-                    if (catalogs && catalogs.length > 0) {
-                        catalogs.forEach(cat => {
-                            if (!cat.metas || cat.metas.length === 0) return;                            const section = document.createElement('div');
-                            section.style.marginBottom = "25px";
-                            // Recuperamos el nombre de la plataforma (cat.catalogName) y añadimos el tipo (Película/Serie)
-                            const platform = cat.catalogName || 'Streaming';
-                            const typeLabel = cat.type === 'movie' ? 'Película' : (cat.type === 'series' ? 'Series' : '');
-                            
-                            // Evitamos duplicar si el nombre ya contiene el tipo (ej: "Netflix Películas")
-                            const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase())
-                                ? `${platform} — ${typeLabel}`
-                                : platform;
-
-                            section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
-                            
-                            const row = document.createElement('div');
-                            row.className = 'poster-carousel';
-                            row.style.margin = "0 -16px";
-                            row.style.padding = "0 16px";
-                            
-                            // Se elimina el .slice(0, 15) para mostrar todos los elementos del catálogo
-                            cat.metas.forEach(meta => {
-                                const card = document.createElement('div');
-                                card.className = 'poster-card';
-                                card.style.backgroundImage = `url('${meta.poster}')`;
-                                card.onclick = () => openStremioDetails(meta, cat.baseUrl);
-                                card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${meta.name}</div></div>`;
-                                row.appendChild(card);
-                            });
-                            section.appendChild(row);
-                            stremioContainer.appendChild(section);
-                        });
-                    }
+                    if (catalogs) allCatalogs.push(...catalogs);
                 }
+
+                const getPriority = (name) => {
+                    const n = name.toLowerCase();
+                    if (n.includes('new') || n.includes('nuevo')) return 1;
+                    if (n.includes('featured') || n.includes('destacado')) return 2;
+                    if (n.includes('popular')) return 3;
+                    return 99; // Otros catálogos
+                };
+
+                const shownInTopCategories = new Set();
+
+                allCatalogs
+                    .map(cat => ({ ...cat, priority: getPriority(cat.catalogName) }))
+                    .sort((a, b) => a.priority - b.priority)
+                    .forEach(cat => {
+                        if (!cat.metas || cat.metas.length === 0) return;
+
+                        const filteredMetas = cat.metas.filter(meta => {
+                            const inStaticLists = idsInLists.has(meta.id);
+                            // Regla de jerarquía: NEW(1), FEATURED(2) y POPULAR(3) no se repiten entre sí
+                            if (cat.priority < 10) {
+                                return !inStaticLists && !shownInTopCategories.has(meta.id);
+                            }
+                            // Los demás catálogos (priority 99) ignoran la exclusión y pueden repetir contenido
+                            return !inStaticLists;
+                        });
+                        
+                        if (filteredMetas.length === 0) return;
+
+                        const section = document.createElement('div');
+                        section.style.marginBottom = "25px";
+                        const platform = cat.catalogName || 'Streaming';
+                        const typeLabel = cat.type === 'movie' ? 'Película' : (cat.type === 'series' ? 'Series' : '');
+                        const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase())
+                            ? `${platform} — ${typeLabel}` : platform;
+
+                        section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
+                        const row = document.createElement('div');
+                        row.className = 'poster-carousel';
+                        row.style.margin = "0 -16px";
+                        row.style.padding = "0 16px";
+                        
+                        filteredMetas.forEach(meta => {
+                            if (cat.priority < 10) shownInTopCategories.add(meta.id); // Guardamos solo IDs de categorías top
+                            const card = document.createElement('div');
+                            card.className = 'poster-card';
+                            card.style.backgroundImage = `url('${meta.poster}')`;
+                            card.onclick = () => openStremioDetails(meta, cat.baseUrl);
+                            card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${meta.name}</div></div>`;
+                            row.appendChild(card);
+                        });
+                        section.appendChild(row);
+                        stremioContainer.appendChild(section);
+                    });
             }
             const cinemaDots = document.getElementById('cinema-banner-dots');
             
@@ -2614,7 +2647,44 @@ function renderCurrentView() {
             
             alert("Configuración guardada. Recargando datos...");
             location.reload();
-        }        async function openStremioDetails(meta, baseUrl) {
+        }        function openMyListView() {
+            const modal = document.getElementById('my-list-view');
+            const moviesContainer = document.getElementById('my-list-movies');
+            const seriesContainer = document.getElementById('my-list-series');
+            const myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+            
+            moviesContainer.innerHTML = '';
+            seriesContainer.innerHTML = '';
+            
+            const movies = myList.filter(i => i.type === 'movie');
+            const series = myList.filter(i => i.type === 'series');
+            
+            document.getElementById('my-list-movies-section').style.display = movies.length > 0 ? 'block' : 'none';
+            document.getElementById('my-list-series-section').style.display = series.length > 0 ? 'block' : 'none';
+            
+            if (myList.length === 0) {
+                moviesContainer.style.display = 'block';
+                moviesContainer.innerHTML = '<div style="color:#666; padding:20px; font-size:0.9rem; text-align:center; width:100%;">Tu lista está vacía. Guarda películas o series para verlas aquí.</div>';
+            } else {
+                moviesContainer.style.display = 'flex';
+            }
+
+            const createCard = (item) => {
+                const card = document.createElement('div');
+                card.className = 'poster-card';
+                card.style.backgroundImage = `url('${item.poster}')`;
+                card.onclick = () => { modal.style.display = 'none'; openStremioDetails(item, item.baseUrl); };
+                card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${item.name}</div></div>`;
+                return card;
+            };
+
+            movies.forEach(item => moviesContainer.appendChild(createCard(item)));
+            series.forEach(item => seriesContainer.appendChild(createCard(item)));
+            
+            modal.style.display = 'flex';
+        }
+
+        async function openStremioDetails(meta, baseUrl) {
             const modal = document.getElementById('programDetailModal');
             
             // ELIMINAR enlaces de canales de TV previos y limpiar interfaz
@@ -2662,6 +2732,30 @@ function renderCurrentView() {
             
             modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
             
+            const addListBtn = document.getElementById('add-to-list-btn');
+            if(addListBtn) {
+                addListBtn.style.display = 'flex';
+                const updateListBtn = () => {
+                    const myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                    const isAdded = myList.some(i => i.id === meta.id);
+                    addListBtn.innerHTML = `<span class="material-icons">${isAdded ? 'bookmark' : 'bookmark_border'}</span>`;
+                    addListBtn.style.color = isAdded ? 'var(--primary)' : 'white';
+                    addListBtn.style.borderColor = isAdded ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
+                };
+                updateListBtn();
+                addListBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                    if (myList.some(i => i.id === meta.id)) {
+                        myList = myList.filter(i => i.id !== meta.id);
+                    } else {
+                        myList.unshift({ ...meta, baseUrl });
+                    }
+                    localStorage.setItem('userMyList', JSON.stringify(myList));
+                    updateListBtn();
+                };
+            }
+
             playBtn.onclick = null;
             playBtn.style.background = '#333';
             playBtn.style.color = '#777';
@@ -2690,9 +2784,33 @@ function renderCurrentView() {
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
 
                     playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
-                    playBtn.onclick = null;
-                    playBtn.style.background = '#333';
-                    playBtn.style.color = '#777';
+                    const addListBtn = document.getElementById('add-to-list-btn');
+            if(addListBtn) {
+                addListBtn.style.display = 'flex';
+                const updateListBtn = () => {
+                    const myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                    const isAdded = myList.some(i => i.id === meta.id);
+                    addListBtn.innerHTML = `<span class="material-icons">${isAdded ? 'bookmark' : 'bookmark_border'}</span>`;
+                    addListBtn.style.color = isAdded ? 'var(--primary)' : 'white';
+                    addListBtn.style.borderColor = isAdded ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
+                };
+                updateListBtn();
+                addListBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                    if (myList.some(i => i.id === meta.id)) {
+                        myList = myList.filter(i => i.id !== meta.id);
+                    } else {
+                        myList.unshift({ ...meta, baseUrl });
+                    }
+                    localStorage.setItem('userMyList', JSON.stringify(myList));
+                    updateListBtn();
+                };
+            }
+
+            playBtn.onclick = null;
+            playBtn.style.background = '#333';
+            playBtn.style.color = '#777';
                     
                     let allStreams = [];
                     for (const url of stremioAddons) {
@@ -3077,6 +3195,9 @@ function renderCurrentView() {
                 modal.querySelector('.detail-title').textContent = channelId;
                 modal.querySelector('.detail-time').textContent = "Emisión en directo";
                 modal.querySelector('.detail-desc').textContent = "No hay información de programación disponible en este momento.";
+                const addListBtn = document.getElementById('add-to-list-btn');
+                if(addListBtn) addListBtn.style.display = 'none';
+
                 const fallbackIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
                 const channelLogoImg = modal.querySelector('.detail-channel-logo');
                 if (channelLogoImg) {
@@ -3195,14 +3316,81 @@ function renderCurrentView() {
                 playBtn.style.color = '#fff';
                 playBtn.innerHTML = `<span class="material-icons">play_circle</span> Ver Directo`;
             } else {
-                playBtn.onclick = null;
-                playBtn.style.background = '#333';
-                playBtn.style.color = '#777';
+                const addListBtn = document.getElementById('add-to-list-btn');
+            if(addListBtn) {
+                addListBtn.style.display = 'flex';
+                const updateListBtn = () => {
+                    const myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                    const isAdded = myList.some(i => i.id === meta.id);
+                    addListBtn.innerHTML = `<span class="material-icons">${isAdded ? 'bookmark' : 'bookmark_border'}</span>`;
+                    addListBtn.style.color = isAdded ? 'var(--primary)' : 'white';
+                    addListBtn.style.borderColor = isAdded ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
+                };
+                updateListBtn();
+                addListBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                    if (myList.some(i => i.id === meta.id)) {
+                        myList = myList.filter(i => i.id !== meta.id);
+                    } else {
+                        myList.unshift({ ...meta, baseUrl });
+                    }
+                    localStorage.setItem('userMyList', JSON.stringify(myList));
+                    updateListBtn();
+                };
+            }
+
+            playBtn.onclick = null;
+            playBtn.style.background = '#333';
+            playBtn.style.color = '#777';
                 playBtn.innerHTML = `<span class="material-icons">block</span> No disponible`;
             }            modal.style.display = 'flex';
             // Solo abrimos el modal; la pantalla completa se activa al pulsar el botón azul manualmente
             // if (autoPlay && streamUrl) { playBtn.click(); }
-        }        function openSportCategory(sportName) {
+        }        function showContinueWatchingMenu(e, itemId) {
+            e.preventDefault();
+            e.stopPropagation();
+            const menu = document.getElementById('quickContextMenu');
+            
+            document.getElementById('menu-play-opt').style.display = 'none';
+            document.getElementById('menu-fav-opt').style.display = 'none';
+            document.getElementById('menu-share-opt').style.display = 'none';
+
+            let removeOpt = document.getElementById('menu-remove-continue');
+            if(!removeOpt) {
+                removeOpt = document.createElement('div');
+                removeOpt.id = 'menu-remove-continue';
+                removeOpt.className = 'quick-menu-item';
+                removeOpt.innerHTML = `<i class="material-icons" style="color:#ef476f">delete_outline</i> Quitar de la lista`;
+                menu.appendChild(removeOpt);
+            }
+            
+            removeOpt.style.display = 'flex';
+            removeOpt.onclick = () => {
+                let data = JSON.parse(localStorage.getItem('continueWatching') || '[]');
+                data = data.filter(i => i.id !== itemId);
+                localStorage.setItem('continueWatching', JSON.stringify(data));
+                menu.style.display = 'none';
+                renderHomeView();
+            };
+
+            menu.style.display = 'block';
+            const x = Math.min(e.clientX, window.innerWidth - 180);
+            menu.style.left = `${x}px`;
+            menu.style.top = `${e.clientY}px`;
+
+            const closeMenu = () => {
+                menu.style.display = 'none';
+                document.getElementById('menu-play-opt').style.display = 'flex';
+                document.getElementById('menu-fav-opt').style.display = 'flex';
+                document.getElementById('menu-share-opt').style.display = 'flex';
+                removeOpt.style.display = 'none';
+                document.removeEventListener('click', closeMenu);
+            };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
+        }
+
+        function openSportCategory(sportName) {
             const view = document.getElementById('sport-category-view');
             document.getElementById('active-sport-title').textContent = sportName;
             
@@ -3947,6 +4135,26 @@ function renderCurrentView() {
     </div>
 
     
+    <div id="my-list-view" class="detail-overlay" style="display: none; flex-direction: column; background: var(--bg-deep); overflow-y: auto; padding: 0; align-items: stretch; justify-content: flex-start;">
+        <div class="sport-header" style="position: sticky; top: 0; background: var(--bg-deep); z-index: 100;">
+            <span class="material-icons" onclick="document.getElementById('my-list-view').style.display='none'" style="cursor:pointer; color: white;">arrow_back</span>
+            <span style="font-size: 1.2rem; font-weight: 600; color: white;">Mi Lista</span>
+        </div>
+        <div id="my-list-content" style="padding: 20px 16px 100px 16px;">
+            <div id="my-list-movies-section">
+                <h4 style="color: var(--primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons" style="font-size: 1.2rem;">movie</span> Películas
+                </h4>
+                <div id="my-list-movies" class="poster-carousel" style="margin-bottom: 30px;"></div>
+            </div>
+            <div id="my-list-series-section">
+                <h4 style="color: #a29bfe; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons" style="font-size: 1.2rem;">tv</span> Series
+                </h4>
+                <div id="my-list-series" class="poster-carousel"></div>
+            </div>
+        </div>
+    </div>
     <div id="sport-category-view">
         <div class="sport-header">
             <span class="material-icons" onclick="closeSportCategory()" style="cursor:pointer; color: white;">arrow_back</span>
@@ -4025,7 +4233,12 @@ function renderCurrentView() {
             <div id="continue-watching-container" class="poster-carousel" style="margin: 0 -16px; padding: 0 16px;"></div>
         </div>
         <div id="stremio-section" style="padding: 0 16px; display: none;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Bajo Demanda</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.2px;">Bajo Demanda</h3>
+            <button onclick="openMyListView()" style="background: rgba(88, 166, 255, 0.1); color: var(--primary); border: 1px solid rgba(88, 166, 255, 0.3); padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <span class="material-icons" style="font-size: 1.1rem;">auto_awesome_motion</span> Mi Lista
+            </button>
+        </div>
             <div id="stremio-catalogs-container"></div>
         </div>
     </div>
@@ -4089,10 +4302,15 @@ function renderCurrentView() {
                 </div>
 
                 <div class="detail-footer-fixed">
-                    <button class="detail-play-btn" style="margin-top: 0;">
-                        <span class="material-icons">play_circle</span>
-                        Ver Directo
-                    </button>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <button class="detail-play-btn" style="margin-top: 0; flex: 1;">
+                            <span class="material-icons">play_circle</span>
+                            Ver
+                        </button>
+                        <button id="add-to-list-btn" style="width: 52px; height: 52px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: white; display: none; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                            <span class="material-icons">bookmark_border</span>
+                        </button>
+                    </div>
                     <div class="detail-progress-container">
                         <div class="detail-progress-bar">
                             <div class="detail-progress-fill"></div>
