@@ -2738,35 +2738,8 @@ function renderCurrentView() {
             }
 
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
-            modal.querySelector('.detail-title').textContent = meta.name;            // Priorizar descripción en español si existe, si no, limpiar la inglesa
-            const finalDesc = meta.description_es || meta.description || 'Sin descripción';
-            
-            // GENERADOR DINÁMICO DE METADATA (Muestra todo lo disponible)
-            let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
-            
-            const labels = {
-                genres: 'Géneros', director: 'Director', cast: 'Reparto', 
-                year: 'Año', releaseInfo: 'Estreno', runtime: 'Duración', 
-                awards: 'Premios', imdbRating: 'Nota IMDB', country: 'País'
-            };
-
-            Object.keys(labels).forEach(key => {
-                if (meta[key]) {
-                    const value = Array.isArray(meta[key]) ? meta[key].join(', ') : meta[key];
-                    extraMetaHtml += `<div style="margin-bottom:5px;">
-                        <span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block;">${labels[key]}</span>
-                        <span style="font-size:0.8rem; color:#eee;">${value}</span>
-                    </div>`;
-                }
-            });
-            extraMetaHtml += '</div>';
-
-            modal.querySelector('.detail-desc').innerHTML = `
-                <div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;">
-                    <span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>
-                    ${finalDesc}
-                </div>
-                ${extraMetaHtml}`;
+            modal.querySelector('.detail-title').textContent = meta.name;            // Priorizar descripción en español si existe, si no, limpiar la inglesa            // Mostrar placeholder de carga mientras obtenemos la sinopsis completa
+            modal.querySelector('.detail-desc').innerHTML = '<div style="text-align:center; padding:30px; opacity:0.5;"><i class="fas fa-circle-notch fa-spin"></i> Cargando detalles...</div>';
             
             const playBtn = modal.querySelector('.detail-play-btn');
             const metaContainer = modal.querySelector('.detail-meta');
@@ -2804,27 +2777,39 @@ function renderCurrentView() {
             modal.style.display = 'flex';            try {
                 let fullMeta = meta;
                 
-                // Si es serie, necesitamos obtener la metadata completa (temporadas y capítulos)
-                if (meta.type === 'series') {
-                    for (const addonUrl of stremioAddons) {
-                        try {
-                            const addonBaseUrl = addonUrl.replace('/manifest.json', '');
-                            // Petición de metadata intentando obtener versión en español
-                            const metaUrl = `${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`;
-                            let metaRes = await fetch(metaUrl).catch(() => null);
-                            if (!metaRes || !metaRes.ok) {
-                                metaRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(metaUrl)}`);
+                // OBTENCIÓN DE METADATA COMPLETA (Forzado para Búsqueda y Home)
+                for (const addonUrl of stremioAddons) {
+                    try {
+                        const addonBaseUrl = addonUrl.replace('/manifest.json', '');
+                        const metaUrl = `${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`;
+                        let metaRes = await fetch(metaUrl).catch(() => null);
+                        if (!metaRes || !metaRes.ok) {
+                            metaRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(metaUrl)}`);
+                        }
+                        if (metaRes.ok) {
+                            const metaData = await metaRes.json();
+                            if (metaData.meta && (metaData.meta.description || metaData.meta.videos)) {
+                                fullMeta = metaData.meta;
+                                break;
                             }
-                            if (metaRes.ok) {
-                                const metaData = await metaRes.json();
-                                if (metaData.meta && metaData.meta.videos && metaData.meta.videos.length > 0) {
-                                    fullMeta = metaData.meta;
-                                    break;
-                                }
-                            }
-                        } catch (err) { console.warn("Meta fetch failed for", addonUrl); }
+                        }
+                    } catch (err) { console.warn("Meta fetch failed for", addonUrl); }
+                }
+
+                // RENDERIZADO DINÁMICO TRAS CARGA
+                const finalDesc = fullMeta.description_es || fullMeta.description || 'Sin descripción disponible.';
+                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
+                const labels = { genres: 'Géneros', director: 'Director', cast: 'Reparto', year: 'Año', releaseInfo: 'Estreno', runtime: 'Duración', imdbRating: 'Nota IMDB' };
+
+                Object.keys(labels).forEach(key => {
+                    if (fullMeta[key]) {
+                        const value = Array.isArray(fullMeta[key]) ? fullMeta[key].join(', ') : fullMeta[key];
+                        extraMetaHtml += `<div><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block;">${labels[key]}</span><span style="font-size:0.8rem; color:#eee;">${value}</span></div>`;
                     }
-                }                // Definir fetchStreamsForId con soporte para auto-reproducción y similitud de fuentes
+                });
+                extraMetaHtml += '</div>';
+
+                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;                // Definir fetchStreamsForId con soporte para auto-reproducción y similitud de fuentes
                 window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
