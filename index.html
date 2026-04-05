@@ -1193,47 +1193,46 @@
             scrollbar-width: none;
             -webkit-overflow-scrolling: touch;
         }
-        .source-selector::-webkit-scrollbar { display: none; }
-        .source-pill {
+        .source-selector::-webkit-scrollbar { display: none; }        .source-pill {
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(255,255,255,0.1);
             color: #aaa;
-            padding: 12px 16px;
-            border-radius: 12px;
+            padding: 6px 12px;
+            border-radius: 10px;
             cursor: pointer;
             white-space: nowrap;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s ease;
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            min-width: 130px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            gap: 2px;
+            min-width: 100px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         .source-pill.active {
             background: var(--primary);
             color: #000;
             border-color: var(--primary);
-            box-shadow: 0 4px 15px rgba(88, 166, 255, 0.4);
-            transform: translateY(-2px);
+            box-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
+            transform: scale(0.98);
         }
         .source-pill:hover:not(.active) {
             background: rgba(255,255,255,0.15);
             border-color: rgba(255,255,255,0.3);
         }
         .source-pill-title {
-            font-size: 0.85rem;
+            font-size: 0.72rem;
             font-weight: 800;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
         .source-pill.active .source-pill-title {
             color: #000;
         }
-        .source-pill-title i { font-size: 1rem; }
+        .source-pill-title i { font-size: 0.9rem; }
         .source-pill-meta {
-            font-size: 0.65rem;
-            opacity: 0.8;
+            font-size: 0.58rem;
+            opacity: 0.7;
             font-weight: 600;
         }
     </style>
@@ -1325,7 +1324,13 @@
                 // Iteramos por todos los catálogos definidos en el manifest
                 for (const cat of (manifest.catalogs || [])) {
                     try {
-                        const catalogRes = await fetch(`${baseUrl}/catalog/${cat.type}/${cat.id}.json`);
+                        // Intentar forzar el idioma español en la petición del catálogo
+                        const langSuffix = cat.id.includes('search=') ? '' : '?language=es-ES';
+                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json${langSuffix}`;
+                        let catalogRes = await fetch(catalogUrl).catch(() => null);
+                        if (!catalogRes || !catalogRes.ok) {
+                            catalogRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(catalogUrl)}`);
+                        }
                         const data = await catalogRes.json();
                         catalogsData.push({
                             addonName: manifest.name,
@@ -1482,12 +1487,21 @@
             const now = new Date();
 
             // --- LÓGICA CARRUSEL DE CINE (BANNER TOP) ---
-            const cinemaProgs = epgData.filter(p => {
-                if (!userSelectedChannels.has(p.channel)) return false;
-                const fullDesc = (p.description || '').toLowerCase();
-                const categoryPart = fullDesc.split('·')[0].trim();
-                return categoryPart.includes('cine') || categoryPart.includes('película');
-            }).slice(0, 6);
+            const cinemaProgs = epgData
+                .filter(p => {
+                    if (!userSelectedChannels.has(p.channel)) return false;
+                    const fullDesc = (p.description || '').toLowerCase();
+                    const categoryPart = fullDesc.split('·')[0].trim();
+                    return categoryPart.includes('cine') || categoryPart.includes('película');
+                })
+                .map(p => {
+                    // Extraemos la nota numérica (ej: de "★ 8.5/10" extraemos 8.5) para poder ordenar
+                    const scoreMatch = (p.description || '').match(/★\s?(\d+(\.\d+)?)/);
+                    const scoreValue = scoreMatch ? parseFloat(scoreMatch[1]) : 0;
+                    return { ...p, _sortScore: scoreValue };
+                })
+                .sort((a, b) => b._sortScore - a._sortScore) // Ordenar de mejor a peor puntuación
+                .slice(0, 6);
 
             // Ocultar el contenedor si no hay películas para evitar el hueco vacío
             const bannerContainer = document.getElementById('cinema-banner-container');
@@ -2725,7 +2739,35 @@ function renderCurrentView() {
 
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
             modal.querySelector('.detail-title').textContent = meta.name;
-            modal.querySelector('.detail-desc').textContent = meta.description || 'Sin descripción';
+
+            // GENERADOR DINÁMICO DE METADATA (Muestra todo lo disponible)
+            let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">';
+            
+            const labels = {
+                genres: 'Géneros', director: 'Director', cast: 'Reparto', 
+                year: 'Año', releaseInfo: 'Estreno', runtime: 'Duración', 
+                awards: 'Premios', imdbRating: 'Nota IMDB', country: 'País'
+            };
+
+            Object.keys(labels).forEach(key => {
+                if (meta[key]) {
+                    const value = Array.isArray(meta[key]) ? meta[key].join(', ') : meta[key];
+                    extraMetaHtml += `<div style="margin-bottom:5px;">
+                        <span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block;">${labels[key]}</span>
+                        <span style="font-size:0.8rem; color:#eee;">${value}</span>
+                    </div>`;
+                }
+            });
+            extraMetaHtml += '</div>';
+
+            // Priorizar descripción en español si existe, si no, limpiar la inglesa
+            const finalDesc = meta.description_es || meta.description || 'Sin descripción';
+            modal.querySelector('.detail-desc').innerHTML = `
+                ${extraMetaHtml}
+                <div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">
+                    <span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>
+                    ${finalDesc}
+                </div>`;
             
             const playBtn = modal.querySelector('.detail-play-btn');
             const metaContainer = modal.querySelector('.detail-meta');
@@ -2768,7 +2810,12 @@ function renderCurrentView() {
                     for (const addonUrl of stremioAddons) {
                         try {
                             const addonBaseUrl = addonUrl.replace('/manifest.json', '');
-                            const metaRes = await fetch(`${addonBaseUrl}/meta/${meta.type}/${meta.id}.json`);
+                            // Petición de metadata intentando obtener versión en español
+                            const metaUrl = `${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`;
+                            let metaRes = await fetch(metaUrl).catch(() => null);
+                            if (!metaRes || !metaRes.ok) {
+                                metaRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(metaUrl)}`);
+                            }
                             if (metaRes.ok) {
                                 const metaData = await metaRes.json();
                                 if (metaData.meta && metaData.meta.videos && metaData.meta.videos.length > 0) {
@@ -2851,27 +2898,27 @@ function renderCurrentView() {
                         playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
                         
                         const oldSelector = document.querySelector('.stremio-stream-selector');
-                        if (oldSelector) oldSelector.remove();
-                        if (allStreams.length > 1) {
-                            let selectorHtml = '<div class="source-selector stremio-stream-selector" style="width: 100%;">';
-                            allStreams.forEach((st, i) => {
-                                const raw = st.title || st.name || "";
-                                const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
-                                const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
-                                const addonName = st.name || "Addon";
-                                
-                                let qIcon = 'hd';
-                                if(quality === '4K') qIcon = '4k';
-                                else if(quality === '1080p') qIcon = 'high_quality';
-                                
-                                const displayTitle = `<div class="source-pill-title"><span class="material-icons-round" style="font-size: 1.1rem;">${qIcon}</span> ${quality}</div>`;
-                                const displayMeta = `<div class="source-pill-meta">${lang} • ${addonName}</div>`;
-                                
-                                selectorHtml += `<div class="source-pill ${i === bestIdx ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}">${displayTitle}${displayMeta}</div>`;
-                            });
-                            selectorHtml += '</div>';
-                            playBtn.insertAdjacentHTML('beforebegin', selectorHtml);
-                        }
+                        if (oldSelector) oldSelector.remove();            if (allStreams.length > 1) {
+                let selectorHtml = '<div class="source-selector stremio-stream-selector" style="width: 100%; margin-bottom: 10px;">';
+                allStreams.forEach((st, i) => {
+                    const raw = st.title || st.name || "";
+                    const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                    const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
+                    const addonName = st.name || "Addon";
+                    
+                    let qIcon = 'hd';
+                    if(quality === '4K') qIcon = '4k';
+                    else if(quality === '1080p') qIcon = 'high_quality';
+                    
+                    const displayTitle = `<div class="source-pill-title"><span class="material-icons-round" style="font-size: 1.1rem;">${qIcon}</span> ${quality}</div>`;
+                    const displayMeta = `<div class="source-pill-meta">${lang} • ${addonName}</div>`;
+                    
+                    selectorHtml += `<div class="source-pill ${i === bestIdx ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}">${displayTitle}${displayMeta}</div>`;
+                });
+                selectorHtml += '</div>';
+                // Insertar encima del contenedor de botones para que ocupe todo el ancho y no se corte
+                playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
+            }
 
                         window.currentStremioStreamIdx = bestIdx;
                         window.changeStremioSource = (idx) => {
@@ -3222,12 +3269,10 @@ function renderCurrentView() {
                     selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" style="${aceStyle}; font-size:0.6rem;" onclick="window.changeSource(${i}, '${channelId}')">${icon}${info}</div>`;
                 });
                 selectorHtml += '</div>';
-            }
-            
-            const metaContainer = modal.querySelector('.detail-meta');
-            const existingSelector = modal.querySelector('.source-selector');
+            }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            metaContainer.insertAdjacentHTML('afterend', selectorHtml);
+            // Insertar encima del contenedor de botones en el footer fijo
+            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
 
             window.changeSource = (idx, cid) => {
                 currentSourceIdx = idx;
@@ -3336,9 +3381,76 @@ function renderCurrentView() {
 
             playBtn.onclick = null;
             playBtn.style.background = '#333';
-            playBtn.style.color = '#777';
-                playBtn.innerHTML = `<span class="material-icons">block</span> No disponible`;
-            }            modal.style.display = 'flex';
+            playBtn.style.color = '#777';                playBtn.innerHTML = `<span class="material-icons">block</span> No disponible`;
+            }            // --- INTEGRACIÓN VOD (STREMIO) DESDE EPG ---
+            const vodContainer = document.getElementById('vod-epg-results');
+            const vodToggleBtn = document.getElementById('vod-toggle-btn');
+            vodContainer.innerHTML = '';
+            window.bestVodMatch = null; // Reiniciar coincidencia
+
+            if(vodToggleBtn) {
+                vodToggleBtn.style.display = 'none';
+                // Por defecto el botón solo conmuta la vista, pero lo cambiaremos si hay match
+                vodToggleBtn.onclick = () => toggleVodView();
+            }
+
+            if (prog && stremioAddons.length > 0) {
+                const fullDesc = (prog.description || '').toLowerCase();
+                const categoryPart = fullDesc.split('·')[0].trim();
+                
+                const isMovie = categoryPart.includes('cine') || categoryPart.includes('película');
+                const isSeries = categoryPart.includes('serie');
+
+                if (isMovie || isSeries) {
+                    const cleanTitle = prog.title.replace(/\[.*?\]/g, '').replace(/\bDIRECTO\b/g, '').trim();
+                    const searchType = isSeries ? 'series' : 'movie';
+
+                    stremioAddons.forEach(async (url) => {
+                        try {
+                            const baseUrl = url.replace('/manifest.json', '');
+                            const searchRes = await fetch(`${baseUrl}/catalog/${searchType}/top/search=${encodeURIComponent(cleanTitle)}.json`);
+                            const searchData = await searchRes.json();
+                            
+                            if (searchData.metas && searchData.metas.length > 0) {
+                                if(vodToggleBtn) {
+                                    vodToggleBtn.style.display = 'flex';
+                                    
+                                    // Si es la primera coincidencia encontrada (la más parecida),
+                                    // configuramos el botón para abrir sus detalles directamente.
+                                    if (!window.bestVodMatch) {
+                                        const best = searchData.metas[0];
+                                        window.bestVodMatch = { meta: best, baseUrl: baseUrl };
+                                        vodToggleBtn.onclick = (e) => {
+                                            e.stopPropagation();
+                                            openStremioDetails(best, baseUrl);
+                                        };
+                                    }
+                                }
+                                
+                                // Llenamos la lista secundaria por si se desea cambiar manualmente
+                                searchData.metas.slice(0, 5).forEach(meta => {
+                                    const row = document.createElement('div');
+                                    row.className = 'channel-row-modern';
+                                    row.style.cssText = 'background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom:10px; cursor:pointer; padding: 12px;';
+                                    row.onclick = (e) => { e.stopPropagation(); openStremioDetails(meta, baseUrl); };
+                                    row.innerHTML = `
+                                        <div class="channel-logo-modern" style="width:45px; height:65px; padding:0; border-radius:6px; overflow:hidden;"><img src="${meta.poster}" style="width:100%; height:100%; object-fit:cover;"></div>
+                                        <div class="channel-info-modern">
+                                            <div class="prog-title-modern" style="font-size:0.9rem; color:white;">${meta.name}</div>
+                                            <div style="font-size:0.7rem; color:var(--primary); font-weight:700;">${searchType.toUpperCase()} • ${meta.year || meta.releaseInfo || ''}</div>
+                                        </div>
+                                        <span class="material-icons" style="color:var(--primary);">play_circle_filled</span>
+                                    `;
+                                    vodContainer.appendChild(row);
+                                });
+                            }
+                        } catch(e) {}
+                    });
+                }
+            }
+            // -------------------------------------------
+
+            modal.style.display = 'flex';
             // Solo abrimos el modal; la pantalla completa se activa al pulsar el botón azul manualmente
             // if (autoPlay && streamUrl) { playBtn.click(); }
         }        function showContinueWatchingMenu(e, itemId) {
@@ -3506,7 +3618,43 @@ function renderCurrentView() {
         };
         ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => document.addEventListener(evt, updateFSIcon));
 
+        function toggleVodView() {
+            const epgView = document.getElementById('epg-view-content');
+            const epgHeader = document.querySelector('.detail-header-fixed');
+            const vodView = document.getElementById('vod-view-content');
+            const btn = document.getElementById('vod-toggle-btn');
+            
+            if (vodView.style.display === 'none') {
+                epgView.style.display = 'none';
+                epgHeader.style.display = 'none';
+                vodView.style.display = 'block';
+                btn.innerHTML = '<span class="material-icons">info</span> Info TV';
+                btn.style.background = 'rgba(255,255,255,0.1)';
+                btn.style.color = '#fff';
+            } else {
+                epgView.style.display = 'block';
+                epgHeader.style.display = 'block';
+                vodView.style.display = 'none';
+                btn.innerHTML = '<span class="material-icons">movie</span> VOD';
+                btn.style.background = 'rgba(88, 166, 255, 0.15)';
+                btn.style.color = 'var(--primary)';
+            }
+        }
+
         function closeProgramDetails() {
+            const epgView = document.getElementById('epg-view-content');
+            const epgHeader = document.querySelector('.detail-header-fixed');
+            const vodView = document.getElementById('vod-view-content');
+            const vodBtn = document.getElementById('vod-toggle-btn');
+            
+            if(epgView) epgView.style.display = 'block';
+            if(epgHeader) epgHeader.style.display = 'block';
+            if(vodView) vodView.style.display = 'none';
+            if(vodBtn) { 
+                vodBtn.style.display = 'none';
+                vodBtn.innerHTML = '<span class="material-icons">movie</span> VOD';
+            }
+
             const modal = document.getElementById('programDetailModal');
             const video = document.getElementById('main-video-player');
             const iframe = document.getElementById('main-web-player');
@@ -4296,15 +4444,24 @@ function renderCurrentView() {
                     </div>
                 </div>
                 
-                <div class="detail-scroll-content" style="padding-top: 10px;">
+                <div class="detail-scroll-content" id="epg-view-content" style="padding-top: 10px;">
                     <div class="detail-desc" style="font-size: 0.95rem; line-height: 1.6; color: #eee;"></div>
+                </div>
+                
+                <div id="vod-view-content" style="display: none; flex-grow: 1; overflow-y: auto; padding: 20px 24px;">
+                    <h4 style="font-size:0.75rem; color:var(--primary); font-weight:800; margin-bottom: 15px; text-transform:uppercase; letter-spacing:1px;">Contenido Bajo Demanda</h4>
+                    <div id="vod-epg-results"></div>
                 </div>
 
                 <div class="detail-footer-fixed">
-                    <div style="display: flex; gap: 12px; align-items: center;">
-                        <button class="detail-play-btn" style="margin-top: 0; flex: 1;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="detail-play-btn" style="margin-top: 0; flex: 1.5;">
                             <span class="material-icons">play_circle</span>
-                            Ver
+                            Ver Directo
+                        </button>
+                        <button id="vod-toggle-btn" style="display: none; flex: 1; height: 52px; background: rgba(88, 166, 255, 0.15); border: 1px solid var(--primary); border-radius: 14px; color: var(--primary); align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: all 0.2s;" onclick="toggleVodView()">
+                            <span class="material-icons">movie</span>
+                            VOD
                         </button>
                         <button id="add-to-list-btn" style="width: 52px; height: 52px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: white; display: none; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
                             <span class="material-icons">bookmark_border</span>
