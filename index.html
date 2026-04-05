@@ -1306,7 +1306,22 @@
 
     <script>        let epgData = [];
         let channelStreams = {}; 
-        let streamSources = JSON.parse(localStorage.getItem('streamSources') || '[]');
+
+        // Función de carrera para obtener datos lo más rápido posible evitando bloqueos CORS
+        async function raceFetch(url) {
+            const targets = [
+                url,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                `https://api.codetabs.com/cors-proxy/${encodeURIComponent(url)}`,
+                `https://corsproxy.io/?${encodeURIComponent(url)}`
+            ];
+            return Promise.any(targets.map(t => 
+                fetch(t).then(res => {
+                    if (!res.ok) throw new Error('Fail');
+                    return res;
+                })
+            ));
+        }let streamSources = JSON.parse(localStorage.getItem('streamSources') || '[]');
         let stremioAddons = JSON.parse(localStorage.getItem('stremioAddons') || '[]');
         let currentMainView = 'home';
         let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
@@ -1325,12 +1340,8 @@
                 for (const cat of (manifest.catalogs || [])) {
                     try {
                         // Intentar forzar el idioma español en la petición del catálogo
-                        const langSuffix = cat.id.includes('search=') ? '' : '?language=es-ES';
-                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json${langSuffix}`;
-                        let catalogRes = await fetch(catalogUrl).catch(() => null);
-                        if (!catalogRes || !catalogRes.ok) {
-                            catalogRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(catalogUrl)}`);
-                        }
+                        const langSuffix = cat.id.includes('search=') ? '' : '?language=es-ES';                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json${langSuffix}`;
+                        const catalogRes = await raceFetch(catalogUrl);
                         const data = await catalogRes.json();
                         catalogsData.push({
                             addonName: manifest.name,
@@ -2780,12 +2791,8 @@ function renderCurrentView() {
                 // OBTENCIÓN DE METADATA COMPLETA (Forzado para Búsqueda y Home)
                 for (const addonUrl of stremioAddons) {
                     try {
-                        const addonBaseUrl = addonUrl.replace('/manifest.json', '');
-                        const metaUrl = `${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`;
-                        let metaRes = await fetch(metaUrl).catch(() => null);
-                        if (!metaRes || !metaRes.ok) {
-                            metaRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(metaUrl)}`);
-                        }
+                        const addonBaseUrl = addonUrl.replace('/manifest.json', '');                        const metaUrl = `${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`;
+                        const metaRes = await raceFetch(metaUrl);
                         if (metaRes.ok) {
                             const metaData = await metaRes.json();
                             if (metaData.meta && (metaData.meta.description || metaData.meta.videos)) {
@@ -3964,10 +3971,8 @@ function renderCurrentView() {
             
             const rawUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
             const loader = document.getElementById('loader');
-            loader.style.display = 'flex';
-
-            try {
-                const response = await fetch(rawUrl);
+            loader.style.display = 'flex';            try {
+                const response = await raceFetch(rawUrl);
                 const config = await response.json();
 
                 if(config.epg) localStorage.setItem('epgSourceUrl', config.epg);
