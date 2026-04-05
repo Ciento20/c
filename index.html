@@ -2951,13 +2951,47 @@ function renderCurrentView() {
                                 return;
                             }                            if (stream.url) {
                                 const video = document.getElementById('main-video-player');
+                                
+                                // Limpiar subtítulos y fuentes previas para evitar el icono de error
+                                video.pause();
+                                video.removeAttribute('src');
+                                video.load();
+                                Array.from(video.querySelectorAll('track')).forEach(t => t.remove());
+
+                                // BUSCAR SUBTÍTULOS EN ADDONS (OpenSubtitles, etc)
+                                stremioAddons.forEach(async (addonUrl) => {
+                                    try {
+                                        const addonBase = addonUrl.replace('/manifest.json', '');
+                                        const subRes = await fetch(`${addonBase}/subtitles/${fullMeta.type}/${streamId}.json`);
+                                        if (subRes.ok) {
+                                            const subData = await subRes.json();
+                                            if (subData.subtitles) {
+                                                subData.subtitles.forEach(sub => {
+                                                    const track = document.createElement('track');
+                                                    track.kind = 'subtitles';
+                                                    track.label = sub.lang || 'Desconocido';
+                                                    track.srclang = sub.lang;
+                                                    track.src = sub.url;
+                                                    video.appendChild(track);
+                                                });
+                                            }
+                                        }
+                                    } catch (err) { }
+                                });
                                 const fsBtn = document.getElementById('customFSBtn');
                                 video.style.display = 'block';
                                 if(fsBtn) {
                                     fsBtn.style.display = 'flex';
                                     fsBtn.style.opacity = '0';
-                                    video.onplay = () => { fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; };
-                                    video.onpause = () => { fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; };
+                                    const subBtn = document.getElementById('subtitleBtn');
+            video.onplay = () => { 
+                fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; 
+                if(subBtn) { subBtn.style.opacity = '0'; subBtn.style.pointerEvents = 'none'; }
+            };
+            video.onpause = () => { 
+                fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; 
+                if(subBtn) { subBtn.style.opacity = '1'; subBtn.style.pointerEvents = 'auto'; }
+            };
                                 }
                                 video.src = stream.url;
                                 
@@ -3280,8 +3314,15 @@ function renderCurrentView() {
             const fsBtn = document.getElementById('customFSBtn');
 
             // El botón solo es visible cuando el video está en pausa
-            video.onplay = () => { fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; };
-                                    video.onpause = () => { fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; };
+            const subBtn = document.getElementById('subtitleBtn');
+            video.onplay = () => { 
+                fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; 
+                if(subBtn) { subBtn.style.opacity = '0'; subBtn.style.pointerEvents = 'none'; }
+            };
+            video.onpause = () => { 
+                fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; 
+                if(subBtn) { subBtn.style.opacity = '1'; subBtn.style.pointerEvents = 'auto'; }
+            };
 
             window.toggleAppFullscreen = async () => {
                 try {
@@ -3323,13 +3364,44 @@ function renderCurrentView() {
                         fsBtn.style.display = 'flex';
                         fsBtn.style.opacity = '0'; // Oculto inicialmente al reproducir
                         if (Hls.isSupported()) {
-                            const hls = new Hls();
-                            hls.loadSource(streamUrl);
-                            hls.attachMedia(video);
-                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            if (window.hls) window.hls.destroy();
+                            window.hls = new Hls();
+                            window.hls.loadSource(streamUrl);
+                            window.hls.attachMedia(video);
+                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 toggleAppFullscreen();
+                                if (subBtn) {
+                                    const hasExternal = video.querySelectorAll('track').length > 0;
+                                    // El botón CC aparece si hay subtítulos en el HLS o externos
+                                    subBtn.style.display = (window.hls.subtitleTracks.length > 0 || hasExternal || video.textTracks.length > 0) ? 'flex' : 'none';
+                                    subBtn.style.opacity = '1';
+                                    subBtn.style.pointerEvents = 'auto';
+                                }
                             });
+
+                            window.toggleSubtitles = (e) => {
+                                e.stopPropagation();
+                                const tracks = video.textTracks;
+                                let current = -1;
+                                
+                                for(let i=0; i<tracks.length; i++) {
+                                    if(tracks[i].mode === 'showing') { current = i; break; }
+                                }
+
+                                // Ciclo: Apagar -> Pista 1 -> Pista 2 -> Apagar
+                                for(let i=0; i<tracks.length; i++) tracks[i].mode = 'disabled';
+                                if(window.hls) window.hls.subtitleTrack = -1;
+
+                                let next = current + 1;
+                                if(next >= tracks.length) {
+                                    subBtn.style.color = '#fff'; // Desactivados
+                                } else {
+                                    tracks[next].mode = 'showing';
+                                    if(window.hls && next < window.hls.subtitleTracks.length) window.hls.subtitleTrack = next;
+                                    subBtn.style.color = 'var(--primary)'; // Activados
+                                }
+                            };
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                             video.src = streamUrl;
                             video.play().then(() => toggleAppFullscreen());
@@ -4414,7 +4486,10 @@ function renderCurrentView() {
             </div>
             <div class="detail-bg" id="player-container">
                 <video id="main-video-player" controls style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
-                <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>                <button class="custom-fullscreen-btn" id="customFSBtn" onclick="toggleAppFullscreen(event)" ontouchstart="toggleAppFullscreen(event)" style="display:none; z-index:2147483647 !important;">
+                <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>                <button class="custom-fullscreen-btn" id="subtitleBtn" onclick="window.toggleSubtitles(event)" style="display:none; z-index:2147483647 !important; right: 60px;">
+                    <span class="material-icons">closed_caption</span>
+                </button>
+                <button class="custom-fullscreen-btn" id="customFSBtn" onclick="toggleAppFullscreen(event)" ontouchstart="toggleAppFullscreen(event)" style="display:none; z-index:2147483647 !important;">
                     <span class="material-icons">fullscreen_exit</span>
                 </button>
             </div>            <div class="detail-body">
