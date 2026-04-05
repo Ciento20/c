@@ -2738,10 +2738,11 @@ function renderCurrentView() {
             }
 
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
-            modal.querySelector('.detail-title').textContent = meta.name;
-
+            modal.querySelector('.detail-title').textContent = meta.name;            // Priorizar descripción en español si existe, si no, limpiar la inglesa
+            const finalDesc = meta.description_es || meta.description || 'Sin descripción';
+            
             // GENERADOR DINÁMICO DE METADATA (Muestra todo lo disponible)
-            let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">';
+            let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
             
             const labels = {
                 genres: 'Géneros', director: 'Director', cast: 'Reparto', 
@@ -2760,14 +2761,12 @@ function renderCurrentView() {
             });
             extraMetaHtml += '</div>';
 
-            // Priorizar descripción en español si existe, si no, limpiar la inglesa
-            const finalDesc = meta.description_es || meta.description || 'Sin descripción';
             modal.querySelector('.detail-desc').innerHTML = `
-                ${extraMetaHtml}
-                <div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">
+                <div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;">
                     <span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>
                     ${finalDesc}
-                </div>`;
+                </div>
+                ${extraMetaHtml}`;
             
             const playBtn = modal.querySelector('.detail-play-btn');
             const metaContainer = modal.querySelector('.detail-meta');
