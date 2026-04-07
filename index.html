@@ -3652,11 +3652,10 @@ function renderCurrentView() {
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                             video.src = streamUrl;
                             video.play().then(() => toggleAppFullscreen());
-                        }
-                    } else {
+                        }                    } else {
                         video.style.display = 'none';
                         iframe.style.display = 'block';
-                        fsBtn.style.display = 'flex';
+                        fsBtn.style.display = 'none';
                         iframe.src = streamUrl;
                         toggleAppFullscreen();
                     }
