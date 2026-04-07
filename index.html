@@ -3224,24 +3224,16 @@ function renderCurrentView() {
                                     if(e) e.stopPropagation();
                                     const v = document.getElementById('main-video-player');
                                     if (!v) return;
-                                    
+                                    // Activamos controles nativos como respaldo silencioso
+                                    v.controls = true;
                                     try {
-                                        // 1. Intento de atajo a API nativa de Google Cast
                                         if (v.remote && typeof v.remote.prompt === 'function') {
                                             await v.remote.prompt();
-                                        } 
-                                        // 2. Intento de atajo a API nativa de Apple (AirPlay)
-                                        else if (v.webkitShowPlaybackTargetPicker) {
+                                        } else if (v.webkitShowPlaybackTargetPicker) {
                                             v.webkitShowPlaybackTargetPicker();
-                                        } 
-                                        // 3. Forzar error si no hay API disponible para pasar al fallback
-                                        else {
-                                            throw new Error('No API');
                                         }
                                     } catch (err) {
-                                        // FALLBACK: Desbloquear los controles NATIVOS del navegador
-                                        v.controls = true;
-                                        alert('El atajo automático falló o fue bloqueado por el navegador.\n\nSe han activado los CONTROLES NATIVOS. Toca la pantalla del video y usa el ícono de transmitir 📺 propio del navegador para conectarte.');
+                                        console.log('Cast UI triggered via native fallback');
                                     }
                                 };
                                 video.src = stream.url;
@@ -3640,18 +3632,15 @@ function renderCurrentView() {
                 if(e) e.stopPropagation();
                 const v = document.getElementById('main-video-player');
                 if (!v) return;
-                
+                v.controls = true;
                 try {
                     if (v.remote && typeof v.remote.prompt === 'function') {
                         await v.remote.prompt();
                     } else if (v.webkitShowPlaybackTargetPicker) {
                         v.webkitShowPlaybackTargetPicker();
-                    } else {
-                        throw new Error('No API');
                     }
                 } catch (err) {
-                    v.controls = true;
-                    alert('Atajo no disponible. Se activaron los controles nativos para que puedas usar el botón de Cast integrado en el video.');
+                    console.log('Cast UI fallback enabled');
                 }
             };
 
