@@ -9,8 +9,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TV Guide" />
-    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0c10'/><text y='70' x='50' font-size='60' text-anchor='middle'>🖥️</text></svg>" />
-    <title>🖥️</title>
+    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0c10'/><text y='70' x='50' font-size='60' text-anchor='middle'>📽️</text></svg>" />
+    <title>📽️</title>
     <script>
         (function() {
             const manifest = {
@@ -22,13 +22,13 @@
                 "theme_color": "#0a0c10",
                 "icons": [
                     {
-                        "src": "data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0c10'/><text y='70' x='50' font-size='60' text-anchor='middle'>🖥️</text></svg>",
+                        "src": "data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0c10'/><text y='70' x='50' font-size='60' text-anchor='middle'>📽️</text></svg>",
                         "sizes": "192x192",
                         "type": "image/svg+xml",
                         "purpose": "any maskable"
                     },
                     {
-                        "src": "data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0c10'/><text y='70' x='50' font-size='60' text-anchor='middle'>🖥️</text></svg>",
+                        "src": "data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0c10'/><text y='70' x='50' font-size='60' text-anchor='middle'>📽️</text></svg>",
                         "sizes": "512x512",
                         "type": "image/svg+xml",
                         "purpose": "any maskable"
@@ -451,33 +451,70 @@
         }
 
 
-        /* Loader Premium: Ondas de Pulso */
-        .premium-loader {
+        /* Cinematic Intro (Estilo Netflix/Premium) */
+        #loader {
+            transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), visibility 1.2s;
+            background: radial-gradient(circle, #1a1b26 0%, #000 100%) !important;
+            backdrop-filter: none !important;
+        }
+
+        .intro-logo-container {
+            position: relative;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            gap: 6px;
-            height: 50px;
-            margin-bottom: 10px;
+            animation: intro-zoom 4s forwards cubic-bezier(0.1, 0.7, 1.0, 0.1);
         }
 
-        .premium-loader span {
-            width: 6px;
-            height: 20px;
-            background: var(--color-primary);
-            border-radius: 12px;
-            animation: loader-wave 1.2s infinite ease-in-out;
-            filter: drop-shadow(0 0 8px var(--color-primary));
+        .intro-text {
+            font-size: 5.5rem;
+            filter: drop-shadow(0 0 25px var(--primary));
+            margin-bottom: 15px;
+            line-height: 1;
         }
 
-        .premium-loader span:nth-child(2) { animation-delay: 0.1s; }
-        .premium-loader span:nth-child(3) { animation-delay: 0.2s; }
-        .premium-loader span:nth-child(4) { animation-delay: 0.3s; }
-        .premium-loader span:nth-child(5) { animation-delay: 0.4s; }
+        .intro-app-name {
+            font-weight: 800;
+            font-size: 1.1rem;
+            letter-spacing: 6px;
+            color: #fff;
+            text-transform: uppercase;
+            opacity: 0;
+            animation: text-reveal 1.8s 0.6s forwards ease-out;
+        }
 
-        @keyframes loader-wave {
-            0%, 40%, 100% { transform: scaleY(0.4); opacity: 0.5; }
-            20% { transform: scaleY(1.2); opacity: 1; }
+        .premium-bar-loader {
+            width: 220px;
+            height: 2px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 10px;
+            margin-top: 35px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .premium-bar-fill {
+            width: 35%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--primary), #fff, var(--primary), transparent);
+            position: absolute;
+            animation: bar-glide 1.8s infinite ease-in-out;
+        }
+
+        @keyframes intro-zoom {
+            0% { transform: scale(0.85); opacity: 0; filter: blur(10px); }
+            15% { opacity: 1; filter: blur(0px); }
+            100% { transform: scale(1.15); }
+        }
+
+        @keyframes text-reveal {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); letter-spacing: 10px; }
+        }
+
+        @keyframes bar-glide {
+            0% { left: -110%; } 
+            100% { left: 110%; }
         }
 
         /* Light mode overrides */
@@ -1355,11 +1392,10 @@
     <div id="grid-container" style="margin-top: 0;"></div>
 
 
-    <div id="loader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 15, 15, 0.8); backdrop-filter: blur(4px); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-        <div class="premium-loader">
-            <span></span><span></span><span></span><span></span><span></span>
+    <div id="loader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+        <div class="intro-logo-container">
+            <div class="intro-text">📽️</div>
         </div>
-        <p style="color:var(--color-primary); font-weight: 600; letter-spacing: 1px; font-size: 0.9rem; text-transform: uppercase; margin-top: 15px;">Sincronizando Guía...</p>
     </div>
 
     <div id="data-list"></div>
@@ -1831,8 +1867,18 @@
 
             } catch (err) {
                 alert("Error al cargar el EPG: " + err.message);
-            } finally {                loader.style.display = 'none';
-                // if (reloadBtn) reloadBtn.disabled = false;
+            } finally {
+                // Mantenemos la animación activa al menos 2.5s para un look cinematográfico
+                setTimeout(() => {
+                    loader.style.opacity = '0';
+                    loader.style.visibility = 'hidden';
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                        // Reset para futuras recargas
+                        loader.style.opacity = '1';
+                        loader.style.visibility = 'visible';
+                    }, 1200);
+                }, 2800);
             }
         }// Listener de fileInput eliminado
 
