@@ -3027,14 +3027,15 @@ function renderCurrentView() {
                                         const addonBase = addonUrl.replace('/manifest.json', '');
                                         const subRes = await fetch(`${addonBase}/subtitles/${fullMeta.type}/${streamId}.json`);
                                         if (subRes.ok) {
-                                            const subData = await subRes.json();
-                                            if (subData.subtitles) {
+                                            const subData = await subRes.json();                                            if (subData.subtitles) {
+                                                const prefLang = localStorage.getItem('prefSubLang');
                                                 subData.subtitles.forEach(sub => {
                                                     const track = document.createElement('track');
                                                     track.kind = 'subtitles';
                                                     track.label = sub.lang || 'Desconocido';
                                                     track.srclang = sub.lang;
                                                     track.src = sub.url;
+                                                    if (prefLang && prefLang === track.label) track.mode = 'showing';
                                                     video.appendChild(track);
                                                 });
                                             }
@@ -3110,11 +3111,10 @@ function renderCurrentView() {
                                         item.innerHTML = `<i class="material-icons" style="color: ${active ? 'var(--primary)' : '#666'}">${icon}</i> ${label}`;
                                         item.onclick = (ev) => { ev.stopPropagation(); callback(); };
                                         return item;
-                                    };
-
-                                    menu.appendChild(createItem('Desactivar', 'subtitles_off', !Array.from(tracks).some(t => t.mode === 'showing'), () => {
+                                    };                                    menu.appendChild(createItem('Desactivar', 'subtitles_off', !Array.from(tracks).some(t => t.mode === 'showing'), () => {
                                         for(let i=0; i<tracks.length; i++) tracks[i].mode = 'disabled';
                                         if(window.hls) window.hls.subtitleTrack = -1;
+                                        localStorage.setItem('prefSubLang', 'none');
                                         menu.style.display = 'none';
                                     }));
 
@@ -3124,6 +3124,7 @@ function renderCurrentView() {
                                             for(let j=0; j<tracks.length; j++) tracks[j].mode = 'disabled';
                                             track.mode = 'showing';
                                             if(window.hls && i < window.hls.subtitleTracks.length) window.hls.subtitleTrack = i;
+                                            localStorage.setItem('prefSubLang', track.label || `Pista ${i+1}`);
                                             menu.style.display = 'none';
                                         }));
                                     }
@@ -3584,8 +3585,7 @@ function renderCurrentView() {
                             if (window.hls) window.hls.destroy();
                             window.hls = new Hls();
                             window.hls.loadSource(streamUrl);
-                            window.hls.attachMedia(video);
-                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 toggleAppFullscreen();
                                 if (subBtn) {
@@ -3594,6 +3594,13 @@ function renderCurrentView() {
                                     subBtn.style.display = (window.hls.subtitleTracks.length > 0 || hasExternal || video.textTracks.length > 0) ? 'flex' : 'none';
                                     subBtn.style.opacity = '1';
                                     subBtn.style.pointerEvents = 'auto';
+                                }
+                                const prefLang = localStorage.getItem('prefSubLang');
+                                if (prefLang && prefLang !== 'none' && window.hls.subtitleTracks.length > 0) {
+                                    const matchedIndex = window.hls.subtitleTracks.findIndex(t => (t.name || t.lang || '').includes(prefLang) || prefLang.includes(t.name || t.lang || ''));
+                                    if (matchedIndex !== -1) window.hls.subtitleTrack = matchedIndex;
+                                } else if (prefLang === 'none') {
+                                    window.hls.subtitleTrack = -1;
                                 }
                             });                            window.toggleSubtitles = (e) => {
                                 if(e) e.stopPropagation();
@@ -3624,12 +3631,11 @@ function renderCurrentView() {
                                     item.innerHTML = `<i class="material-icons" style="color: ${active ? 'var(--primary)' : '#666'}">${icon}</i> ${label}`;
                                     item.onclick = (ev) => { ev.stopPropagation(); callback(); };
                                     return item;
-                                };
-
-                                menu.appendChild(createItem('Desactivar', 'subtitles_off', !Array.from(tracks).some(t => t.mode === 'showing'), () => {
+                                };                                menu.appendChild(createItem('Desactivar', 'subtitles_off', !Array.from(tracks).some(t => t.mode === 'showing'), () => {
                                     for(let i=0; i<tracks.length; i++) tracks[i].mode = 'disabled';
                                     if(window.hls) window.hls.subtitleTrack = -1;
                                     if(typeof subBtn !== 'undefined' && subBtn) subBtn.style.color = '#fff';
+                                    localStorage.setItem('prefSubLang', 'none');
                                     menu.style.display = 'none';
                                 }));
 
@@ -3640,6 +3646,7 @@ function renderCurrentView() {
                                         track.mode = 'showing';
                                         if(window.hls && i < window.hls.subtitleTracks.length) window.hls.subtitleTrack = i;
                                         if(typeof subBtn !== 'undefined' && subBtn) subBtn.style.color = 'var(--primary)';
+                                        localStorage.setItem('prefSubLang', track.label || `Pista ${i+1}`);
                                         menu.style.display = 'none';
                                     }));
                                 }
