@@ -463,7 +463,9 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            animation: intro-zoom 4s forwards cubic-bezier(0.1, 0.7, 1.0, 0.1);
+            /* Animación más larga para que el ícono esté presente durante todo el fundido */
+            animation: intro-zoom 4.5s forwards cubic-bezier(0.2, 0, 0.2, 1);
+            will-change: transform, opacity;
         }
 
         .intro-text {
@@ -499,12 +501,11 @@
             background: linear-gradient(90deg, transparent, var(--primary), #fff, var(--primary), transparent);
             position: absolute;
             animation: bar-glide 1.8s infinite ease-in-out;
-        }
-
-        @keyframes intro-zoom {
-            0% { transform: scale(0.85); opacity: 0; filter: blur(10px); }
-            15% { opacity: 1; filter: blur(0px); }
-            100% { transform: scale(1.15); }
+        }        @keyframes intro-zoom {
+            0% { transform: scale(0.5); opacity: 0; filter: blur(15px); }
+            15% { opacity: 1; filter: blur(0px); transform: scale(1); }
+            75% { transform: scale(1.15); opacity: 1; filter: blur(0px); } 
+            100% { transform: scale(50); opacity: 0; filter: blur(10px); } /* Explosión suavizada con desvanecimiento */
         }
 
         @keyframes text-reveal {
@@ -1866,19 +1867,17 @@
                 });                // No renderizamos la tabla de eventos aquí para permitir que la vista de Inicio sea la principal al cargar
 
             } catch (err) {
-                alert("Error al cargar el EPG: " + err.message);
-            } finally {
-                // Mantenemos la animación activa al menos 2.5s para un look cinematográfico
+                alert("Error al cargar el EPG: " + err.message);            } finally {
+                // Sincronización refinada con el clímax de la animación CSS (2.4s)
                 setTimeout(() => {
                     loader.style.opacity = '0';
-                    loader.style.visibility = 'hidden';
                     setTimeout(() => {
                         loader.style.display = 'none';
-                        // Reset para futuras recargas
+                        loader.style.visibility = 'hidden';
+                        // Reset de estado para futuras cargas
                         loader.style.opacity = '1';
-                        loader.style.visibility = 'visible';
-                    }, 1200);
-                }, 2800);
+                    }, 600);
+                }, 2400);
             }
         }// Listener de fileInput eliminado
 
