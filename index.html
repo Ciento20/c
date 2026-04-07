@@ -52,10 +52,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Round" rel="stylesheet" />
     <style>        :root {
-            /* PALETA PREMIUM REFINADA */
-            --bg-deep: #0a0c10;
-            --bg-surface: #161b22;
-            --bg-ui: #21262d;
+            /* PALETA PREMIUM REFINADA - OLED DEEP BLACK */
+            --bg-deep: #000000;
+            --bg-surface: #0f0f0f;
+            --bg-ui: #1c1c1e;
             --primary: #58a6ff;
             --accent: #79c0ff;
             --text-main: #f0f6fc;
@@ -1079,40 +1079,57 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-        }
-
-        .player-progress-container {
+        }        .player-progress-container {
             display: flex;
             align-items: center;
-            gap: 12px;
-            color: white;
-            font-size: 0.75rem;
-            font-weight: 600;
+            gap: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 0 5px;
+            font-variant-numeric: tabular-nums;
         }
 
         .player-scrubber {
             flex-grow: 1;
             height: 4px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
             position: relative;
+            cursor: pointer;
+            transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+        }
+
+        .player-scrubber:hover {
+            height: 6px;
         }
 
         .player-scrubber-fill {
             position: absolute;
             left: 0; top: 0; height: 100%;
-            background: #9d4edd;
-            border-radius: 2px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
+            transition: background 0.3s ease;
         }
 
         .player-scrubber-knob {
             position: absolute;
-            right: -6px; top: 50%;
-            transform: translateY(-50%);
-            width: 12px; height: 12px;
-            background: #9d4edd;
+            right: -7px;
+            width: 14px;
+            height: 14px;
+            background: #fff;
             border-radius: 50%;
-            box-shadow: 0 0 10px rgba(157, 78, 221, 0.8);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(88, 166, 255, 0.2);
+            transform: scale(0);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10;
+        }
+
+        .player-scrubber:hover .player-scrubber-knob {
+            transform: scale(1);
         }
 
         .player-actions-row {
@@ -3159,16 +3176,7 @@ function renderCurrentView() {
                                     v.style.objectFit = modes[(current + 1) % modes.length];
                                 };
 
-                                window.toggleAudioTracks = (e) => {
-                                    if(e) e.stopPropagation();
-                                    if(window.hls && window.hls.audioTracks && window.hls.audioTracks.length > 1) {
-                                        let next = (window.hls.audioTrack + 1) % window.hls.audioTracks.length;
-                                        window.hls.audioTrack = next;
-                                        alert('Audio: ' + window.hls.audioTracks[next].name);
-                                    } else {
-                                        alert('Solo una pista de audio disponible');
-                                    }
-                                };                                window.toggleSubtitles = (e) => {
+                                                                window.toggleSubtitles = (e) => {
                                     if(e) e.stopPropagation();
                                     const v = document.getElementById('main-video-player');
                                     const container = document.getElementById('player-container');
@@ -3620,15 +3628,7 @@ function renderCurrentView() {
                 v.style.objectFit = modes[(current + 1) % modes.length];
             };
 
-            window.toggleAudioTracks = (e) => {
-                if(window.hls && window.hls.audioTracks.length > 1) {
-                    let next = (window.hls.audioTrack + 1) % window.hls.audioTracks.length;
-                    window.hls.audioTrack = next;
-                    alert('Audio: ' + window.hls.audioTracks[next].name);
-                } else {
-                    alert('Solo una pista de audio disponible');
-                }
-            };
+            
 
             window.castToDevice = async (e) => {
                 if(e) e.stopPropagation();
@@ -4905,9 +4905,7 @@ function renderCurrentView() {
                             <button class="player-action-item" onclick="window.toggleSubtitles(event)">
                                 <span class="material-icons">subtitles</span>
                             </button>
-                            <button class="player-action-item" onclick="window.toggleAudioTracks(event)">
-                                <span class="material-icons">interpreter_mode</span>
-                            </button>
+                            
                             <button class="player-action-item" onclick="window.togglePlaybackSpeed(event)">
                                 <span class="material-icons">speed</span>
                             </button>
