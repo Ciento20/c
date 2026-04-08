@@ -1860,9 +1860,7 @@
             // Establecer la hora actual en el selector
             const currentHour = now.getHours();
             document.getElementById('hourFilter').value = currentHour;
-        }
-
-        async function fetchXML() {
+        }        async function fetchXML() {
             const loader = document.getElementById('loader');
             const url = localStorage.getItem('epgSourceUrl');
             
@@ -1874,9 +1872,19 @@
             loader.style.display = 'flex';
 
             try {
-                const response = await fetch(url);
+                // Usamos raceFetch para mejorar compatibilidad y evitar bloqueos CORS
+                const response = await raceFetch(url);
                 if (!response.ok) throw new Error("No se pudo cargar el archivo EPG.");
-                const xmlText = await response.text();
+                
+                let xmlText;
+                // Detección y descompresión automática de archivos .gz nativa (Browser Stream API)
+                if (url.toLowerCase().endsWith('.gz') && 'DecompressionStream' in window) {
+                    const ds = new DecompressionStream('gzip');
+                    const decompressedStream = response.body.pipeThrough(ds);
+                    xmlText = await new Response(decompressedStream).text();
+                } else {
+                    xmlText = await response.text();
+                }
 
                 // Parsear XML con promesa para no bloquear UI
                 await new Promise(resolve => {
