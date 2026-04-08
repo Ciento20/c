@@ -2840,6 +2840,9 @@ function renderCurrentView() {
         async function openStremioDetails(meta, baseUrl) {
             const modal = document.getElementById('programDetailModal');
             
+            // Asegurar que los controles del reproductor estén ocultos al entrar en la ficha
+            document.getElementById('playerControls').style.display = 'none';
+            
             // ELIMINAR enlaces de canales de TV previos y limpiar interfaz
             modal.querySelectorAll('.source-selector').forEach(el => el.remove());
             const channelLogo = modal.querySelector('.detail-channel-logo');
@@ -3408,6 +3411,8 @@ function renderCurrentView() {
 
         function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
             const now = new Date();
+            // Ocultar controles personalizados para TV en directo
+            document.getElementById('playerControls').style.display = 'none';
             let prog;
             
             if (startTime && progDate) {
@@ -3576,21 +3581,9 @@ function renderCurrentView() {
                     const sourceObj = sources[currentSourceIdx];
                     const streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
-                    const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');
-            const fsBtn = document.getElementById('customFSBtn');
-
-            // El botón solo es visible cuando el video está en pausa            const subBtn = document.getElementById('subtitleBtn');
-            video.classList.remove('stremio-mode');
+                    const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
             document.getElementById('playerControls').style.display = 'none';
-            video.onplay = () => { 
-                fsBtn.style.opacity = '0'; fsBtn.style.pointerEvents = 'none'; 
-                if(subBtn) { subBtn.style.opacity = '0'; subBtn.style.pointerEvents = 'none'; }
-            };
-            video.onpause = () => { 
-                fsBtn.style.opacity = '1'; fsBtn.style.pointerEvents = 'auto'; 
-                if(subBtn) { subBtn.style.opacity = '1'; subBtn.style.pointerEvents = 'auto'; }
-            };
             
             // FUNCIONES ADICIONALES REPRODUCTOR
             window.togglePlaybackSpeed = (e) => {
@@ -3647,34 +3640,20 @@ function renderCurrentView() {
                 } catch (err) {
                     console.log('Cast UI fallback enabled');
                 }
-            };
-
-            window.toggleAppFullscreen = async () => {
+            };            window.toggleAppFullscreen = async () => {
                 try {
                     if (!document.fullscreenElement) {
                         const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
                         await requestFS.call(container);
-                        if (fsBtn) fsBtn.innerHTML = '<span class="material-icons">fullscreen_exit</span>';
                         if (screen.orientation && screen.orientation.lock) {
                             await screen.orientation.lock('landscape').catch(() => {});
                         }
                     } else {
                         if (document.exitFullscreen) await document.exitFullscreen();
                         else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
-                        if (fsBtn) fsBtn.innerHTML = '<span class="material-icons">fullscreen</span>';
                     }
-                    showFsBtn();
                 } catch (err) { console.warn('FS Error:', err); }
-            };            document.addEventListener('fullscreenchange', () => {
-                if (!document.fullscreenElement && fsBtn) {
-                    fsBtn.innerHTML = '<span class="material-icons">fullscreen</span>';
-                }
-                // Forzamos que la opacidad se mantenga siempre al 100%
-                if (fsBtn) {
-                    fsBtn.style.opacity = '1';
-                    fsBtn.style.pointerEvents = 'auto';
-                }
-            });                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
+            };                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
                     // Abrir enlaces Acestream en aplicación externa
@@ -3692,17 +3671,9 @@ function renderCurrentView() {
                             if (window.hls) window.hls.destroy();
                             window.hls = new Hls();
                             window.hls.loadSource(streamUrl);
-                            window.hls.attachMedia(video);
-                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 toggleAppFullscreen();
-                                if (subBtn) {
-                                    const hasExternal = video.querySelectorAll('track').length > 0;
-                                    // El botón CC aparece si hay subtítulos en el HLS o externos
-                                    subBtn.style.display = (window.hls.subtitleTracks.length > 0 || hasExternal || video.textTracks.length > 0) ? 'flex' : 'none';
-                                    subBtn.style.opacity = '1';
-                                    subBtn.style.pointerEvents = 'auto';
-                                }
                             });                            window.toggleSubtitles = (e) => {
                                 if(e) e.stopPropagation();
                                 const container = document.getElementById('player-container');
@@ -3760,11 +3731,9 @@ function renderCurrentView() {
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                             video.src = streamUrl;
                             video.play().then(() => toggleAppFullscreen());
-                        }
-                    } else {
+                        }                    } else {
                         video.style.display = 'none';
                         iframe.style.display = 'block';
-                        fsBtn.style.display = 'flex';
                         iframe.src = streamUrl;
                         toggleAppFullscreen();
                     }
@@ -4868,14 +4837,7 @@ function renderCurrentView() {
                 <video id="main-video-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
                 
-                <button class="custom-fullscreen-btn" id="subtitleBtn" onclick="window.toggleSubtitles(event)" style="display:none; z-index:2147483647 !important; right: 60px;">
-                    <span class="material-icons">closed_caption</span>
-                </button>
-                <button class="custom-fullscreen-btn" id="customFSBtn" onclick="toggleAppFullscreen(event)" ontouchstart="toggleAppFullscreen(event)" style="display:none; z-index:2147483647 !important;">
-                    <span class="material-icons">fullscreen_exit</span>
-                </button>
-                
-                <div class="player-ui-overlay" id="playerControls">
+                <div class="player-ui-overlay" id="playerControls" style="display: none;">
                     <div class="player-top-bar">
                         <span id="playerTitleDisplay" style="font-weight:700; font-size:0.9rem; text-shadow: 0 2px 4px #000;"></span>
                         <button class="player-action-item" onclick="event.stopPropagation(); window.toggleAppFullscreen()">
@@ -5053,7 +5015,5 @@ function renderCurrentView() {
         </div>
     </div>
 </body>
-
-</html>/body>
 
 </html>
