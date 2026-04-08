@@ -14,8 +14,8 @@
     <script>
         (function() {
             const manifest = {
-                "name": "TV+",
-                "short_name": "TV+",
+                "name": "TV Guide Premium",
+                "short_name": "TV Guide",
                 "start_url": "https://carlostropico.github.io/c/",
                 "display": "standalone",
                 "background_color": "#0a0c10",
@@ -2577,7 +2577,7 @@ function renderCurrentView() {
             if (!name) return '';
             let n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             // Eliminación más agresiva de etiquetas comunes (incluso si no hay espacio: F1HD)
-            n = n.replace(/(hd|sd|geo|espana|es|plus|\+|premium|uhd|directo|tv|24h|1080p|720p)/g, '');
+            n = n.replace(/\b(hd|sd|geo|espana|es|plus|\+|premium|uhd|directo|tv|24h|1080p|720p)\b/g, '');
             // Solo caracteres alfanuméricos
             n = n.replace(/[^a-z0-9]/g, '');
             return n.trim();
@@ -2593,21 +2593,19 @@ function renderCurrentView() {
                         const data = JSON.parse(text);
                         if (data.groups) {
                             data.groups.forEach(group => {
-                                group.stations.forEach(station => {
-                                    matchStreamToChannel(station.name, station.url, station.name, station.logo || '', station.banner || '');
+                                group.stations.forEach(station => {                                    matchStreamToChannel(station.name, station.url, station.name);
                                 });
                             });
-                        } 
-                        else if (Array.isArray(data)) {
+                        }                        else if (Array.isArray(data)) {
                             data.forEach(item => {
                                 const finalUrl = item.hash ? `acestream://${item.hash}` : (item.url || item.link);
                                 const finalName = item.title || item.name || item.tvg_id;
-                                const finalLogo = item.logo || '';
+                                const finalLogo = item.logo || item.icon || '';
                                 const finalBanner = item.banner || '';
                                 if (finalUrl && finalName) matchStreamToChannel(finalName, finalUrl, finalName, finalLogo, finalBanner);
                             });
                         }
-                    } catch (jsonErr) {
+                    } catch (jsonErr) {                        // Soporte para formato M3U con detección de Logos y Banners personalizados
                         if (text.includes('#EXTINF')) {
                             const lines = text.split('\n');
                             let currentName = '', currentLogo = '', currentBanner = '';
@@ -2616,7 +2614,7 @@ function renderCurrentView() {
                                     const idMatch = line.match(/tvg-id="([^"]+)"/);
                                     const nameMatch = line.match(/tvg-name="([^"]+)"/);
                                     const logoMatch = line.match(/tvg-logo="([^"]+)"/);
-                                    const bannerMatch = line.match(/tvg-banner="([^"]+)"/);
+                                    const bannerMatch = line.match(/tvg-banner="([^"]+)"/); // Atributo personalizado para banners
                                     const commaMatch = line.match(/,(.+)$/);
                                     
                                     currentName = idMatch ? idMatch[1] : (nameMatch ? nameMatch[1] : (commaMatch ? commaMatch[1] : ''));
@@ -2633,10 +2631,6 @@ function renderCurrentView() {
                 }
             }
             console.log("Streams vinculados:", Object.keys(channelStreams).length);
-            // REFRESCAR INTERFAZ: Asegura que el canal aparezca en pestañas y vistas tras cargar los streams
-            populateChannelDropdown();
-            if(currentMainView === 'channels') renderChannelsView();
-            if(currentMainView === 'home') renderHomeView();
         }        const channelAliases = {
             "DAZN1": "DAZN 1",
             "DAZNLIGA": "DAZN LALIGA",
@@ -2778,6 +2772,9 @@ function renderCurrentView() {
                 addStreamToChannel(finalStreamName, streamUrl, rawName, customLogo, customBanner);
                 // Actualizamos listas visibles
                 visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
+                // Forzar actualización del buscador y menús para canales nuevos
+                if (typeof populateChannelDropdown === 'function') populateChannelDropdown();
+                if (document.getElementById('channelSelectorModal')?.style.display === 'flex') renderChannelSelectorGrid();
             }
         }        // Objeto global para almacenar logos y banners personalizados detectados en las listas
         let customMediaMap = {};
@@ -3542,22 +3539,27 @@ function renderCurrentView() {
                 
                 const isLive = now >= start && now <= stop;
                 modal.querySelector('.detail-badge').style.display = isLive ? 'block' : 'none';
-                modal.querySelector('.detail-progress-container').style.display = isLive ? 'block' : 'none';
-            } else {
-                // Fallback si no hay programa pero queremos ver el canal
-                const channelIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
-                modal.querySelector('.detail-bg').style.backgroundImage = channelIcon ? `url('${channelIcon}')` : 'none';
+                modal.querySelector('.detail-progress-container').style.display = isLive ? 'block' : 'none';            } else {
+                // Fallback mejorado: Priorizar banner personalizado, luego logo y finalmente icono EPG
+                const customBanner = customMediaMap[channelId]?.banner;
+                const customLogo = customMediaMap[channelId]?.logo;
+                const epgIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
+                
+                const finalBg = customBanner || customLogo || epgIcon;
+                modal.querySelector('.detail-bg').style.backgroundImage = finalBg ? `url('${finalBg}')` : 'none';
+                
                 modal.querySelector('.detail-title').textContent = channelId;
                 modal.querySelector('.detail-time').textContent = "Emisión en directo";
                 modal.querySelector('.detail-desc').textContent = "No hay información de programación disponible en este momento.";
+                
                 const addListBtn = document.getElementById('add-to-list-btn');
                 if(addListBtn) addListBtn.style.display = 'none';
 
-                const fallbackIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
                 const channelLogoImg = modal.querySelector('.detail-channel-logo');
                 if (channelLogoImg) {
-                    channelLogoImg.src = fallbackIcon;
-                    channelLogoImg.style.display = fallbackIcon ? 'block' : 'none';
+                    const finalLogo = customLogo || epgIcon;
+                    channelLogoImg.src = finalLogo;
+                    channelLogoImg.style.display = finalLogo ? 'block' : 'none';
                 }
                 modal.querySelector('.detail-badge').style.display = 'none';
                 modal.querySelector('.detail-progress-container').style.display = 'none';
