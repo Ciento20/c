@@ -1951,8 +1951,11 @@
                 const date = formatXMLTVDate(prog.getAttribute('start'));
                 const start = formatXMLTVTime(prog.getAttribute('start'));
                 const stop = formatXMLTVTime(prog.getAttribute('stop'));
-                const duration = calculateDuration(prog.getAttribute('start'), prog.getAttribute('stop'));
-                const title = prog.getElementsByTagName('title')[0]?.textContent || '';
+                const duration = calculateDuration(prog.getAttribute('start'), prog.getAttribute('stop'));                const titleTag = prog.getElementsByTagName('title')[0]?.textContent || '';
+                const subTitle = prog.getElementsByTagName('sub-title')[0]?.textContent || '';
+                const epNum = prog.getElementsByTagName('episode-num')[0]?.textContent || '';
+                // Formateo compatible con Plex EPG: [S01E07] Título: Subtítulo
+                const title = (epNum ? `[COLOR var(--primary)]${epNum}[/COLOR] ` : '') + titleTag + (subTitle ? `: ${subTitle}` : '');
                 const description = prog.getElementsByTagName('desc')[0]?.textContent || '';
                 const iconSrc = prog.getElementsByTagName('icon')[0]?.getAttribute('src') || '';
                 const iconSrc2 = prog.getElementsByTagName('icon2')[0]?.getAttribute('src') || '';
@@ -2136,14 +2139,11 @@
                 
                 let finalColor = colorName;
                 let extraStyle = '';
-                const contentTrim = content.trim();
-                
-                // Identificamos si es una temporada independientemente del nombre del color (Ej: T1, T2026, T1E2)
-                if (/^T\d+/i.test(contentTrim)) {
+                const contentTrim = content.trim();                // Identificamos si es una temporada o episodio (Ej: T1, S01E07, T2026)
+                if (/^[TS]\d+/i.test(contentTrim)) {
                     finalColor = 'var(--primary)';
                     lastWasSeason = true;
-                } 
-                // Si es el texto que va justo después de la temporada (letras amarillas/naranjas)
+                } // Si es el texto que va justo después de la temporada (letras amarillas/naranjas)
                 else if (lastWasSeason) {
                     finalColor = 'var(--primary)';
                     extraStyle = ' text-shadow: 1px 1px 3px rgba(0,0,0,0.8); filter: brightness(0.85);';
