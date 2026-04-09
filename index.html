@@ -1537,11 +1537,15 @@
                 if (continueData.length > 0) {
                     continueSection.style.display = 'block';
                     continueData.forEach(item => {                        const card = document.createElement('div');
-                        card.className = 'poster-card';
-                        card.onclick = (e) => {
+                        card.className = 'poster-card';                        card.onclick = (e) => {
                             if (e.target.closest('.continue-menu-btn')) return;
-                            item.autoPlay = true;
-                            openStremioDetails(item, item.baseUrl);
+                            if (item.cachedStream && item.cachedStream.url) {
+                                // Reproducción Directa sin pasar por metadata
+                                window.playStremioDirect(item);
+                            } else {
+                                item.autoPlay = true;
+                                openStremioDetails(item, item.baseUrl);
+                            }
                         };
                         // OPTIMIZACIÓN TV: Eliminamos el background-image para usar img con loading="lazy". Evita que la TV descargue 50 imágenes de golpe fuera de pantalla.
                         card.innerHTML = `
@@ -2863,7 +2867,48 @@ function renderCurrentView() {
             series.forEach(item => seriesContainer.appendChild(createCard(item)));
             
             modal.style.display = 'flex';
-        }
+        }        window.playStremioDirect = (meta) => {
+            const video = document.getElementById('main-video-player');
+            
+            // Cargamos la metadata completa en segundo plano
+            meta.autoPlay = false; 
+            openStremioDetails(meta, meta.baseUrl);
+            
+            // Mostramos los controles del reproductor sobre la imagen
+            document.getElementById('player-container').classList.add('show-controls');
+            
+            video.src = meta.cachedStream.url;
+            video.style.display = 'block';
+            video.classList.add('stremio-mode');
+            document.getElementById('playerControls').style.display = 'flex';
+            
+            // Restaurar progreso guardado
+            const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
+            if (savedProg[meta.lastStreamId] && savedProg[meta.lastStreamId].time) {
+                video.currentTime = savedProg[meta.lastStreamId].time;
+            }
+
+            video.play();
+            if (window.toggleAppFullscreen) window.toggleAppFullscreen();
+
+            // Gestionar progreso en modo directo
+            video.ontimeupdate = () => {
+                const cur = video.currentTime; const dur = video.duration;
+                if(dur && !window.isDraggingScrubber) {
+                    const per = (cur / dur) * 100;
+                    document.getElementById('playerProgressFill').style.width = per + '%';
+                    document.getElementById('playerKnob').style.left = per + '%';
+                    document.getElementById('currentTimeText').textContent = new Date(cur * 1000).toISOString().substr(14, 5);
+                    document.getElementById('totalTimeText').textContent = new Date(dur * 1000).toISOString().substr(14, 5);
+                }
+                if (cur > 5 && dur) {
+                    const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
+                    if ((dur - cur) < 180 || (cur / dur) > 0.95) delete progress[meta.lastStreamId];
+                    else progress[meta.lastStreamId] = { time: cur, percent: (cur / dur) * 100 };
+                    localStorage.setItem('videoProgress', JSON.stringify(progress));
+                }
+            };
+        };
 
         async function openStremioDetails(meta, baseUrl) {
             const modal = document.getElementById('programDetailModal');
@@ -3182,8 +3227,8 @@ function renderCurrentView() {
                                 poster: fullMeta.poster,
                                 background: fullMeta.background,
                                 type: fullMeta.type,
-                                baseUrl: baseUrl,
-                                lastStreamId: streamId
+                                baseUrl: baseUrl,                                lastStreamId: streamId,
+                                cachedStream: allStreams[window.currentStremioStreamIdx || 0] // Guardar enlace para carga directa
                             };
                             const filtered = continueData.filter(i => i.id !== itemToSave.id);
                             filtered.unshift(itemToSave);
