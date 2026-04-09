@@ -1519,20 +1519,20 @@
                 continueContainer.innerHTML = '';
                 if (continueData.length > 0) {
                     continueSection.style.display = 'block';
-                    continueData.forEach(item => {
-                        const card = document.createElement('div');
+                    continueData.forEach(item => {                        const card = document.createElement('div');
                         card.className = 'poster-card';
-                        card.style.backgroundImage = `url('${item.poster}')`;
                         card.onclick = (e) => {
                             if (e.target.closest('.continue-menu-btn')) return;
                             item.autoPlay = true;
                             openStremioDetails(item, item.baseUrl);
                         };
+                        // OPTIMIZACIÓN TV: Eliminamos el background-image para usar img con loading="lazy". Evita que la TV descargue 50 imágenes de golpe fuera de pantalla.
                         card.innerHTML = `
+                            <img loading="lazy" src="${item.poster}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;">
                             <div class="continue-menu-btn" onclick="showContinueWatchingMenu(event, '${item.id}')" style="position:absolute; top:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; backdrop-filter:blur(5px); border:1px solid rgba(255,255,255,0.1);">
                                 <span class="material-icons" style="font-size:18px;">more_vert</span>
                             </div>
-                            <div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${item.name}</div></div>`;
+                            <div class="poster-info" style="z-index:2;"><div style="font-size:0.7rem; font-weight:700;">${item.name}</div></div>`;
                         continueContainer.appendChild(card);
                     });
                 } else {
@@ -1563,51 +1563,53 @@
                     return 99; // Otros catálogos
                 };
 
-                const shownInTopCategories = new Set();
-
-                allCatalogs
+                const shownInTopCategories = new Set();                const sortedCatalogs = allCatalogs
                     .map(cat => ({ ...cat, priority: getPriority(cat.catalogName) }))
-                    .sort((a, b) => a.priority - b.priority)
-                    .forEach(cat => {
-                        if (!cat.metas || cat.metas.length === 0) return;
+                    .sort((a, b) => a.priority - b.priority);
 
-                        const filteredMetas = cat.metas.filter(meta => {
-                            const inStaticLists = idsInLists.has(meta.id);
-                            // Regla de jerarquía: NEW(1), FEATURED(2) y POPULAR(3) no se repiten entre sí
-                            if (cat.priority < 10) {
-                                return !inStaticLists && !shownInTopCategories.has(meta.id);
-                            }
-                            // Los demás catálogos (priority 99) ignoran la exclusión y pueden repetir contenido
-                            return !inStaticLists;
-                        });
-                        
-                        if (filteredMetas.length === 0) return;
+                // OPTIMIZACIÓN TV: Renderizado por lotes (Chunking). Evita crear cientos de nodos DOM de golpe congelando el procesador de la tele.
+                let catIndex = 0;
+                function renderNextCatalog() {
+                    if (catIndex >= sortedCatalogs.length) return;
+                    const cat = sortedCatalogs[catIndex++];
+                    if (!cat.metas || cat.metas.length === 0) { renderNextCatalog(); return; }
 
-                        const section = document.createElement('div');
-                        section.style.marginBottom = "25px";
-                        const platform = cat.catalogName || 'Streaming';
-                        const typeLabel = cat.type === 'movie' ? 'Película' : (cat.type === 'series' ? 'Series' : '');
-                        const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase())
-                            ? `${platform} — ${typeLabel}` : platform;
-
-                        section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
-                        const row = document.createElement('div');
-                        row.className = 'poster-carousel';
-                        row.style.margin = "0 -16px";
-                        row.style.padding = "0 16px";
-                        
-                        filteredMetas.forEach(meta => {
-                            if (cat.priority < 10) shownInTopCategories.add(meta.id); // Guardamos solo IDs de categorías top
-                            const card = document.createElement('div');
-                            card.className = 'poster-card';
-                            card.style.backgroundImage = `url('${meta.poster}')`;
-                            card.onclick = () => openStremioDetails(meta, cat.baseUrl);
-                            card.innerHTML = `<div class="poster-info"><div style="font-size:0.7rem; font-weight:700;">${meta.name}</div></div>`;
-                            row.appendChild(card);
-                        });
-                        section.appendChild(row);
-                        stremioContainer.appendChild(section);
+                    const filteredMetas = cat.metas.filter(meta => {
+                        const inStaticLists = idsInLists.has(meta.id);
+                        if (cat.priority < 10) return !inStaticLists && !shownInTopCategories.has(meta.id);
+                        return !inStaticLists;
                     });
+
+                    if (filteredMetas.length === 0) { renderNextCatalog(); return; }
+
+                    const section = document.createElement('div');
+                    section.style.marginBottom = "25px";
+                    const platform = cat.catalogName || 'Streaming';
+                    const typeLabel = cat.type === 'movie' ? 'Película' : (cat.type === 'series' ? 'Series' : '');
+                    const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase()) ? `${platform} — ${typeLabel}` : platform;
+
+                    section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
+                    const row = document.createElement('div');
+                    row.className = 'poster-carousel';
+                    row.style.margin = "0 -16px";
+                    row.style.padding = "0 16px";
+
+                    filteredMetas.forEach(meta => {
+                        if (cat.priority < 10) shownInTopCategories.add(meta.id);
+                        const card = document.createElement('div');
+                        card.className = 'poster-card';
+                        card.onclick = () => openStremioDetails(meta, cat.baseUrl);
+                        // OPTIMIZACIÓN TV: Cambiamos backgroundImage por <img> lazy load
+                        card.innerHTML = `<img loading="lazy" src="${meta.poster}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;"><div class="poster-info" style="z-index:2;"><div style="font-size:0.7rem; font-weight:700;">${meta.name}</div></div>`;
+                        row.appendChild(card);
+                    });
+                    section.appendChild(row);
+                    stremioContainer.appendChild(section);
+
+                    // Cede el control al navegador 150ms antes de procesar el siguiente catálogo.
+                    requestAnimationFrame(() => setTimeout(renderNextCatalog, 150)); 
+                }
+                renderNextCatalog();
             }
             const cinemaDots = document.getElementById('cinema-banner-dots');
             
@@ -1813,9 +1815,8 @@
                         openProgramDetails(channelId, null, null, true);
                     }
                 };
-                row.innerHTML = `
-                    <div class="channel-logo-modern">
-                        <img src="${iconSrc}" alt="${channelId}" onerror="this.parentElement.innerHTML='<span style=\'font-size:0.7rem\'>${channelId.substring(0,3)}</span>'">
+                row.innerHTML = `                    <div class="channel-logo-modern">
+                        <img loading="lazy" src="${iconSrc}" alt="${channelId}" onerror="this.parentElement.innerHTML='<span style=\'font-size:0.7rem\'>${channelId.substring(0,3)}</span>'">
                     </div>
                     <div class="channel-info-modern">
                         <div class="prog-title-modern">${processColoredText(title)}</div>
@@ -2472,19 +2473,16 @@ function renderCurrentView() {
                     card.style.opacity = '0.9';
                 }
 
-                card.innerHTML = `
-          ${item.channelIcon ? `
+                card.innerHTML = `          ${item.channelIcon ? `
             <div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 6px 10px; border-radius: 8px; backdrop-filter: blur(8px); z-index: 10; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                <img src="${item.channelIcon}" style="height: 22px; width: auto; max-width: 65px; display: block; object-fit: contain;">
+                <img loading="lazy" src="${item.channelIcon}" style="height: 22px; width: auto; max-width: 65px; display: block; object-fit: contain;">
             </div>` : ''}
 
           <div style="position: relative; z-index: 2; margin-bottom: 15px; padding-right: 80px;">                <div class="title" style="font-size: 0.88rem; color: #ffffff; font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;">${processColoredText(item.title)}</div>
             </div>
           
-            <div style="display: flex; gap: 20px; position: relative; z-index: 2; align-items: stretch; flex-grow: 1; height: 100%;">
-                
-                <div style="align-self: flex-start; position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7); background: #000; display: flex; align-items: center; justify-content: center;">
-                    <img src="${item.iconSrc || item.channelIcon}" 
+            <div style="display: flex; gap: 20px; position: relative; z-index: 2; align-items: stretch; flex-grow: 1; height: 100%;">                <div style="align-self: flex-start; position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7); background: #000; display: flex; align-items: center; justify-content: center;">
+                    <img loading="lazy" src="${item.iconSrc || item.channelIcon}" 
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
                          onerror="this.src='${item.channelIcon}'; this.style.padding='15px'; this.style.objectFit='contain';">
                 </div>
@@ -2572,7 +2570,10 @@ function renderCurrentView() {
         // Llama a setDateToCurrent al cargar la página para establecer la fecha inicial
         document.addEventListener('DOMContentLoaded', setDateToCurrent);        fetchXML().then(() => {
             switchMainView('home');
-            loadAllStreamSources(); // Cargar streams al inicio
+            // OPTIMIZACIÓN TV: Retrasamos la carga y parseo de listas IPTV para liberar el hilo principal y dejar que la interfaz de Inicio se renderice fluida.
+            setTimeout(() => {
+                requestAnimationFrame(() => loadAllStreamSources());
+            }, 1200);
         });        function normalizeName(name) {
             if (!name) return '';
             let n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
