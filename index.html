@@ -2952,28 +2952,32 @@ function renderCurrentView() {
             playBtn.style.color = '#777';
             playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Cargando información...`;
             modal.style.display = 'flex';            try {
-                let fullMeta = meta;
+                // RENDERIZADO INMEDIATO
+                const initialDesc = meta.description || 'Cargando detalles...';
+                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${initialDesc}</div>`;
                 
-                // OBTENCIÓN DE METADATA COMPLETA (Forzado para Búsqueda y Home)
-                for (const addonUrl of stremioAddons) {
-                    try {
-                        const addonBaseUrl = addonUrl.replace('/manifest.json', '');                        const metaUrl = `${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`;
-                        const metaRes = await raceFetch(metaUrl);
-                        if (metaRes.ok) {
-                            const metaData = await metaRes.json();
-                            if (metaData.meta && (metaData.meta.description || metaData.meta.videos)) {
-                                fullMeta = metaData.meta;
-                                if (fullMeta.logo && !titleEl.querySelector('img')) {
-                                    titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
-                                }
-                                break;
-                            }
-                        }
-                    } catch (err) { console.warn("Meta fetch failed for", addonUrl); }
+                if (meta.type === 'movie' || meta.lastStreamId) {
+                    setTimeout(() => window.fetchStreamsForId(meta.lastStreamId || meta.id, meta.autoPlay), 50);
                 }
 
-                // RENDERIZADO DINÁMICO TRAS CARGA
-                const finalDesc = fullMeta.description_es || fullMeta.description || 'Sin descripción disponible.';
+                let fullMeta = meta;
+                const metaPromises = stremioAddons.map(async (addonUrl) => {
+                    const addonBaseUrl = addonUrl.replace('/manifest.json', '');
+                    const res = await raceFetch(`${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`);
+                    const data = await res.json();
+                    return data.meta || null;
+                });
+
+                const metaResults = await Promise.allSettled(metaPromises);
+                const successfulMeta = metaResults.find(r => r.status === 'fulfilled' && r.value);
+                if (successfulMeta) {
+                    fullMeta = successfulMeta.value;
+                    if (fullMeta.logo && !titleEl.querySelector('img')) {
+                        titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
+                    }
+                }
+
+                const finalDesc = fullMeta.description_es || fullMeta.description || initialDesc;
                 let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
                 const labels = { genres: 'Géneros', director: 'Director', cast: 'Reparto', year: 'Año', releaseInfo: 'Estreno', runtime: 'Duración', imdbRating: 'Nota IMDB' };
 
@@ -3017,19 +3021,20 @@ function renderCurrentView() {
 
             playBtn.onclick = null;
             playBtn.style.background = '#333';
-            playBtn.style.color = '#777';
-                    
-                    let allStreams = [];
-                    for (const url of stremioAddons) {
+            playBtn.style.color = '#777';                    const streamPromises = stremioAddons.map(async (url) => {
                         try {
                             const addonBase = url.replace('/manifest.json', '');
                             const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
                             if (streamRes.ok) {
-                                const streamData = await streamRes.json();
-                                if (streamData.streams) allStreams = allStreams.concat(streamData.streams);
+                                const data = await streamRes.json();
+                                return data.streams || [];
                             }
-                        } catch (err) { console.warn("Stream fetch failed for", url); }
-                    }
+                        } catch (err) { return []; }
+                        return [];
+                    });
+                    const results = await Promise.all(streamPromises);
+                    let allStreams = results.flat();
+                    window.currentlyFetchingId = null;
 
                     if (allStreams.length > 0) {
                         // LÓGICA DE BÚSQUEDA POR SIMILITUD (Fingerprinting)
