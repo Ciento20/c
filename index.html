@@ -3003,23 +3003,20 @@ function renderCurrentView() {
                 
                 if (meta.type === 'movie' || meta.lastStreamId) {
                     setTimeout(() => window.fetchStreamsForId(meta.lastStreamId || meta.id, meta.autoPlay), 50);
-                }
+                }                let fullMeta = meta;
+                // OPTIMIZACIÓN: Usamos la primera respuesta válida recibida para no bloquear la interfaz
+                try {
+                    const fastMeta = await Promise.any(stremioAddons.map(async (url) => {
+                        const res = await raceFetch(`${url.replace('/manifest.json', '')}/meta/${meta.type}/${meta.id}.json?language=es-ES`);
+                        const d = await res.json();
+                        if (d.meta) return d.meta;
+                        throw new Error('Sin meta');
+                    }));
+                    fullMeta = fastMeta;
+                } catch(e) { /* Si fallan todos, mantenemos la meta básica del catálogo */ }
 
-                let fullMeta = meta;
-                const metaPromises = stremioAddons.map(async (addonUrl) => {
-                    const addonBaseUrl = addonUrl.replace('/manifest.json', '');
-                    const res = await raceFetch(`${addonBaseUrl}/meta/${meta.type}/${meta.id}.json?language=es-ES`);
-                    const data = await res.json();
-                    return data.meta || null;
-                });
-
-                const metaResults = await Promise.allSettled(metaPromises);
-                const successfulMeta = metaResults.find(r => r.status === 'fulfilled' && r.value);
-                if (successfulMeta) {
-                    fullMeta = successfulMeta.value;
-                    if (fullMeta.logo && !titleEl.querySelector('img')) {
-                        titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
-                    }
+                if (fullMeta.logo && !titleEl.querySelector('img')) {
+                    titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
                 }
 
                 const finalDesc = fullMeta.description_es || fullMeta.description || initialDesc;
