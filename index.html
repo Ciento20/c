@@ -3801,11 +3801,18 @@ function renderCurrentView() {
                 const categoryPart = fullDesc.split('·')[0].trim();
                 
                 const isMovie = categoryPart.includes('cine') || categoryPart.includes('película');
-                const isSeries = categoryPart.includes('serie');
+                const isSeries = categoryPart.includes('serie');                if (isMovie || isSeries) {
+                    // Limpieza avanzada de títulos EPG (elimina etiquetas de TV y prefijos)
+                    const cleanTitle = prog.title
+                        .replace(/\[.*?\]|\(.*?\)/g, '')
+                        .replace(/\b(CINE|PELÍCULA|SERIE|ESTRENO|DIRECTO|VIVO|HD|4K|MOVISTAR\+?)\b[:\s-]*/gi, '')
+                        .replace(/^[\W_]+|[\W_]+$/g, '')
+                        .trim();
 
-                if (isMovie || isSeries) {
-                    const cleanTitle = prog.title.replace(/\[.*?\]/g, '').replace(/\bDIRECTO\b/g, '').trim();
                     const searchType = isSeries ? 'series' : 'movie';
+                    // Extraer año de la descripción del EPG para filtrar resultados exactos
+                    const epgYearMatch = (prog.description || '').match(/\b(19|20)\d{2}\b/);
+                    const epgYear = epgYearMatch ? epgYearMatch[0] : null;
 
                     stremioAddons.forEach(async (url) => {
                         try {
@@ -3814,13 +3821,17 @@ function renderCurrentView() {
                             const searchData = await searchRes.json();
                             
                             if (searchData.metas && searchData.metas.length > 0) {
+                                // Lógica de filtrado por año para evitar falsos positivos
+                                let best = searchData.metas[0];
+                                if (epgYear) {
+                                    const yearMatch = searchData.metas.find(m => m.year == epgYear || m.releaseInfo == epgYear);
+                                    if (yearMatch) best = yearMatch;
+                                }
+
                                 if(vodToggleBtn) {
                                     vodToggleBtn.style.display = 'flex';
                                     
-                                    // Si es la primera coincidencia encontrada (la más parecida),
-                                    // configuramos el botón para abrir sus detalles directamente.
                                     if (!window.bestVodMatch) {
-                                        const best = searchData.metas[0];
                                         window.bestVodMatch = { meta: best, baseUrl: baseUrl };
                                         vodToggleBtn.onclick = (e) => {
                                             e.stopPropagation();
