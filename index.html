@@ -3488,69 +3488,75 @@ function renderCurrentView() {
                     }
                 };                if (fullMeta.type === 'series' && fullMeta.videos && fullMeta.videos.length > 0) {
                     const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a, b) => a - b);
-                    const selectorHtml = `
-                        <div class="stremio-series-selectors" style="width: 100%;">
+                    modal.querySelector('.detail-scroll-content').insertAdjacentHTML('beforeend', `
+                        <div class="stremio-series-selectors">
                             <div class="season-tabs" id="seasonTabs"></div>
                             <div class="episodes-list" id="episodesList"></div>
                         </div>
-                    `;
-                    // Insertamos los selectores al final para que la sinopsis (detail-desc) se mantenga en la parte superior
-                    modal.querySelector('.detail-scroll-content').insertAdjacentHTML('beforeend', selectorHtml);
+                    `);
 
-                    const seasonContainer = document.getElementById('seasonTabs');
-                    const listContainer = document.getElementById('episodesList');
-
-                    const updateEpisodes = (seasonNum) => {
+                    const listContainer = document.getElementById('episodesList');                    window.updateSeason = (seasonNum, autoFetchId = null) => {
                         const watched = JSON.parse(localStorage.getItem('watchedEps') || '[]');
                         const progData = JSON.parse(localStorage.getItem('videoProgress') || '{}');
-                        document.querySelectorAll('.season-pill').forEach(p => {
-                            p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum);
-                        });
+                        document.querySelectorAll('.season-pill').forEach(p => p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum));
+                        
+                        const episodes = [...fullMeta.videos.filter(v => v.season === seasonNum).sort((a, b) => a.episode - b.episode)];
+                        listContainer.innerHTML = '';
 
-                        const episodes = fullMeta.videos
-                            .filter(v => v.season === seasonNum)
-                            .sort((a, b) => a.episode - b.episode);                        listContainer.innerHTML = episodes.map(e => {
-                            const percent = progData[e.id] ? progData[e.id].percent : 0;
-                            const barHtml = percent > 0 ? `<div style="position:absolute;bottom:0;left:0;height:4px;background:var(--primary);width:${percent}%;z-index:10;box-shadow:0 0 5px var(--primary);"></div>` : '';
-                            return `
-                            <div class="episode-item" onclick="this.parentElement.querySelectorAll('.episode-item').forEach(el=>el.style.opacity='0.5'); this.style.opacity='1'; window.fetchStreamsForId('${e.id}')">
-                                <div class="ep-thumb-box">
-                                    <img src="${e.thumbnail || meta.background || meta.poster}" onerror="this.src='${meta.poster}'">
-                                    ${barHtml}
-                                    <div class="ep-play-tag" style="display: ${watched.includes(e.id) ? 'flex' : 'none'}"><span class="material-icons">visibility</span></div>
-                                </div>
-                                <div class="ep-content">
-                                    <div class="ep-title-row">
-                                        <div class="ep-name">${e.episode}. ${e.title || 'Episodio ' + e.episode}</div>
-                                        <div class="ep-date">${e.released ? new Date(e.released).toLocaleDateString('es-ES', {month:'short', day:'numeric', year:'numeric'}) : ''}</div>
-                                    </div>
-                                    <div class="ep-summary">${e.overview || 'Sin descripción disponible para este episodio.'}</div>
-                                </div>
-                            </div>
-                        `;}).join('');                        if (episodes.length > 0) {
-                            let epIdToPlay = episodes[0].id;
-                            if (meta.autoPlay && meta.lastStreamId) {
-                                const found = episodes.find(e => e.id === meta.lastStreamId);
-                                if (found) epIdToPlay = found.id;
+                        // Renderizado progresivo por lotes para evitar bloqueos
+                        const renderBatch = () => {
+                            if (episodes.length === 0) {
+                                if (autoFetchId) window.fetchStreamsForId(autoFetchId);
+                                return;
                             }
-                            window.fetchStreamsForId(epIdToPlay);
-                        }
+
+                            const batch = episodes.splice(0, 6); // Lotes de 6 capítulos por frame
+                            const fragment = document.createDocumentFragment();
+                            
+                            batch.forEach(e => {
+                                const item = document.createElement('div');
+                                item.className = 'episode-item';
+                                const percent = progData[e.id]?.percent || 0;
+                                item.onclick = () => { 
+                                    document.querySelectorAll('.episode-item').forEach(el => el.style.borderLeft = 'none');
+                                    item.style.borderLeft = '4px solid var(--primary)';
+                                    window.fetchStreamsForId(e.id); 
+                                };
+                                
+                                item.innerHTML = `
+                                    <div class="ep-thumb-box">
+                                        <img loading="lazy" src="${e.thumbnail || fullMeta.background || fullMeta.poster}" onerror="this.src='${fullMeta.poster}'">
+                                        ${percent > 0 ? `<div style="position:absolute;bottom:0;left:0;height:3px;background:var(--primary);width:${percent}%"></div>` : ''}
+                                        <div class="ep-play-tag" style="display: ${watched.includes(e.id) ? 'flex' : 'none'}"><span class="material-icons" style="font-size:14px">check</span></div>
+                                    </div>
+                                    <div class="ep-content">
+                                        <div class="ep-name">${e.episode}. ${e.title || 'Episodio ' + e.episode}</div>
+                                        <div class="ep-summary">${e.overview || 'Sin descripción.'}</div>
+                                    </div>`;
+                                fragment.appendChild(item);
+                            });
+                            
+                            listContainer.appendChild(fragment);
+                            // Ceder el control al navegador para que pinte y luego seguir con el siguiente lote
+                            requestAnimationFrame(renderBatch);
+                        };
+
+                        renderBatch();
                     };
 
                     let initialSeason = seasons[0];
+                    let targetEpId = null;
                     if (meta.lastStreamId) {
                         const lastEp = fullMeta.videos.find(v => v.id === meta.lastStreamId);
-                        if (lastEp) initialSeason = lastEp.season;
+                        if (lastEp) { initialSeason = lastEp.season; targetEpId = lastEp.id; }
                     }
 
-                    seasonContainer.innerHTML = seasons.map(s => `
-                        <div class="season-pill ${s === initialSeason ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">
-                            Temporada ${s}
-                        </div>
+                    document.getElementById('seasonTabs').innerHTML = seasons.map(s => `
+                        <div class="season-pill ${s === initialSeason ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">T${s}</div>
                     `).join('');
 
-                    window.updateSeason = (s) => updateEpisodes(s);
-                    updateEpisodes(initialSeason);
+                    // Carga inicial de la temporada actual (con autoplay si aplica)
+                    window.updateSeason(initialSeason, meta.autoPlay ? targetEpId : null);
                 } else {
                     // Si es película, simplemente buscamos sus streams directamente
                     window.fetchStreamsForId(meta.id);
