@@ -1223,9 +1223,26 @@
         }
 
         .detail-title {
-            font-size: 1.6rem;
+            position: absolute;
+            top: 15px;
+            left: 24px;
+            right: 70px;
+            z-index: 6;
+            font-size: 0.9rem;
             font-weight: 800;
-            margin-bottom: 8px;
+            max-height: 40px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            pointer-events: none;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #player-container.show-controls .detail-title {
+            opacity: 1;
         }
 
         .detail-badge {
@@ -2891,7 +2908,13 @@ function renderCurrentView() {
             }
 
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
-            modal.querySelector('.detail-title').textContent = meta.name;            // Priorizar descripción en español si existe, si no, limpiar la inglesa            // Mostrar placeholder de carga mientras obtenemos la sinopsis completa
+            const titleEl = modal.querySelector('.detail-title');
+            titleEl.innerHTML = ''; 
+            if (meta.logo) {
+                titleEl.innerHTML = `<img src="${meta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
+            } else {
+                titleEl.textContent = meta.name;
+            }            // Priorizar descripción en español si existe, si no, limpiar la inglesa            // Mostrar placeholder de carga mientras obtenemos la sinopsis completa
             modal.querySelector('.detail-desc').innerHTML = '<div style="text-align:center; padding:30px; opacity:0.5;"><i class="fas fa-circle-notch fa-spin"></i> Cargando detalles...</div>';
             
             const playBtn = modal.querySelector('.detail-play-btn');
@@ -2939,6 +2962,9 @@ function renderCurrentView() {
                             const metaData = await metaRes.json();
                             if (metaData.meta && (metaData.meta.description || metaData.meta.videos)) {
                                 fullMeta = metaData.meta;
+                                if (fullMeta.logo && !titleEl.querySelector('img')) {
+                                    titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
+                                }
                                 break;
                             }
                         }
@@ -3070,8 +3096,9 @@ function renderCurrentView() {
                             window.changeStremioSource(bestIdx);
                             setTimeout(() => playBtn.click(), 200);
                         }                        playBtn.onclick = async () => {
-                            // Guardar en Continuar Viendo (Historial Reciente) - Ahora funciona para Películas y Series
-                            const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');                            const itemToSave = {
+                            // Guardar en Continuar Viendo (Historial Reciente)
+                            const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
+                            const itemToSave = {
                                 id: fullMeta.id,
                                 name: fullMeta.name,
                                 poster: fullMeta.poster,
@@ -3082,7 +3109,39 @@ function renderCurrentView() {
                             };
                             const filtered = continueData.filter(i => i.id !== itemToSave.id);
                             filtered.unshift(itemToSave);
-                            localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 3)));
+                            localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 3)));                            // --- EFECTO CINEMÁTICO PREMIUM (ESTILO INTRO) ---
+                            const logoImg = titleEl.querySelector('img');
+                            if (logoImg) {
+                                // 1. Creamos un fondo radial oscuro para aislar el logo (como en el loader)
+                                const backdrop = document.createElement('div');
+                                backdrop.style.cssText = `position: fixed; inset: 0; background: radial-gradient(circle, #1a1b26 0%, #000 100%); z-index: 9998; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;`;
+                                document.body.appendChild(backdrop);
+
+                                // 2. Clonamos el logo con los estilos de transición de la intro
+                                const clone = logoImg.cloneNode(true);
+                                const rect = logoImg.getBoundingClientRect();
+                                clone.style.cssText = `position: fixed; top: ${rect.top}px; left: ${rect.left}px; width: ${rect.width}px; height: ${rect.height}px; z-index: 9999; transition: transform 1.8s cubic-bezier(0.2, 0, 0.2, 1), opacity 1.2s ease, filter 1.2s ease; pointer-events: none; transform: scale(1); filter: blur(0px);`;
+                                document.body.appendChild(clone);
+
+                                // Iniciar secuencia cinemática
+                                requestAnimationFrame(() => {
+                                    backdrop.style.opacity = '1';
+                                    // Fase 1: Pequeño aumento de tensión
+                                    clone.style.transform = 'scale(1.15)';
+                                    
+                                    setTimeout(() => {
+                                        // Fase 2: Explosión hacia la cámara (Zoom infinito)
+                                        clone.style.transform = 'scale(70)';
+                                        clone.style.opacity = '0';
+                                        clone.style.filter = 'blur(15px)';
+                                        backdrop.style.opacity = '0';
+                                    }, 750); // El delay le da esa sensación de "buildup"
+                                });
+
+                                // Esperamos a que la explosión cubra la pantalla antes de mostrar el vídeo
+                                await new Promise(r => setTimeout(r, 1400));
+                                setTimeout(() => { clone.remove(); backdrop.remove(); }, 1000);
+                            }
 
                             const stream = allStreams[window.currentStremioStreamIdx || 0];
                             
@@ -4860,6 +4919,8 @@ function renderCurrentView() {
                 <video id="main-video-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
                 
+                <div class="detail-title"></div>
+
                 <div class="player-ui-overlay" id="playerControls" style="display: none;">
                     <div class="player-top-bar">
                         <span id="playerTitleDisplay" style="font-weight:700; font-size:0.9rem; text-shadow: 0 2px 4px #000;"></span>
@@ -4908,7 +4969,6 @@ function renderCurrentView() {
                 </div>
             </div>            <div class="detail-body">
                 <div class="detail-header-fixed">
-                    <div class="detail-title"></div>
                     <div style="display: flex; align-items: center; margin-bottom: 10px;">
                         <span class="detail-badge">En directo ahora</span>
                         <span class="detail-time"></span>
