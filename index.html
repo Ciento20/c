@@ -3954,35 +3954,14 @@ function renderCurrentView() {
                 };
                 playBtn.style.background = 'var(--color-primary)';
                 playBtn.style.color = '#fff';
-                playBtn.innerHTML = `<span class="material-icons">play_circle</span> Ver Directo`;
-            } else {
+                playBtn.innerHTML = `<span class="material-icons">play_circle</span> Ver Directo`;            } else {
                 const addListBtn = document.getElementById('add-to-list-btn');
-            if(addListBtn) {
-                addListBtn.style.display = 'flex';
-                const updateListBtn = () => {
-                    const myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
-                    const isAdded = myList.some(i => i.id === meta.id);
-                    addListBtn.innerHTML = `<span class="material-icons">${isAdded ? 'bookmark' : 'bookmark_border'}</span>`;
-                    addListBtn.style.color = isAdded ? 'var(--primary)' : 'white';
-                    addListBtn.style.borderColor = isAdded ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
-                };
-                updateListBtn();
-                addListBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
-                    if (myList.some(i => i.id === meta.id)) {
-                        myList = myList.filter(i => i.id !== meta.id);
-                    } else {
-                        myList.unshift({ ...meta, baseUrl });
-                    }
-                    localStorage.setItem('userMyList', JSON.stringify(myList));
-                    updateListBtn();
-                };
-            }
-
-            playBtn.onclick = null;
-            playBtn.style.background = '#333';
-            playBtn.style.color = '#777';                playBtn.innerHTML = `<span class="material-icons">block</span> No disponible`;
+                if (addListBtn) addListBtn.style.display = 'none';
+                
+                playBtn.onclick = null;
+                playBtn.style.background = '#333';
+                playBtn.style.color = '#777';
+                playBtn.innerHTML = `<span class="material-icons">block</span> No disponible`;
             }            // --- INTEGRACIÓN VOD (STREMIO) DESDE EPG ---
             const vodContainer = document.getElementById('vod-epg-results');
             const vodToggleBtn = document.getElementById('vod-toggle-btn');
