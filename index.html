@@ -2617,54 +2617,51 @@ function renderCurrentView() {
             return n.trim();
         }        async function loadAllStreamSources() {
             channelStreams = {};
+            // Optimización: Pre-indexar canales normalizados para búsqueda O(1)
+            const channelLookup = new Map();
+            channelsList.forEach(id => channelLookup.set(normalizeName(id), id));
+
             for (const url of streamSources) {
                 try {
                     const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
                     const response = await fetch(cleanUrl);
                     const text = await response.text();
-                    
+                    let itemsToProcess = [];
+
                     try {
                         const data = JSON.parse(text);
                         if (data.groups) {
-                            data.groups.forEach(group => {
-                                group.stations.forEach(station => {                                    matchStreamToChannel(station.name, station.url, station.name);
-                                });
-                            });
-                        }                        else if (Array.isArray(data)) {
-                            data.forEach(item => {
-                                const finalUrl = item.hash ? `acestream://${item.hash}` : (item.url || item.link);
-                                const finalName = item.title || item.name || item.tvg_id;
-                                const finalLogo = item.logo || item.icon || '';
-                                const finalBanner = item.banner || '';
-                                if (finalUrl && finalName) matchStreamToChannel(finalName, finalUrl, finalName, finalLogo, finalBanner);
-                            });
+                            data.groups.forEach(g => g.stations.forEach(s => itemsToProcess.push({ n: s.name, u: s.url, r: s.name })));
+                        } else if (Array.isArray(data)) {
+                            data.forEach(i => itemsToProcess.push({ n: i.title || i.name || i.tvg_id, u: i.hash ? `acestream://${i.hash}` : (i.url || i.link), r: i.title || i.name || i.tvg_id, l: i.logo || i.icon, b: i.banner }));
                         }
-                    } catch (jsonErr) {                        // Soporte para formato M3U con detección de Logos y Banners personalizados
+                    } catch (e) {
                         if (text.includes('#EXTINF')) {
                             const lines = text.split('\n');
-                            let currentName = '', currentLogo = '', currentBanner = '';
-                            lines.forEach(line => {
-                                if (line.startsWith('#EXTINF')) {
-                                    const idMatch = line.match(/tvg-id="([^"]+)"/);
-                                    const nameMatch = line.match(/tvg-name="([^"]+)"/);
-                                    const logoMatch = line.match(/tvg-logo="([^"]+)"/);
-                                    const bannerMatch = line.match(/tvg-banner="([^"]+)"/); // Atributo personalizado para banners
-                                    const commaMatch = line.match(/,(.+)$/);
-                                    
-                                    currentName = idMatch ? idMatch[1] : (nameMatch ? nameMatch[1] : (commaMatch ? commaMatch[1] : ''));
-                                    currentLogo = logoMatch ? logoMatch[1] : '';
-                                    currentBanner = bannerMatch ? bannerMatch[1] : '';
-                                } else if (line.trim().length > 0 && !line.startsWith('#')) {
-                                    if (currentName) matchStreamToChannel(currentName.trim(), line.trim(), currentName.trim(), currentLogo, currentBanner);
+                            let curN = '', curL = '', curB = '';
+                            lines.forEach(l => {
+                                if (l.startsWith('#EXTINF')) {
+                                    const mN = l.match(/tvg-name="([^"]+)"/) || l.match(/tvg-id="([^"]+)"/) || l.match(/,(.+)$/);
+                                    curN = mN ? (mN[1] || mN[0].split(',')[1]).trim() : '';
+                                    curL = (l.match(/tvg-logo="([^"]+)"/) || [])[1] || '';
+                                    curB = (l.match(/tvg-banner="([^"]+)"/) || [])[1] || '';
+                                } else if (l.trim() && !l.startsWith('#')) {
+                                    if (curN) itemsToProcess.push({ n: curN, u: l.trim(), r: curN, l: curL, b: curB });
                                 }
                             });
                         }
                     }
-                } catch (e) {
-                    console.error("Error cargando fuente:", url, e);
-                }
+
+                    // Procesamiento por lotes (Async Chunking) para no bloquear la UI
+                    const chunkSize = 200;
+                    for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
+                        const chunk = itemsToProcess.slice(i, i + chunkSize);
+                        chunk.forEach(item => matchStreamToChannel(item.n, item.u, item.r, item.l, item.b, channelLookup));
+                        if (i % 1000 === 0) await new Promise(r => setTimeout(r, 0));
+                    }
+                } catch (e) { console.error("Error en fuente:", e); }
             }
-            console.log("Streams vinculados:", Object.keys(channelStreams).length);
+            console.log("Vinculación completada.");
         }        const channelAliases = {
             "DAZN1": "DAZN 1",
             "DAZNLIGA": "DAZN LALIGA",
@@ -2780,35 +2777,40 @@ function renderCurrentView() {
             "BT SPORT 1 [UK]": "TNT SPORTS 1",
             "BT SPORT 2 [UK]": "TNT SPORTS 2",
             "BT SPORT 3 [UK]": "TNT SPORTS 3"
-        };        function matchStreamToChannel(streamName, streamUrl, rawName = '', customLogo = '', customBanner = '') {
+        };        function matchStreamToChannel(streamName, streamUrl, rawName = '', customLogo = '', customBanner = '', lookupMap = null) {
             const rawUpper = (streamName || '').toUpperCase().trim();
-            const aliasedName = channelAliases[rawUpper];
-            const finalStreamName = aliasedName ? aliasedName : streamName;
+            const finalStreamName = channelAliases[rawUpper] || streamName;
             const normalizedStream = normalizeName(finalStreamName);
             if (!normalizedStream) return;
 
-            let foundMatch = false;
-            for (const channelId of channelsList) {
-                const normalizedChannel = normalizeName(channelId);
-                const sNums = normalizedStream.match(/\d+/g)?.join('') || '';
-                const cNums = normalizedChannel.match(/\d+/g)?.join('') || '';
+            // Coincidencia ultrarrápida mediante Mapa
+            let channelId = lookupMap ? lookupMap.get(normalizedStream) : null;
+            
+            if (channelId) {
+                addStreamToChannel(channelId, streamUrl, rawName, customLogo, customBanner);
+                return;
+            }
 
-                if (normalizedChannel === normalizedStream || (sNums === cNums && (normalizedChannel.includes(normalizedStream) || normalizedStream.includes(normalizedChannel)))) {
-                    addStreamToChannel(channelId, streamUrl, rawName, customLogo, customBanner);
-                    foundMatch = true;
+            // Búsqueda parcial solo si falla la exacta (Optimizado)
+            let foundMatch = false;
+            const sNums = normalizedStream.match(/\d+/g)?.join('') || '';
+            
+            for (const chId of channelsList) {
+                const normCh = normalizeName(chId);
+                if (normCh.includes(normalizedStream) || normalizedStream.includes(normCh)) {
+                    const cNums = normCh.match(/\d+/g)?.join('') || '';
+                    if (sNums === cNums) {
+                        addStreamToChannel(chId, streamUrl, rawName, customLogo, customBanner);
+                        foundMatch = true; break;
+                    }
                 }
             }
 
-            // Si el canal del stream no existe en la guía EPG, lo añadimos al final
             if (!foundMatch && !channelsList.includes(finalStreamName)) {
                 channelsList.push(finalStreamName);
                 userSelectedChannels.add(finalStreamName);
                 addStreamToChannel(finalStreamName, streamUrl, rawName, customLogo, customBanner);
-                // Actualizamos listas visibles
                 visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
-                // Forzar actualización del buscador y menús para canales nuevos
-                if (typeof populateChannelDropdown === 'function') populateChannelDropdown();
-                if (document.getElementById('channelSelectorModal')?.style.display === 'flex') renderChannelSelectorGrid();
             }
         }        // Objeto global para almacenar logos y banners personalizados detectados en las listas
         let customMediaMap = {};
