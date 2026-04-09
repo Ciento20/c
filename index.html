@@ -2617,51 +2617,52 @@ function renderCurrentView() {
             return n.trim();
         }        async function loadAllStreamSources() {
             channelStreams = {};
-            // Optimización: Pre-indexar canales normalizados para búsqueda O(1)
-            const channelLookup = new Map();
-            channelsList.forEach(id => channelLookup.set(normalizeName(id), id));
+            console.log("Cargando listas optimizadas...");
 
             for (const url of streamSources) {
                 try {
                     const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
                     const response = await fetch(cleanUrl);
                     const text = await response.text();
-                    let itemsToProcess = [];
+                    let items = [];
 
-                    try {
-                        const data = JSON.parse(text);
-                        if (data.groups) {
-                            data.groups.forEach(g => g.stations.forEach(s => itemsToProcess.push({ n: s.name, u: s.url, r: s.name })));
-                        } else if (Array.isArray(data)) {
-                            data.forEach(i => itemsToProcess.push({ n: i.title || i.name || i.tvg_id, u: i.hash ? `acestream://${i.hash}` : (i.url || i.link), r: i.title || i.name || i.tvg_id, l: i.logo || i.icon, b: i.banner }));
+                    // 1. Extracción rápida de datos
+                    if (text.includes('#EXTINF')) {
+                        const lines = text.split('\n');
+                        let curN='', curL='', curB='';
+                        for(let i=0; i<lines.length; i++) {
+                            if(lines[i].startsWith('#EXTINF')) {
+                                const m = lines[i].match(/tvg-name="([^"]+)"/) || lines[i].match(/,(.+)$/);
+                                curN = m ? (m[1] || m[0].split(',')[1]).trim() : '';
+                                curL = (lines[i].match(/tvg-logo="([^"]+)"/) || [])[1] || '';
+                                curB = (lines[i].match(/tvg-banner="([^"]+)"/) || [])[1] || '';
+                            } else if(lines[i].trim() && !lines[i].startsWith('#')) {
+                                if(curN) items.push({n:curN, u:lines[i].trim(), l:curL, b:curB});
+                            }
                         }
-                    } catch (e) {
-                        if (text.includes('#EXTINF')) {
-                            const lines = text.split('\n');
-                            let curN = '', curL = '', curB = '';
-                            lines.forEach(l => {
-                                if (l.startsWith('#EXTINF')) {
-                                    const mN = l.match(/tvg-name="([^"]+)"/) || l.match(/tvg-id="([^"]+)"/) || l.match(/,(.+)$/);
-                                    curN = mN ? (mN[1] || mN[0].split(',')[1]).trim() : '';
-                                    curL = (l.match(/tvg-logo="([^"]+)"/) || [])[1] || '';
-                                    curB = (l.match(/tvg-banner="([^"]+)"/) || [])[1] || '';
-                                } else if (l.trim() && !l.startsWith('#')) {
-                                    if (curN) itemsToProcess.push({ n: curN, u: l.trim(), r: curN, l: curL, b: curB });
-                                }
-                            });
-                        }
+                    } else {
+                        try {
+                            const d = JSON.parse(text);
+                            const raw = d.groups ? d.groups.flatMap(g => g.stations) : (Array.isArray(d) ? d : []);
+                            items = raw.map(i => ({n: i.title || i.name || i.tvg_id, u: i.url || i.link || `acestream://${i.hash}`, l: i.logo || i.icon, b: i.banner}));
+                        } catch(e){}
                     }
 
-                    // Procesamiento por lotes (Async Chunking) para no bloquear la UI
-                    const chunkSize = 200;
-                    for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
-                        const chunk = itemsToProcess.slice(i, i + chunkSize);
-                        chunk.forEach(item => matchStreamToChannel(item.n, item.u, item.r, item.l, item.b, channelLookup));
-                        if (i % 1000 === 0) await new Promise(r => setTimeout(r, 0));
+                    // 2. Procesamiento por lotes asíncronos (Evita el congelamiento)
+                    const CHUNK_SIZE = 300;
+                    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+                        const chunk = items.slice(i, i + CHUNK_SIZE);
+                        chunk.forEach(item => {
+                            // Esta función ahora se encarga de añadir el canal si no existe en EPG
+                            matchStreamToChannel(item.n, item.u, item.n, item.l, item.b);
+                        });
+                        // Devolvemos el control al navegador para que la UI no se bloquee
+                        await new Promise(resolve => setTimeout(resolve, 0));
                     }
                 } catch (e) { console.error("Error en fuente:", e); }
             }
-            console.log("Vinculación completada.");
+            console.log("Carga de canales finalizada.");
+            if (currentMainView === 'channels') renderChannelsView();
         }        const channelAliases = {
             "DAZN1": "DAZN 1",
             "DAZNLIGA": "DAZN LALIGA",
@@ -2777,39 +2778,30 @@ function renderCurrentView() {
             "BT SPORT 1 [UK]": "TNT SPORTS 1",
             "BT SPORT 2 [UK]": "TNT SPORTS 2",
             "BT SPORT 3 [UK]": "TNT SPORTS 3"
-        };        function matchStreamToChannel(streamName, streamUrl, rawName = '', customLogo = '', customBanner = '', lookupMap = null) {
+        };        function matchStreamToChannel(streamName, streamUrl, rawName = '', customLogo = '', customBanner = '') {
             const rawUpper = (streamName || '').toUpperCase().trim();
             const finalStreamName = channelAliases[rawUpper] || streamName;
             const normalizedStream = normalizeName(finalStreamName);
             if (!normalizedStream) return;
 
-            // Coincidencia ultrarrápida mediante Mapa
-            let channelId = lookupMap ? lookupMap.get(normalizedStream) : null;
-            
-            if (channelId) {
-                addStreamToChannel(channelId, streamUrl, rawName, customLogo, customBanner);
-                return;
-            }
-
-            // Búsqueda parcial solo si falla la exacta (Optimizado)
             let foundMatch = false;
-            const sNums = normalizedStream.match(/\d+/g)?.join('') || '';
-            
-            for (const chId of channelsList) {
-                const normCh = normalizeName(chId);
-                if (normCh.includes(normalizedStream) || normalizedStream.includes(normCh)) {
-                    const cNums = normCh.match(/\d+/g)?.join('') || '';
-                    if (sNums === cNums) {
-                        addStreamToChannel(chId, streamUrl, rawName, customLogo, customBanner);
-                        foundMatch = true; break;
-                    }
+            // Intentamos vincular con un canal existente de la guía
+            for (const channelId of channelsList) {
+                const normalizedChannel = normalizeName(channelId);
+                if (normalizedChannel === normalizedStream || normalizedChannel.includes(normalizedStream) || normalizedStream.includes(normalizedChannel)) {
+                    addStreamToChannel(channelId, streamUrl, rawName, customLogo, customBanner);
+                    foundMatch = true;
+                    break; // Una vez vinculado, no seguimos buscando
                 }
             }
 
+            // Si NO se encontró en EPG, lo inyectamos como canal nuevo (Pero sin reconstruir todo el DOM cada vez)
             if (!foundMatch && !channelsList.includes(finalStreamName)) {
                 channelsList.push(finalStreamName);
                 userSelectedChannels.add(finalStreamName);
                 addStreamToChannel(finalStreamName, streamUrl, rawName, customLogo, customBanner);
+                
+                // Actualizamos la lista interna de canales visibles
                 visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
             }
         }        // Objeto global para almacenar logos y banners personalizados detectados en las listas
