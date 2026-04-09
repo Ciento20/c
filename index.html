@@ -2978,7 +2978,79 @@ function renderCurrentView() {
                 }
 
                 const finalDesc = fullMeta.description_es || fullMeta.description || initialDesc;
-                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
+                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';// OPTIMIZACIÓN ULTRA: Carga Progresiva Real
+                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
+                    const video = document.getElementById('main-video-player');
+                    if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
+
+                    let allStreams = [];
+                    let addonsResponded = 0;
+                    playBtn.innerHTML = `<span class="material-icons fa-spin">sync</span> Buscando... (0/${stremioAddons.length})`;
+                    playBtn.style.background = '#222';
+
+                    const oldSelector = document.querySelector('.stremio-stream-selector');
+                    if (oldSelector) oldSelector.remove();
+
+                    const renderStreams = () => {
+                        requestAnimationFrame(() => {
+                            if (allStreams.length === 0) return;
+                            playBtn.style.background = 'var(--color-primary)';
+                            playBtn.style.color = '#000';
+                            playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir (${allStreams.length})`;
+
+                            let selector = document.querySelector('.stremio-stream-selector');
+                            if (!selector) {
+                                playBtn.parentElement.insertAdjacentHTML('beforebegin', '<div class="source-selector stremio-stream-selector" style="width: 100%; margin-bottom: 10px;"></div>');
+                                selector = document.querySelector('.stremio-stream-selector');
+                            }
+
+                            const lastFP = localStorage.getItem('lastStremioFingerprint');
+                            // Ordenar: lo que más se parece a lo último visto, arriba del todo
+                            allStreams.sort((a, b) => {
+                                if (!lastFP) return 0;
+                                const score = (s) => (s.title + s.name).toLowerCase().split(/[\s|/.,_-]+/).filter(w => w.length > 2 && lastFP.toLowerCase().includes(w)).length;
+                                return score(b) - score(a);
+                            });
+
+                            selector.innerHTML = allStreams.map((st, i) => {
+                                const raw = st.title || st.name || "";
+                                const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                                return `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeStremioSource(${i})">
+                                    <div class="source-pill-title"><span class="material-icons-round">play_arrow</span> ${quality}</div>
+                                    <div class="source-pill-meta">${(raw.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'Multi')} • ${st.name || 'Addon'}</div>
+                                </div>`;
+                            }).join('');
+
+                            window.currentStremioStreamIdx = 0;
+                            window.changeStremioSource = (idx) => {
+                                window.currentStremioStreamIdx = idx;
+                                localStorage.setItem('lastStremioFingerprint', (allStreams[idx].title || "") + " " + (allStreams[idx].name || ""));
+                                document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
+                            };
+                        });
+                    };
+
+                    let hasAuto = false;
+                    stremioAddons.forEach(async (url) => {
+                        try {
+                            const res = await fetch(`${url.replace('/manifest.json', '')}/stream/${fullMeta.type}/${streamId}.json`);
+                            const data = await res.json();
+                            addonsResponded++;
+                            
+                            if (data.streams && data.streams.length > 0) {
+                                allStreams.push(...data.streams);
+                                // Forzar refresco de UI asíncrono
+                                setTimeout(renderStreams, 0);
+                                
+                                if (autoPlayMatch && !hasAuto && data.streams.some(s => s.url)) {
+                                    hasAuto = true;
+                                    setTimeout(() => playBtn.click(), 150);
+                                }
+                            }
+                            playBtn.innerHTML = `<span class="material-icons fa-spin">sync</span> Buscando... (${addonsResponded}/${stremioAddons.length})`;
+                        } catch (e) { addonsResponded++; }
+                    });
+                };
                 const labels = { genres: 'Géneros', director: 'Director', cast: 'Reparto', year: 'Año', releaseInfo: 'Estreno', runtime: 'Duración', imdbRating: 'Nota IMDB' };
 
                 Object.keys(labels).forEach(key => {
