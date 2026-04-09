@@ -1465,31 +1465,37 @@
 
         async function fetchStremioCatalog(addonUrl) {
             try {
-                const manifestRes = await fetch(addonUrl);
+                // Usamos raceFetch para el manifest para evitar bloqueos CORS iniciales
+                const manifestRes = await raceFetch(addonUrl);
                 const manifest = await manifestRes.json();
                 const baseUrl = addonUrl.replace('/manifest.json', '');
                 const catalogsData = [];
 
-                // Iteramos por todos los catálogos definidos en el manifest
-                for (const cat of (manifest.catalogs || [])) {
+                // Limitar a los 3 primeros catálogos para evitar saturar la memoria en TV
+                // Eliminamos el límite de 3 para mostrar todas las secciones (Netflix, Disney+, etc.)
+                const catalogsToFetch = (manifest.catalogs || []);
+
+                for (const cat of catalogsToFetch) {
                     try {
-                        // Intentar forzar el idioma español en la petición del catálogo
-                        const langSuffix = cat.id.includes('search=') ? '' : '?language=es-ES';                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json${langSuffix}`;
+                        const langSuffix = cat.id.includes('search=') ? '' : '?language=es-ES';
+                        const catalogUrl = `${baseUrl}/catalog/${cat.type}/${cat.id}.json${langSuffix}`;
                         const catalogRes = await raceFetch(catalogUrl);
                         const data = await catalogRes.json();
-                        catalogsData.push({
-                            addonName: manifest.name,
-                            catalogName: cat.name || cat.id,
-                            metas: data.metas || [],
-                            type: cat.type,
-                            baseUrl: baseUrl
-                        });
-                    } catch (err) { console.error("Error cargando catálogo:", cat.id, err); }
+                        if (data.metas && data.metas.length > 0) {
+                            catalogsData.push({
+                                addonName: manifest.name,
+                                catalogName: cat.name || cat.id,
+                                metas: data.metas,
+                                type: cat.type,
+                                baseUrl: baseUrl
+                            });
+                        }
+                    } catch (err) { console.warn("Catálogo omitido:", cat.id); }
                 }
                 return catalogsData;
             } catch (e) {
-                console.error("Error Stremio:", e);
-                return null;
+                console.error("Error crítico en Addon:", addonUrl);
+                return [];
             }
         }        function switchMainView(mode) {
             currentMainView = mode;
@@ -1570,11 +1576,16 @@
                 const idsInLists = new Set([
                     ...(JSON.parse(localStorage.getItem('continueWatching') || '[]')).map(i => i.id),
                     ...(JSON.parse(localStorage.getItem('userMyList') || '[]')).map(i => i.id)
-                ]);                const allCatalogs = [];
-                for (const url of stremioAddons) {
-                    const catalogs = await fetchStremioCatalog(url);
-                    if (catalogs) allCatalogs.push(...catalogs);
-                }
+                ]);                // Carga en PARALELO: No esperamos a que uno termine para empezar el otro
+                const catalogPromises = stremioAddons.map(url => fetchStremioCatalog(url));
+                const results = await Promise.allSettled(catalogPromises);
+                
+                const allCatalogs = [];
+                results.forEach(result => {
+                    if (result.status === 'fulfilled' && result.value) {
+                        allCatalogs.push(...result.value);
+                    }
+                });
 
                 const getPriority = (name) => {
                     const n = name.toLowerCase();
@@ -1590,6 +1601,7 @@
 
                 // OPTIMIZACIÓN TV: Renderizado por lotes (Chunking). Evita crear cientos de nodos DOM de golpe congelando el procesador de la tele.
                 let catIndex = 0;
+                // Reducimos el tiempo entre secciones para que la carga sea más ágil
                 function renderNextCatalog() {
                     if (catIndex >= sortedCatalogs.length) return;
                     const cat = sortedCatalogs[catIndex++];
@@ -1628,7 +1640,7 @@
                     stremioContainer.appendChild(section);
 
                     // Cede el control al navegador 150ms antes de procesar el siguiente catálogo.
-                    requestAnimationFrame(() => setTimeout(renderNextCatalog, 150)); 
+                    requestAnimationFrame(() => setTimeout(renderNextCatalog, 80)); 
                 }
                 renderNextCatalog();
             }
