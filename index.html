@@ -1539,26 +1539,36 @@
             const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
 
             if (continueSection && continueContainer) {
-                continueContainer.innerHTML = '';
-                if (continueData.length > 0) {
+                continueContainer.innerHTML = '';            if (continueData.length > 0) {
                     continueSection.style.display = 'block';
-                    continueData.forEach(item => {                        const card = document.createElement('div');
-                        card.className = 'poster-card';                        card.onclick = (e) => {
+                    const videoProgress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
+                    continueData.forEach(item => {
+                        const card = document.createElement('div');
+                        card.className = 'poster-card';
+                        
+                        // Obtener progreso guardado para este stream específico
+                        const savedProg = videoProgress[item.lastStreamId];
+                        const percent = savedProg ? savedProg.percent : 0;
+
+                        card.onclick = (e) => {
                             if (e.target.closest('.continue-menu-btn')) return;
                             if (item.cachedStream && item.cachedStream.url) {
-                                // Reproducción Directa sin pasar por metadata
                                 window.playStremioDirect(item);
                             } else {
                                 item.autoPlay = true;
                                 openStremioDetails(item, item.baseUrl);
                             }
                         };
-                        // OPTIMIZACIÓN TV: Eliminamos el background-image para usar img con loading="lazy". Evita que la TV descargue 50 imágenes de golpe fuera de pantalla.
+                        
                         card.innerHTML = `
                             <img loading="lazy" src="${item.poster}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;">
                             <div class="continue-menu-btn" onclick="showContinueWatchingMenu(event, '${item.id}')" style="position:absolute; top:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; backdrop-filter:blur(5px); border:1px solid rgba(255,255,255,0.1);">
                                 <span class="material-icons" style="font-size:18px;">more_vert</span>
                             </div>
+                            ${percent > 0 ? `
+                            <div style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.2); z-index:5;">
+                                <div style="width:${percent}%; height:100%; background:var(--primary); box-shadow: 0 0 10px var(--primary);"></div>
+                            </div>` : ''}
                             <div class="poster-info" style="z-index:2;"></div>`;
                         continueContainer.appendChild(card);
                     });
@@ -3129,7 +3139,7 @@ function renderCurrentView() {
                     let hasAuto = false;
                     stremioAddons.forEach(async (url) => {
                         try {
-                            const res = await fetch(`${url.replace('/manifest.json', '')}/stream/${fullMeta.type}/${streamId}.json`);
+                            const res = await raceFetch(`${url.replace('/manifest.json', '')}/stream/${fullMeta.type}/${streamId}.json`);
                             const data = await res.json();
                             addonsResponded++;
                             
@@ -3192,7 +3202,7 @@ function renderCurrentView() {
             playBtn.style.color = '#777';                    const streamPromises = stremioAddons.map(async (url) => {
                         try {
                             const addonBase = url.replace('/manifest.json', '');
-                            const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
+                            const streamRes = await raceFetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
                             if (streamRes.ok) {
                                 const data = await streamRes.json();
                                 return data.streams || [];
@@ -4149,31 +4159,59 @@ function renderCurrentView() {
             e.preventDefault();
             e.stopPropagation();
             const menu = document.getElementById('quickContextMenu');
-            
+            const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
+            const item = continueData.find(i => i.id === itemId);
+            if (!item) return;
+
+            // Limpiar opciones estándar de TV
             document.getElementById('menu-play-opt').style.display = 'none';
             document.getElementById('menu-fav-opt').style.display = 'none';
             document.getElementById('menu-share-opt').style.display = 'none';
 
-            let removeOpt = document.getElementById('menu-remove-continue');
-            if(!removeOpt) {
-                removeOpt = document.createElement('div');
-                removeOpt.id = 'menu-remove-continue';
-                removeOpt.className = 'quick-menu-item';
-                removeOpt.innerHTML = `<i class="material-icons" style="color:#ef476f">delete_outline</i> Quitar de la lista`;
-                menu.appendChild(removeOpt);
-            }
-            
-            removeOpt.style.display = 'flex';
-            removeOpt.onclick = () => {
+            // Limpiar opciones previas de este menú
+            const existingCustom = menu.querySelectorAll('.continue-custom-opt');
+            existingCustom.forEach(el => el.remove());
+
+            const createOpt = (label, icon, color, action) => {
+                const opt = document.createElement('div');
+                opt.className = 'quick-menu-item continue-custom-opt';
+                opt.innerHTML = `<i class="material-icons" style="color:${color}">${icon}</i> ${label}`;
+                opt.onclick = (ev) => { ev.stopPropagation(); action(); menu.style.display = 'none'; };
+                return opt;
+            };
+
+            // 1. Detalles
+            menu.appendChild(createOpt('Detalles', 'description', '#58a6ff', () => {
+                openStremioDetails(item, item.baseUrl);
+            }));
+
+            // 2. Eliminar Progreso
+            menu.appendChild(createOpt('Eliminar Progreso', 'history', '#f1c40f', () => {
+                const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
+                if (item.lastStreamId) delete progress[item.lastStreamId];
+                localStorage.setItem('videoProgress', JSON.stringify(progress));
+                renderHomeView();
+            }));
+
+            // 3. Eliminar de la biblioteca (Mi Lista)
+            menu.appendChild(createOpt('Eliminar de la biblioteca', 'layers_clear', '#9b59b6', () => {
+                let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                myList = myList.filter(i => i.id !== itemId);
+                localStorage.setItem('userMyList', JSON.stringify(myList));
+                renderHomeView();
+            }));
+
+            // 4. Marcar como No Visto (Quitar de Seguir Viendo)
+            menu.appendChild(createOpt('Marcar como No Visto', 'visibility_off', '#ef476f', () => {
                 let data = JSON.parse(localStorage.getItem('continueWatching') || '[]');
                 data = data.filter(i => i.id !== itemId);
                 localStorage.setItem('continueWatching', JSON.stringify(data));
-                menu.style.display = 'none';
                 renderHomeView();
-            };
+            }));
 
             menu.style.display = 'block';
-            const x = Math.min(e.clientX, window.innerWidth - 180);
+            const menuWidth = 220;
+            const x = Math.min(e.clientX, window.innerWidth - menuWidth - 20);
             menu.style.left = `${x}px`;
             menu.style.top = `${e.clientY}px`;
 
@@ -4182,7 +4220,6 @@ function renderCurrentView() {
                 document.getElementById('menu-play-opt').style.display = 'flex';
                 document.getElementById('menu-fav-opt').style.display = 'flex';
                 document.getElementById('menu-share-opt').style.display = 'flex';
-                removeOpt.style.display = 'none';
                 document.removeEventListener('click', closeMenu);
             };
             setTimeout(() => document.addEventListener('click', closeMenu), 10);
