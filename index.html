@@ -1619,9 +1619,44 @@
                     section.style.marginBottom = "25px";
                     const platform = cat.catalogName || 'Streaming';
                     const typeLabel = cat.type === 'movie' ? 'Película' : (cat.type === 'series' ? 'Series' : '');
-                    const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase()) ? `${platform} — ${typeLabel}` : platform;
+                    
+                    const platformLogos = {
+                        'netflix': 'https://static.wikia.nocookie.net/logopedia/images/b/be/Netflix_N.svg/revision/latest/scale-to-width-down/250?cb=20220429163838',
+                        'disney+': 'https://static.wikia.nocookie.net/logopedia/images/f/f8/Disney%2B_%282024%29.svg/revision/latest?cb=20251230182350',
+                        'hbo': 'https://static.wikia.nocookie.net/logopedia/images/4/40/HBO_Max_2024_%28NOT_US%29.svg/revision/latest/scale-to-width-down/250?cb=20240324121035',
+                        'prime': 'https://static.wikia.nocookie.net/logopedia/images/c/cb/Prime-2024.svg/revision/latest?cb=20251122165222',
+                        'apple': 'https://static.wikia.nocookie.net/logopedia/images/c/ca/AppleTV_2025.png/revision/latest?cb=20260321025235'
+                    };
 
-                    section.innerHTML = `<h4 style="font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
+                    let platformDisplay = platform;
+                    const pKey = platform.toLowerCase();
+
+                    // Sistema de Iconos para categorías dinámicas
+                    const categoryIcons = {
+                        'new': 'fiber_new',
+                        'nuevo': 'fiber_new',
+                        'featured': 'auto_awesome',
+                        'destacado': 'auto_awesome',
+                        'popular': 'trending_up'
+                    };
+
+                    for (const key in categoryIcons) {
+                        if (pKey.includes(key)) {
+                            platformDisplay = `<span class="material-icons-round" style="font-size: 1.3rem; margin-right: 8px; color: var(--primary); vertical-align: middle;">${categoryIcons[key]}</span>` + platform.toUpperCase();
+                            break;
+                        }
+                    }
+
+                    for (const key in platformLogos) {
+                        if (pKey.includes(key)) {
+                            platformDisplay = `<img src="${platformLogos[key]}" style="height: 22px; width: auto; vertical-align: middle; margin-right: 10px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">`;
+                            break;
+                        }
+                    }
+
+                    const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase()) ? `${platformDisplay} <span style="font-size: 0.7rem; opacity: 0.5; margin-left: 5px;">— ${typeLabel}</span>` : platformDisplay;
+
+                    section.innerHTML = `<h4 style="display: flex; align-items: center; font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
                     const row = document.createElement('div');
                     row.className = 'poster-carousel';
                     row.style.margin = "0 -16px";
@@ -1685,7 +1720,7 @@
                     <div style="position: absolute; bottom: 16px; left: 16px; right: 16px; z-index: 2; display: flex; flex-direction: column;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
                             <span style="background: var(--primary); color: white; font-size: 0.65rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Cine Destacado</span>
-                            <span style="color: #ddd; font-size: 0.75rem; font-weight: 600;">${prog.channel}</span>
+                            <img src="${prog.channelIcon}" style="height: 18px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));" onerror="this.outerHTML='<span style=&quot;color: #ddd; font-size: 0.75rem; font-weight: 600;&quot;>${prog.channel}</span>'">
                         </div>
                         <div style="color: white; font-weight: 800; font-size: 1.4rem; line-height: 1.2; margin-bottom: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${processColoredText(prog.title)}</div>
                         <div style="color: #bbb; font-size: 0.8rem; font-weight: 500;">Hoy a las ${prog.start} • ${prog.duration}</div>
