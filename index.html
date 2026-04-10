@@ -1457,7 +1457,8 @@
                     const loginForm = document.getElementById('cloud-login-form');
                     const logoutBtn = document.getElementById('cloud-logout-btn');
                     if (user) {
-                        if(statusText) statusText.textContent = "Sesión: " + user.email;
+                        const displayUser = user.email.split('@')[0];
+                        if(statusText) statusText.textContent = "Usuario: " + displayUser;
                         if(loginForm) loginForm.style.display = 'none';
                         if(logoutBtn) logoutBtn.style.display = 'block';
                         downloadCloudData();
@@ -1478,12 +1479,21 @@
         }
 
         async function handleCloudAuth(mode) {
-            const e = document.getElementById('cloud-email').value;
-            const p = document.getElementById('cloud-pass').value;
+            const u = document.getElementById('cloud-user').value.trim();
+            const p = document.getElementById('cloud-pass').value.trim();
+            if(!u || !p) return alert("Rellena todos los campos");
+            
+            // Truco: Convertimos el usuario en un formato que Firebase acepte internamente
+            const fakeEmail = u.includes('@') ? u : u + "@tv.app";
+            
             try {
-                if(mode === 'in') await auth.signInWithEmailAndPassword(e, p);
-                else await auth.createUserWithEmailAndPassword(e, p);
-            } catch (err) { alert(err.message); }
+                if(mode === 'in') await auth.signInWithEmailAndPassword(fakeEmail, p);
+                else await auth.createUserWithEmailAndPassword(fakeEmail, p);
+                alert("¡Conectado como " + u + "!");
+            } catch (err) {
+                if(err.code === 'auth/email-already-in-use') alert("Ese usuario ya existe. Prueba con otro o haz Login.");
+                else alert("Error: " + err.message);
+            }
         }
 
         async function uploadCloudData() {
@@ -4978,7 +4988,7 @@ function renderCurrentView() {
                 </div>
 
                 <div id="cloud-login-form">
-                    <input type="email" id="cloud-email" placeholder="Email" class="modern-input" style="margin-bottom:8px;">
+                    <input type="text" id="cloud-user" placeholder="Nombre de Usuario" class="modern-input" style="margin-bottom:8px;">
                     <input type="password" id="cloud-pass" placeholder="Contraseña" class="modern-input" style="margin-bottom:10px;">
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                         <button onclick="handleCloudAuth('in')" style="background:var(--primary); color:#000; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">LOGIN</button>
