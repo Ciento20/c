@@ -1465,16 +1465,20 @@
                     }
                 });
             } catch (e) { console.error("Firebase Error:", e); }
-        }
-
-        function saveFbKeys() {
-            const c = {
+        }        function saveFbKeys() {
+            const config = {
                 apiKey: document.getElementById('fb-key').value.trim(),
                 authDomain: document.getElementById('fb-dom').value.trim(),
                 projectId: document.getElementById('fb-id').value.trim(),
                 appId: document.getElementById('fb-app').value.trim()
             };
-            localStorage.setItem('fb_user_config', JSON.stringify(c));
+
+            if (!config.apiKey || !config.projectId || !config.appId) {
+                return alert("❌ Error: La API Key, el Project ID y el App ID son obligatorios.");
+            }
+
+            localStorage.setItem('fb_user_config', JSON.stringify(config));
+            alert("💾 ¡Configuración guardada correctamente! La aplicación se reiniciará.");
             location.reload();
         }
 
@@ -1606,9 +1610,17 @@
                 renderChannelsView();            } else if(mode === 'home') {
                 document.getElementById('nav-home').classList.add('active');
                 homeView.style.display = 'block';
-                renderHomeView();
-            } else if(mode === 'settings') {
+                renderHomeView();            } else if(mode === 'settings') {
                 settingsView.style.display = 'block';
+                // Cargar datos guardados en los inputs para que el usuario los vea
+                const savedConfig = JSON.parse(localStorage.getItem('fb_user_config') || '{}');
+                if (savedConfig.apiKey) {
+                    document.getElementById('fb-key').value = savedConfig.apiKey;
+                    document.getElementById('fb-dom').value = savedConfig.authDomain || '';
+                    document.getElementById('fb-id').value = savedConfig.projectId || '';
+                    document.getElementById('fb-app').value = savedConfig.appId || '';
+                    console.log("Configuración de Firebase cargada en el formulario");
+                }
             }
         }        async function renderHomeView() {
             const carousel = document.getElementById('live-sports-carousel');
