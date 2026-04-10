@@ -3286,39 +3286,49 @@ function renderCurrentView() {
                             localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 3)));                            // --- EFECTO CINEMÁTICO PREMIUM (ESTILO INTRO) ---
                             const logoImg = titleEl.querySelector('img');
                             if (logoImg) {
-                                // 1. Creamos un fondo radial oscuro para aislar el logo (como en el loader)
+                                // 1. Creamos un fondo radial oscuro para aislar el logo
                                 const backdrop = document.createElement('div');
-                                backdrop.style.cssText = `position: fixed; inset: 0; background: radial-gradient(circle, #1a1b26 0%, #000 100%); z-index: 9998; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;`;
+                                backdrop.id = 'cinematic-blackout';
+                                backdrop.style.cssText = `position: fixed; inset: 0; background: #000; z-index: 10000; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;`;
                                 document.body.appendChild(backdrop);
 
-                                // 2. Clonamos el logo y lo posicionamos en el centro absoluto para la carga
+                                // 2. Clonamos el logo
                                 const clone = logoImg.cloneNode(true);
                                 const rect = logoImg.getBoundingClientRect();
-                                // Ajustamos el tamaño inicial para que sea impactante en el centro
                                 const displayWidth = Math.min(rect.width * 1.5, window.innerWidth * 0.7);
-                                clone.style.cssText = `position: fixed; top: 50%; left: 50%; width: ${displayWidth}px; height: auto; z-index: 9999; transition: transform 2s cubic-bezier(0.2, 0, 0.2, 1), opacity 1.4s ease, filter 1.2s ease; pointer-events: none; transform: translate(-50%, -50%) scale(0.6); opacity: 0; filter: blur(10px);`;
+                                clone.style.cssText = `position: fixed; top: 50%; left: 50%; width: ${displayWidth}px; height: auto; z-index: 10001; transition: transform 2s cubic-bezier(0.2, 0, 0.2, 1), opacity 1.4s ease, filter 1.2s ease; pointer-events: none; transform: translate(-50%, -50%) scale(0.6); opacity: 0; filter: blur(10px);`;
                                 document.body.appendChild(clone);
 
-                                // Iniciar secuencia cinemática centrada
                                 requestAnimationFrame(() => {
                                     backdrop.style.opacity = '1';
-                                    // Fase 1: El logo aparece en el centro con un ligero zoom de entrada
                                     clone.style.opacity = '1';
                                     clone.style.filter = 'blur(0px)';
                                     clone.style.transform = 'translate(-50%, -50%) scale(1)';
                                     
                                     setTimeout(() => {
-                                        // Fase 2: Explosión cinemática desde el centro hacia la cámara
                                         clone.style.transform = 'translate(-50%, -50%) scale(80)';
                                         clone.style.opacity = '0';
                                         clone.style.filter = 'blur(20px)';
-                                        backdrop.style.opacity = '0';
+                                        // NO quitamos el backdrop aquí para mantener la pantalla en negro durante la carga
                                     }, 850); 
                                 });
 
-                                // Esperamos a que la explosión cubra la pantalla antes de mostrar el vídeo
+                                // Quitamos el logo después de la explosión pero mantenemos el fondo negro
+                                setTimeout(() => { clone.remove(); }, 2000);
+                                
+                                // Escuchamos cuando el vídeo realmente empieza a reproducirse para quitar el negro
+                                const video = document.getElementById('main-video-player');
+                                const removeBlackout = () => {
+                                    const b = document.getElementById('cinematic-blackout');
+                                    if(b) {
+                                        b.style.opacity = '0';
+                                        setTimeout(() => b.remove(), 600);
+                                    }
+                                    video.removeEventListener('playing', removeBlackout);
+                                };
+                                video.addEventListener('playing', removeBlackout);
+                                
                                 await new Promise(r => setTimeout(r, 1400));
-                                setTimeout(() => { clone.remove(); backdrop.remove(); }, 1000);
                             }
 
                             const stream = allStreams[window.currentStremioStreamIdx || 0];
@@ -3843,19 +3853,17 @@ function renderCurrentView() {
                     // --- EFECTO CINEMÁTICO PREMIUM (LOGO CANAL) ---
                     const logoImg = modal.querySelector('.detail-channel-logo');
                     if (logoImg && logoImg.style.display !== 'none' && logoImg.src) {
-                        // 1. Fondo radial oscuro
                         const backdrop = document.createElement('div');
-                        backdrop.style.cssText = `position: fixed; inset: 0; background: radial-gradient(circle, #1a1b26 0%, #000 100%); z-index: 9998; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;`;
+                        backdrop.id = 'cinematic-blackout-tv';
+                        backdrop.style.cssText = `position: fixed; inset: 0; background: #000; z-index: 10000; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;`;
                         document.body.appendChild(backdrop);
 
-                        // 2. Clonación y posicionamiento central
                         const clone = logoImg.cloneNode(true);
                         const rect = logoImg.getBoundingClientRect();
                         const displayWidth = Math.min(rect.width * 3, window.innerWidth * 0.7);
-                        clone.style.cssText = `position: fixed; top: 50%; left: 50%; width: ${displayWidth}px; height: auto; z-index: 9999; transition: transform 2s cubic-bezier(0.2, 0, 0.2, 1), opacity 1.4s ease, filter 1.2s ease; pointer-events: none; transform: translate(-50%, -50%) scale(0.4); opacity: 0; filter: blur(10px);`;
+                        clone.style.cssText = `position: fixed; top: 50%; left: 50%; width: ${displayWidth}px; height: auto; z-index: 10001; transition: transform 2s cubic-bezier(0.2, 0, 0.2, 1), opacity 1.4s ease, filter 1.2s ease; pointer-events: none; transform: translate(-50%, -50%) scale(0.4); opacity: 0; filter: blur(10px);`;
                         document.body.appendChild(clone);
 
-                        // 3. Secuencia de animación
                         requestAnimationFrame(() => {
                             backdrop.style.opacity = '1';
                             clone.style.opacity = '1';
@@ -3866,13 +3874,23 @@ function renderCurrentView() {
                                 clone.style.transform = 'translate(-50%, -50%) scale(80)';
                                 clone.style.opacity = '0';
                                 clone.style.filter = 'blur(20px)';
-                                backdrop.style.opacity = '0';
                             }, 850);
                         });
 
-                        // Espera a que termine la explosión antes de cargar el streaming
+                        setTimeout(() => { clone.remove(); }, 2000);
+
+                        const video = document.getElementById('main-video-player');
+                        const removeBlackoutTV = () => {
+                            const b = document.getElementById('cinematic-blackout-tv');
+                            if(b) {
+                                b.style.opacity = '0';
+                                setTimeout(() => b.remove(), 600);
+                            }
+                            video.removeEventListener('playing', removeBlackoutTV);
+                        };
+                        video.addEventListener('playing', removeBlackoutTV);
+
                         await new Promise(r => setTimeout(r, 1400));
-                        setTimeout(() => { clone.remove(); backdrop.remove(); }, 1000);
                     }
 
                     const sourceObj = sources[currentSourceIdx];
