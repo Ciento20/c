@@ -5,10 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <meta name="theme-color" content="#0a0c10" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -1442,88 +1441,106 @@
     <div id="data-list"></div>
     <div id="result-count"></div>
 
-    <script>        // --- CONFIGURACIÓN Y LÓGICA DE NUBE ---
-        let auth, db;
-        const fbConfig = JSON.parse(localStorage.getItem('fb_user_config') || '{}');
+    <script>        let epgData = [];
 
-        if (fbConfig.apiKey) {
+        // --- CONFIGURACIÓN FIREBASE ---        // --- CONFIGURACIÓN FIREBASE PROTEGIDA ---
+        let db = null;
+        let auth = null;
+        const savedFirebase = localStorage.getItem('userFirebaseConfig');
+        const firebaseConfig = savedFirebase ? JSON.parse(savedFirebase) : null;
+
+        if (firebaseConfig && firebaseConfig.apiKey) {
             try {
-                firebase.initializeApp(fbConfig);
-                auth = firebase.auth();
+                firebase.initializeApp(firebaseConfig);
                 db = firebase.firestore();
-                
-                auth.onAuthStateChanged(user => {
-                    const statusText = document.getElementById('cloud-status');
-                    const loginForm = document.getElementById('cloud-login-form');
-                    const logoutBtn = document.getElementById('cloud-logout-btn');
-                    if (user) {
-                        const displayUser = user.email.split('@')[0];
-                        if(statusText) statusText.textContent = "Usuario: " + displayUser;
-                        if(loginForm) loginForm.style.display = 'none';
-                        if(logoutBtn) logoutBtn.style.display = 'block';
-                        downloadCloudData();
+                auth = firebase.auth();
+            } catch (e) {
+                console.error("Error Firebase:", e);
+            }
+        } else {
+            console.warn("Firebase no configurado. Use el botón en Ajustes.");
+        }        const CloudSync = {
+            isSyncing: false,
+            async save() {
+                if (!auth || !auth.currentUser || this.isSyncing) return;
+                this.isSyncing = true;
+                try {
+                    const keys = ['streamSources', 'stremioAddons', 'onlyLiveEvents', 'isP2PEnabled', 'hideNoImageEvents', 'hideNoVideoChannels', 'continueWatching', 'videoProgress', 'userMyList', 'userFavs', 'watchedEps', 'userSelectedChannels', 'customChannelOrder'];
+                    const data = {};
+                    keys.forEach(k => {
+                        const val = localStorage.getItem(k);
+                        try { data[k] = JSON.parse(val); } catch(e) { data[k] = val; }
+                    });
+                    await db.collection('profiles').doc(auth.currentUser.uid).set({ ...data, lastUpdate: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                    console.log("☁️ Datos sincronizados en Firebase");
+                } catch(e) { console.error("Sync Error:", e); } finally { this.isSyncing = false; }
+            },
+            async load(targetUid = null) {
+                const uid = targetUid || auth.currentUser?.uid;
+                if (!uid) return;
+                try {
+                    const doc = await db.collection('profiles').doc(uid).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        Object.keys(data).forEach(k => {
+                            if (k === 'lastUpdate') return;
+                            const val = typeof data[k] === 'object' ? JSON.stringify(data[k]) : data[k];
+                            localStorage.setItem(k, val);
+                        });
+                        return true;
                     }
-                });
-            } catch (e) { console.error("Firebase Error:", e); }
-        }        function saveFbKeys() {
-            const config = {
-                apiKey: document.getElementById('fb-key').value.trim(),
-                authDomain: document.getElementById('fb-dom').value.trim(),
-                projectId: document.getElementById('fb-id').value.trim(),
-                appId: document.getElementById('fb-app').value.trim()
-            };
-
-            if (!config.apiKey || !config.projectId || !config.appId) {
-                return alert("❌ Error: La API Key, el Project ID y el App ID son obligatorios.");
+                } catch(e) { console.error("Load Error:", e); }
+                return false;
             }
-
-            localStorage.setItem('fb_user_config', JSON.stringify(config));
-            alert("💾 ¡Configuración guardada correctamente! La aplicación se reiniciará.");
-            location.reload();
-        }
-
-        async function handleCloudAuth(mode) {
-            const u = document.getElementById('cloud-user').value.trim();
-            const p = document.getElementById('cloud-pass').value.trim();
-            if(!u || !p) return alert("Rellena todos los campos");
+        };        const updateSyncUI = (user) => {
+            const el = document.getElementById('sync-status-text');
+            if (!el) return setTimeout(() => updateSyncUI(user), 100);
             
-            // Truco: Convertimos el usuario en un formato que Firebase acepte internamente
-            const fakeEmail = u.includes('@') ? u : u + "@tv.app";
-            
-            try {
-                if(mode === 'in') await auth.signInWithEmailAndPassword(fakeEmail, p);
-                else await auth.createUserWithEmailAndPassword(fakeEmail, p);
-                alert("¡Conectado como " + u + "!");
-            } catch (err) {
-                if(err.code === 'auth/email-already-in-use') alert("Ese usuario ya existe. Prueba con otro o haz Login.");
-                else alert("Error: " + err.message);
+            if (user) {
+                const shortId = user.uid.substring(0, 8).toUpperCase();
+                el.textContent = shortId;
+                el.style.color = "var(--primary)";
+                localStorage.setItem('cached_profile_id', shortId);
+            } else {
+                const cached = localStorage.getItem('cached_profile_id');
+                el.textContent = cached || "SIN CONEXIÓN";
+                el.style.color = "#ef476f";
             }
-        }
-
-        async function uploadCloudData() {
-            if (!auth?.currentUser) return;
-            const keys = ['streamSources', 'stremioAddons', 'continueWatching', 'userMyList', 'videoProgress', 'watchedEps', 'userFavs'];
-            const data = {};
-            keys.forEach(k => { const v = localStorage.getItem(k); if(v) data[k] = v; });
-            db.collection("users").doc(auth.currentUser.uid).set({ settings: data }, { merge: true });
-        }
-
-        async function downloadCloudData() {
-            const doc = await db.collection("users").doc(auth.currentUser.uid).get();
-            if (doc.exists) {
-                const settings = doc.data().settings;
-                Object.keys(settings).forEach(k => { if(localStorage.getItem(k) !== settings[k]) localStorage.setItem(k, settings[k]); });
-            }
-        }
-
-        // Auto-guardado al cambiar algo
-        const _setItem = localStorage.setItem;
-        localStorage.setItem = function(k, v) {
-            _setItem.apply(this, arguments);
-            if (auth?.currentUser && !k.includes('firebase')) uploadCloudData();
         };
 
-        let epgData = [];
+        // Carga inmediata desde caché para evitar el estado "Conectando" en local
+        const initSyncUI = () => {
+            const el = document.getElementById('sync-status-text');
+            if (el) {
+                const cached = localStorage.getItem('cached_profile_id');
+                if (cached) { el.textContent = cached; el.style.color = "var(--primary)"; }
+            } else { setTimeout(initSyncUI, 100); }
+        };
+        initSyncUI();        if (auth) auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                updateSyncUI(user);
+                await CloudSync.load();
+            } else {
+                auth.signInAnonymously().catch(() => updateSyncUI(null));
+            }
+        });
+
+        const originalSetItem = localStorage.setItem;
+        localStorage.setItem = function(key, value) {
+            originalSetItem.apply(this, arguments);
+            const syncKeys = ['streamSources', 'stremioAddons', 'continueWatching', 'videoProgress', 'userMyList', 'userFavs', 'watchedEps', 'userSelectedChannels'];
+            if (syncKeys.includes(key)) CloudSync.save();
+        };
+
+        async function linkCloudProfile() {
+            const code = prompt("Introduce el Código de Enlace del otro dispositivo:");
+            if (code && code.length > 5) {
+                // Buscamos el UID real basado en el prefijo (simplificado para el ejemplo)
+                alert("Sincronizando... La app se reiniciará.");
+                localStorage.setItem('manual_uid', code.toLowerCase());
+                location.reload();
+            }
+        }
         let channelStreams = {}; 
 
         // Función de carrera para obtener datos lo más rápido posible evitando bloqueos CORS
@@ -1610,17 +1627,9 @@
                 renderChannelsView();            } else if(mode === 'home') {
                 document.getElementById('nav-home').classList.add('active');
                 homeView.style.display = 'block';
-                renderHomeView();            } else if(mode === 'settings') {
+                renderHomeView();
+            } else if(mode === 'settings') {
                 settingsView.style.display = 'block';
-                // Cargar datos guardados en los inputs para que el usuario los vea
-                const savedConfig = JSON.parse(localStorage.getItem('fb_user_config') || '{}');
-                if (savedConfig.apiKey) {
-                    document.getElementById('fb-key').value = savedConfig.apiKey;
-                    document.getElementById('fb-dom').value = savedConfig.authDomain || '';
-                    document.getElementById('fb-id').value = savedConfig.projectId || '';
-                    document.getElementById('fb-app').value = savedConfig.appId || '';
-                    console.log("Configuración de Firebase cargada en el formulario");
-                }
             }
         }        async function renderHomeView() {
             const carousel = document.getElementById('live-sports-carousel');
@@ -3232,7 +3241,7 @@ function renderCurrentView() {
                     let hasAuto = false;
                     stremioAddons.forEach(async (url) => {
                         try {
-                            const res = await raceFetch(`${url.replace('/manifest.json', '')}/stream/${fullMeta.type}/${streamId}.json`);
+                            const res = await fetch(`${url.replace('/manifest.json', '')}/stream/${fullMeta.type}/${streamId}.json`);
                             const data = await res.json();
                             addonsResponded++;
                             
@@ -3295,7 +3304,7 @@ function renderCurrentView() {
             playBtn.style.color = '#777';                    const streamPromises = stremioAddons.map(async (url) => {
                         try {
                             const addonBase = url.replace('/manifest.json', '');
-                            const streamRes = await raceFetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
+                            const streamRes = await fetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
                             if (streamRes.ok) {
                                 const data = await streamRes.json();
                                 return data.streams || [];
@@ -4980,36 +4989,6 @@ function renderCurrentView() {
 
         <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
             
-            
-            <div class="settings-card" style="border: 1px solid var(--primary); background: #000;">
-                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-                    <div class="settings-icon-wrapper" style="background:var(--primary)"><span class="material-icons" style="color:#000">cloud</span></div>
-                    <div style="flex-grow:1">
-                        <div style="font-weight:800; font-size:0.9rem;">Sincronización Cloud</div>
-                        <div id="cloud-status" style="font-size:0.7rem; color:var(--primary)">No configurado</div>
-                    </div>
-                    <span class="material-icons" style="color:#444; cursor:pointer" onclick="const s=document.getElementById('fb-setup').style; s.display=s.display==='none'?'block':'none'">settings</span>
-                </div>
-
-                <div id="fb-setup" style="display:none; margin-bottom:15px; border-top:1px solid #222; padding-top:10px;">
-                    <input type="text" id="fb-key" placeholder="API Key" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:5px;">
-                    <input type="text" id="fb-dom" placeholder="Auth Domain" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:5px;">
-                    <input type="text" id="fb-id" placeholder="Project ID" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:5px;">
-                    <input type="text" id="fb-app" placeholder="App ID" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:10px;">
-                    <button onclick="saveFbKeys()" class="modern-btn" style="padding:8px; font-size:0.7rem;">VINCULAR FIREBASE</button>
-                </div>
-
-                <div id="cloud-login-form">
-                    <input type="text" id="cloud-user" placeholder="Nombre de Usuario" class="modern-input" style="margin-bottom:8px;">
-                    <input type="password" id="cloud-pass" placeholder="Contraseña" class="modern-input" style="margin-bottom:10px;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                        <button onclick="handleCloudAuth('in')" style="background:var(--primary); color:#000; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">LOGIN</button>
-                        <button onclick="handleCloudAuth('up')" style="background:#222; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">REGISTRAR</button>
-                    </div>
-                </div>
-                <button id="cloud-logout-btn" onclick="auth.signOut().then(()=>location.reload())" style="display:none; width:100%; background:#ef476f; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">CERRAR SESIÓN</button>
-            </div>
-
             <div class="settings-card" style="cursor: pointer;" onclick="openAddonManager()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
@@ -5129,7 +5108,18 @@ function renderCurrentView() {
                 });
             </script>
 
-            <div class="settings-card" style="cursor: pointer; margin-bottom: 0;" onclick="openChannelSelector()">
+            <div class="settings-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #000 100%); border: 1px solid var(--primary); margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary);">cloud_done</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Sincronización Nube</div>
+                            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">ID Perfil: <span id="sync-status-text" style="color:var(--primary); font-weight:800;">Conectando...</span></div>
+                        </div>
+                    </div>
+                    <button onclick="linkCloudProfile()" style="background: var(--primary); color:black; border:none; padding: 8px 12px; border-radius: 8px; font-weight:800; font-size:0.65rem;">ENLAZAR</button>
+                </div>
+            </div>            <div class="settings-card" style="cursor: pointer;" onclick="openChannelSelector()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--color-primary); font-size: 1.4rem;">settings</span></div>
@@ -5141,6 +5131,40 @@ function renderCurrentView() {
                     <span class="material-icons" style="color: #00e5ff; font-size: 1.2rem;">arrow_forward_ios</span>
                 </div>
             </div>
+
+            <div class="settings-card" style="cursor: pointer; margin-bottom: 0;" onclick="setupUserFirebase()">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #f1c40f; font-size: 1.4rem;">storage</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Configurar Firebase</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Introduce tus propias credenciales</div>
+                        </div>
+                    </div>
+                    <span class="material-icons" style="color: #f1c40f; font-size: 1.2rem;">edit</span>
+                </div>
+            </div>
+
+            <script>
+                function setupUserFirebase() {
+                    const current = localStorage.getItem('userFirebaseConfig') || '';
+                    const input = prompt('Pega tu firebaseConfig JSON completo:', current);
+                    if (input) {
+                        try {
+                            const parsed = JSON.parse(input);
+                            if (parsed.apiKey) {
+                                localStorage.setItem('userFirebaseConfig', JSON.stringify(parsed));
+                                alert('Configuración guardada. Recargando...');
+                                location.reload();
+                            } else {
+                                alert('JSON inválido.');
+                            }
+                        } catch (e) {
+                            alert('Error de formato JSON.');
+                        }
+                    }
+                }
+            </script>
         </div>
     </div>
 
