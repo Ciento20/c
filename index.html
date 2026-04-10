@@ -5,6 +5,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
     <meta name="theme-color" content="#0a0c10" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -1438,7 +1442,74 @@
     <div id="data-list"></div>
     <div id="result-count"></div>
 
-    <script>        let epgData = [];
+    <script>        // --- CONFIGURACIÓN Y LÓGICA DE NUBE ---
+        let auth, db;
+        const fbConfig = JSON.parse(localStorage.getItem('fb_user_config') || '{}');
+
+        if (fbConfig.apiKey) {
+            try {
+                firebase.initializeApp(fbConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                
+                auth.onAuthStateChanged(user => {
+                    const statusText = document.getElementById('cloud-status');
+                    const loginForm = document.getElementById('cloud-login-form');
+                    const logoutBtn = document.getElementById('cloud-logout-btn');
+                    if (user) {
+                        if(statusText) statusText.textContent = "Sesión: " + user.email;
+                        if(loginForm) loginForm.style.display = 'none';
+                        if(logoutBtn) logoutBtn.style.display = 'block';
+                        downloadCloudData();
+                    }
+                });
+            } catch (e) { console.error("Firebase Error:", e); }
+        }
+
+        function saveFbKeys() {
+            const c = {
+                apiKey: document.getElementById('fb-key').value.trim(),
+                authDomain: document.getElementById('fb-dom').value.trim(),
+                projectId: document.getElementById('fb-id').value.trim(),
+                appId: document.getElementById('fb-app').value.trim()
+            };
+            localStorage.setItem('fb_user_config', JSON.stringify(c));
+            location.reload();
+        }
+
+        async function handleCloudAuth(mode) {
+            const e = document.getElementById('cloud-email').value;
+            const p = document.getElementById('cloud-pass').value;
+            try {
+                if(mode === 'in') await auth.signInWithEmailAndPassword(e, p);
+                else await auth.createUserWithEmailAndPassword(e, p);
+            } catch (err) { alert(err.message); }
+        }
+
+        async function uploadCloudData() {
+            if (!auth?.currentUser) return;
+            const keys = ['streamSources', 'stremioAddons', 'continueWatching', 'userMyList', 'videoProgress', 'watchedEps', 'userFavs'];
+            const data = {};
+            keys.forEach(k => { const v = localStorage.getItem(k); if(v) data[k] = v; });
+            db.collection("users").doc(auth.currentUser.uid).set({ settings: data }, { merge: true });
+        }
+
+        async function downloadCloudData() {
+            const doc = await db.collection("users").doc(auth.currentUser.uid).get();
+            if (doc.exists) {
+                const settings = doc.data().settings;
+                Object.keys(settings).forEach(k => { if(localStorage.getItem(k) !== settings[k]) localStorage.setItem(k, settings[k]); });
+            }
+        }
+
+        // Auto-guardado al cambiar algo
+        const _setItem = localStorage.setItem;
+        localStorage.setItem = function(k, v) {
+            _setItem.apply(this, arguments);
+            if (auth?.currentUser && !k.includes('firebase')) uploadCloudData();
+        };
+
+        let epgData = [];
         let channelStreams = {}; 
 
         // Función de carrera para obtener datos lo más rápido posible evitando bloqueos CORS
@@ -4887,6 +4958,36 @@ function renderCurrentView() {
 
         <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
             
+            
+            <div class="settings-card" style="border: 1px solid var(--primary); background: #000;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                    <div class="settings-icon-wrapper" style="background:var(--primary)"><span class="material-icons" style="color:#000">cloud</span></div>
+                    <div style="flex-grow:1">
+                        <div style="font-weight:800; font-size:0.9rem;">Sincronización Cloud</div>
+                        <div id="cloud-status" style="font-size:0.7rem; color:var(--primary)">No configurado</div>
+                    </div>
+                    <span class="material-icons" style="color:#444; cursor:pointer" onclick="const s=document.getElementById('fb-setup').style; s.display=s.display==='none'?'block':'none'">settings</span>
+                </div>
+
+                <div id="fb-setup" style="display:none; margin-bottom:15px; border-top:1px solid #222; padding-top:10px;">
+                    <input type="text" id="fb-key" placeholder="API Key" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:5px;">
+                    <input type="text" id="fb-dom" placeholder="Auth Domain" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:5px;">
+                    <input type="text" id="fb-id" placeholder="Project ID" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:5px;">
+                    <input type="text" id="fb-app" placeholder="App ID" class="modern-input" style="padding:8px; font-size:0.7rem; margin-bottom:10px;">
+                    <button onclick="saveFbKeys()" class="modern-btn" style="padding:8px; font-size:0.7rem;">VINCULAR FIREBASE</button>
+                </div>
+
+                <div id="cloud-login-form">
+                    <input type="email" id="cloud-email" placeholder="Email" class="modern-input" style="margin-bottom:8px;">
+                    <input type="password" id="cloud-pass" placeholder="Contraseña" class="modern-input" style="margin-bottom:10px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <button onclick="handleCloudAuth('in')" style="background:var(--primary); color:#000; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">LOGIN</button>
+                        <button onclick="handleCloudAuth('up')" style="background:#222; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">REGISTRAR</button>
+                    </div>
+                </div>
+                <button id="cloud-logout-btn" onclick="auth.signOut().then(()=>location.reload())" style="display:none; width:100%; background:#ef476f; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:800; font-size:0.7rem;">CERRAR SESIÓN</button>
+            </div>
+
             <div class="settings-card" style="cursor: pointer;" onclick="openAddonManager()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
