@@ -1462,7 +1462,7 @@
         }        const CloudSync = {
             isSyncing: false,
             async save() {
-                if (!auth || !auth.currentUser || this.isSyncing || localStorage.getItem('syncEnabled') !== 'true') return;
+                if (!auth || !auth.currentUser || this.isSyncing) return;
                 this.isSyncing = true;
                 try {
                     const keys = ['streamSources', 'stremioAddons', 'onlyLiveEvents', 'isP2PEnabled', 'hideNoImageEvents', 'hideNoVideoChannels', 'continueWatching', 'videoProgress', 'userMyList', 'userFavs', 'watchedEps', 'userSelectedChannels', 'customChannelOrder'];
@@ -1489,37 +1489,24 @@
                         });
                         return true;
                     }
-                } catch(e) { console.error("Load Error:", e); } 
+                } catch(e) { console.error("Load Error:", e); }
                 return false;
             }
         };        const updateSyncUI = (user) => {
             const el = document.getElementById('sync-status-text');
-            const btn = document.getElementById('sync-main-btn');
             if (!el) return setTimeout(() => updateSyncUI(user), 100);
             
-            const isEnabled = localStorage.getItem('syncEnabled') === 'true';
-            if (user && isEnabled) {
+            if (user) {
                 const shortId = user.uid.substring(0, 8).toUpperCase();
                 el.textContent = shortId;
                 el.style.color = "var(--primary)";
                 localStorage.setItem('cached_profile_id', shortId);
-                if(btn) { btn.textContent = 'ENLAZAR'; btn.onclick = linkCloudProfile; btn.style.background = 'var(--primary)'; }
             } else {
-                el.textContent = "DESACTIVADO";
-                el.style.color = "#8b949e";
-                if(btn) { btn.textContent = 'GENERAR'; btn.onclick = activateSync; btn.style.background = '#fff'; }
+                const cached = localStorage.getItem('cached_profile_id');
+                el.textContent = cached || "SIN CONEXIÓN";
+                el.style.color = "#ef476f";
             }
         };
-
-        async function activateSync() {
-            if (!auth) return alert("Firebase no configurado en Ajustes.");
-            if (confirm("¿Activar sincronización en la nube? Se generará una clave única para este perfil.")) {
-                localStorage.setItem('syncEnabled', 'true');
-                if (!auth.currentUser) await auth.signInAnonymously();
-                updateSyncUI(auth.currentUser);
-                CloudSync.save();
-            }
-        }
 
         // Carga inmediata desde caché para evitar el estado "Conectando" en local
         const initSyncUI = () => {
@@ -1531,19 +1518,10 @@
         };
         initSyncUI();        if (auth) auth.onAuthStateChanged(async (user) => {
             if (user) {
-                if (localStorage.getItem('syncEnabled') === 'true') {
-                    updateSyncUI(user);
-                    await CloudSync.load();
-                } else {
-                    updateSyncUI(null);
-                }
+                updateSyncUI(user);
+                await CloudSync.load();
             } else {
-                // Solo iniciar sesión si el usuario ya activó la sincronización previamente
-                if (localStorage.getItem('syncEnabled') === 'true') {
-                    auth.signInAnonymously().catch(() => updateSyncUI(null));
-                } else {
-                    updateSyncUI(null);
-                }
+                auth.signInAnonymously().catch(() => updateSyncUI(null));
             }
         });
 
@@ -1554,22 +1532,13 @@
             if (syncKeys.includes(key)) CloudSync.save();
         };
 
-        function linkCloudProfile() {
-            const area = document.getElementById('link-input-area');
-            area.style.display = area.style.display === 'none' ? 'block' : 'none';
-        }
-
-        async function confirmCloudLink() {
-            const code = document.getElementById('remote-uid-input').value.trim();
+        async function linkCloudProfile() {
+            const code = prompt("Introduce el Código de Enlace del otro dispositivo:");
             if (code && code.length > 5) {
-                if(confirm("¿Vincular con el ID " + code.toUpperCase() + "?\nSe descargarán los ajustes y listas de ese perfil.")) {
-                    localStorage.setItem('syncEnabled', 'true');
-                    localStorage.setItem('manual_uid', code.toLowerCase());
-                    alert("Sincronizando... La app se reiniciará.");
-                    location.reload();
-                }
-            } else {
-                alert("ID no válido. Debe tener al menos 6 caracteres.");
+                // Buscamos el UID real basado en el prefijo (simplificado para el ejemplo)
+                alert("Sincronizando... La app se reiniciará.");
+                localStorage.setItem('manual_uid', code.toLowerCase());
+                location.reload();
             }
         }
         let channelStreams = {}; 
@@ -5137,26 +5106,18 @@ function renderCurrentView() {
                         if(chkP2P) chkP2P.checked = isP2PEnabled;
                     }, 200);
                 });
-            </script>            <div class="settings-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #000 100%); border: 1px solid var(--primary); margin-bottom: 15px; padding: 20px;">
-                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 15px;">
-                    <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary);">cloud_done</span></div>
-                    <div style="flex-grow: 1;">
-                        <div style="font-weight: 700; color: white; font-size: 1.05rem;">Sincronización Nube</div>
-                        <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">ID de este dispositivo: <span id="sync-status-text" style="color:var(--primary); font-weight:800;">---</span></div>
+            </script>
+
+            <div class="settings-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #000 100%); border: 1px solid var(--primary); margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary);">cloud_done</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Sincronización Nube</div>
+                            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">ID Perfil: <span id="sync-status-text" style="color:var(--primary); font-weight:800;">Conectando...</span></div>
+                        </div>
                     </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <button id="sync-main-btn" style="background: #fff; color:black; border:none; padding: 10px; border-radius: 10px; font-weight:800; font-size:0.7rem; cursor:pointer;">ACTIVAR</button>
-                    <button onclick="linkCloudProfile()" style="background: rgba(88, 166, 255, 0.2); color: var(--primary); border: 1px solid var(--primary); padding: 10px; border-radius: 10px; font-weight:800; font-size:0.7rem; cursor:pointer;">IMPORTAR ID</button>
-                </div>
-                
-                <div id="link-input-area" style="margin-top: 15px; display: none;">
-                    <p style="font-size: 0.65rem; color: #666; margin-bottom: 8px; text-transform: uppercase;">Introduce ID remoto para sincronizar:</p>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="remote-uid-input" placeholder="Ej: A1B2C3D4" style="background: #000; border: 1px solid #333; color: white; padding: 8px; border-radius: 8px; flex-grow: 1; font-size: 0.8rem; font-family: monospace;">
-                        <button onclick="confirmCloudLink()" style="background: var(--primary); color: #000; border: none; padding: 0 15px; border-radius: 8px; font-weight: 800; font-size: 0.7rem;">VINCULAR</button>
-                    </div>
+                    <button onclick="linkCloudProfile()" style="background: var(--primary); color:black; border:none; padding: 8px 12px; border-radius: 8px; font-weight:800; font-size:0.65rem;">ENLAZAR</button>
                 </div>
             </div>            <div class="settings-card" style="cursor: pointer;" onclick="openChannelSelector()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
