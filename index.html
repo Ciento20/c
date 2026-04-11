@@ -2998,9 +2998,11 @@ function renderCurrentView() {
             const tvMeta = document.getElementById('detail-metadata-fixed');
             if (tvMeta) tvMeta.style.display = 'none';
             const ratingFloating = document.getElementById('detail-rating-floating');
-            if (ratingFloating) ratingFloating.style.display = 'none';
-            modal.querySelector('.detail-badge').style.display = 'none';
+            if (ratingFloating) ratingFloating.style.display = 'none';            modal.querySelector('.detail-badge').style.display = 'none';
             modal.querySelector('.detail-progress-container').style.display = 'none';
+            // Limpiar datos residuales de TV (horas y tiempo restante)
+            modal.querySelector('.detail-time').textContent = '';
+            modal.querySelector('.detail-remaining').textContent = '';
 
             // Actualizar la edad recomendada específica de la película/serie
             const ratingBadge = document.getElementById('detail-rating-badge');
