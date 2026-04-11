@@ -2600,18 +2600,20 @@ function renderCurrentView() {
                                 let category = fullDesc.substring(0, splitPoint).trim();
                                 const extra = fullDesc.substring(splitPoint + 1).trim();
                                 // Separamos la categoría del resto de metadata (año, calificación, etc) en el primer |
-                                category = category.replace('|', '<br>|');
-                                return `<span style="color: #a29bfe; font-size: 0.8rem; font-weight: 500; line-height: 1.3;">${category}</span>
-                                    <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
-                                        <span class="material-icons" style="font-size: 1.4rem;">more_vert</span>
-                                    </div>`;
+                                category = category.replace('|', '<br>|');                                return `<div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-top: 6px;">
+                                    <span style="color: var(--primary); font-size: 0.8rem; font-weight: 600; line-height: 1.3; flex: 1;">${category}</span>
+                                    <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #777; padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 10; margin-top: -4px;">
+                                        <span class="material-icons" style="font-size: 1.3rem;">more_vert</span>
+                                    </div>
+                                </div>`;
                             }
-                            // Si no hay ·, procesamos el texto morado completo para separar por el primer |
                             const formattedDesc = fullDesc.replace('|', '<br>|');
-                            return `<span style="color: #a29bfe; font-size: 0.8rem; line-height: 1.3;">${formattedDesc}</span>
-                                    <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #666; padding: 4px; display: flex; align-items: center; justify-content: center; align-self: flex-end; margin-top: -25px; position: relative; z-index: 10;">
-                                        <span class="material-icons" style="font-size: 1.4rem;">more_vert</span>
-                                    </div>`;
+                            return `<div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-top: 6px;">
+                                <span style="color: var(--primary); font-size: 0.8rem; font-weight: 600; line-height: 1.3; flex: 1;">${formattedDesc}</span>
+                                <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #777; padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 10; margin-top: -4px;">
+                                    <span class="material-icons" style="font-size: 1.3rem;">more_vert</span>
+                                </div>
+                            </div>`;
                         })()}
                     </div>
                 </div>
@@ -3012,13 +3014,11 @@ function renderCurrentView() {
                     
                     let rText = certification.toUpperCase();
                     let bgColor = '#333';
-                    let textColor = '#fff';
-                    
-                    if (rText === 'TP' || rText === 'G') bgColor = '#4caf50'; 
-                    else if (rText.includes('7')) bgColor = '#2196f3';
-                    else if (rText.includes('12') || rText.includes('13')) { bgColor = '#ffc107'; textColor = '#000'; }
-                    else if (rText.includes('16')) bgColor = '#ff9800';
-                    else if (rText.includes('18') || rText.includes('R')) bgColor = '#e53935';
+                    let textColor = '#fff';                    if (rText.includes('TP') || rText === 'G' || rText.includes('0') || rText.includes('APTA')) bgColor = '#4caf50'; 
+                    else if (rText.includes('3') || rText.includes('7') || rText.includes('⑦')) bgColor = '#2196f3';
+                    else if (rText.includes('12') || rText.includes('13') || rText.includes('⑫') || rText.includes('⑬')) { bgColor = '#ffc107'; textColor = '#000'; }
+                    else if (rText.includes('16') || rText.includes('⑯')) bgColor = '#ff9800';
+                    else if (rText.includes('18') || rText.includes('R') || rText.includes('⑱')) bgColor = '#e53935';
                     
                     ratingBadge.style.background = bgColor;
                     ratingBadge.style.color = textColor;
@@ -3770,15 +3770,27 @@ function renderCurrentView() {
                         metaInfo = metaInfo.replace(starMatch[0], "").trim();
                     } else if (starFloating) {
                         starFloating.style.display = 'none';
-                    }
-
-                    // Extraer Calificación
+                    }                    // Extraer Calificación con Colores dinámicos (EPG)
                     const ratingMatch = metaInfo.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
                     const ratingBadge = document.getElementById('detail-rating-badge');
                     if (ratingMatch && ratingBadge) {
                         let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
                         ratingBadge.textContent = rText;
                         ratingBadge.style.display = 'block';
+                        
+                        let checkText = rText.toUpperCase();
+                        let bgColor = '#333';
+                        let textColor = '#fff';
+
+                        if (checkText.includes('TP') || checkText.includes('0') || checkText.includes('APTA')) bgColor = '#4caf50';
+                        else if (checkText.includes('3') || checkText.includes('7') || checkText.includes('⑦')) bgColor = '#2196f3';
+                        else if (checkText.includes('12') || checkText.includes('13') || checkText.includes('⑫') || checkText.includes('⑬')) { bgColor = '#ffc107'; textColor = '#000'; }
+                        else if (checkText.includes('16') || checkText.includes('⑯')) bgColor = '#ff9800';
+                        else if (checkText.includes('18') || checkText.includes('⑱')) bgColor = '#e53935';
+
+                        ratingBadge.style.background = bgColor;
+                        ratingBadge.style.color = textColor;
+                        
                         metaInfo = metaInfo.replace(ratingMatch[0], "").trim();
                     }
 
@@ -3786,9 +3798,12 @@ function renderCurrentView() {
                     let category = metaInfo.replace(/\|/g, '').replace(/,\s*$/, '').trim();
 
                     // CONSTRUIR DISEÑO PREMIUM (MISMO QUE VOD)
-                    let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1);">';
+                    let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:20px; background:rgba(255,255,255,0.03); padding:18px; border-radius:16px; border: 1px solid rgba(255,255,255,0.08);">';
                     
-                    if(category) extraMetaHtml += `<div><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block;">Categoría</span><span style="font-size:0.8rem; color:#eee;">${category}</span></div>`;
+                    // Limpiamos etiquetas HTML para evitar colores heredados y forzar el tema premium
+                    const cleanCategory = category.replace(/<[^>]*>?/gm, '');
+                    
+                    if(category) extraMetaHtml += `<div style="display: flex; flex-direction: column; justify-content: center;"><span style="color:var(--primary); font-size:0.65rem; font-weight:800; text-transform:uppercase; display:block; letter-spacing:0.5px; margin-bottom:4px;">Categoría</span><span style="font-size:0.85rem; color:#fff; font-weight:500;">${cleanCategory}</span></div>`;
                     if(foundYear) extraMetaHtml += `<div><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block;">Año</span><span style="font-size:0.8rem; color:#eee;">${foundYear}</span></div>`;
                     
                     // Ficha Técnica (País, Dirección, Reparto, etc.)
