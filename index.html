@@ -2244,14 +2244,12 @@
                 if (/^T\d+/i.test(contentTrim)) {
                     finalColor = 'var(--primary)';
                     lastWasSeason = true;
-                } 
-                // Si es el texto que va justo después de la temporada (letras amarillas/naranjas)
+                }                // Si es el texto que va justo después de la temporada (Azul oscuro sólido sin sombra)
                 else if (lastWasSeason) {
-                    finalColor = 'var(--primary)';
-                    extraStyle = ' text-shadow: 1px 1px 3px rgba(0,0,0,0.8); filter: brightness(0.85);';
+                    finalColor = '#0d47a1';
+                    extraStyle = '';
                     lastWasSeason = false;
-                } 
-                // Resto de colores se mantienen sin alterar
+                } // Resto de colores se mantienen sin alterar
                 else {
                     lastWasSeason = false;
                 }
@@ -3257,13 +3255,11 @@ function renderCurrentView() {
                     const raw = st.title || st.name || "";
                     const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
                     const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
-                    const addonName = st.name || "Addon";
-                    
-                    let qIcon = 'hd';
+                    const addonName = st.name || "Addon";                    let qIcon = 'hd';
                     if(quality === '4K') qIcon = '4k';
-                    else if(quality === '1080p') qIcon = 'high_quality';
+                    else if(quality === 'SD') qIcon = 'sd';
                     
-                    const displayTitle = `<div class="source-pill-title"><span class="material-icons-round" style="font-size: 1.1rem;">${qIcon}</span> ${quality}</div>`;
+                    const displayTitle = `<div class="source-pill-title"><span class="material-icons-round" style="font-size: 1.6rem;">${qIcon}</span></div>`;
                     const displayMeta = `<div class="source-pill-meta">${lang} • ${addonName}</div>`;
                     
                     selectorHtml += `<div class="source-pill ${i === bestIdx ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}">${displayTitle}${displayMeta}</div>`;
@@ -3862,14 +3858,32 @@ function renderCurrentView() {
 
             // Renderizar selector de señales
             let selectorHtml = '';
-            if (sources.length > 1) {
-                selectorHtml = '<div class="source-selector">';            sources.forEach((sourceObj, i) => {
+            if (sources.length > 0) {
+                selectorHtml = '<div class="source-selector" style="width: 100%; margin-bottom: 15px;">';
+                sources.forEach((sourceObj, i) => {
                     const url = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
-                    const info = typeof sourceObj === 'string' ? `Señal ${i+1}` : sourceObj.info;
-                    const isAce = url.startsWith('acestream://');
-                    const aceStyle = isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15); color: #e0aaff;' : '';
-                    const icon = isAce ? '<span class="material-icons" style="font-size: 0.85rem; vertical-align: middle; margin-right: 4px;">bolt</span>' : '';
-                    selectorHtml += `<div class="source-pill ${i === 0 ? 'active' : ''}" style="${aceStyle}; font-size:0.6rem;" onclick="window.changeSource(${i}, '${channelId}')">${icon}${info}</div>`;
+                    const rawInfo = typeof sourceObj === 'string' ? `ENLACE ${i+1}` : sourceObj.info;
+                    
+                    // Extraer metadatos para evitar que todos los botones parezcan iguales
+                    const quality = rawInfo.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                    const lang = rawInfo.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'ES';
+                    // Si hay varios pipes, intentamos sacar el nombre del addon o servidor
+                    const provider = rawInfo.split('|').length > 1 ? rawInfo.split('|').pop().trim() : `Señal ${i+1}`;
+                    
+                    const isAce = url.startsWith('acestream://');                    let qIcon = 'hd';
+                    if(quality === '4K') qIcon = '4k';
+                    else if(quality === 'SD') qIcon = 'sd';
+
+                    selectorHtml += `
+                        <div class="source-pill ${i === 0 ? 'active' : ''}" 
+                             style="${isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15);' : ''}"
+                             onclick="window.changeSource(${i}, '${channelId}')">
+                            <div class="source-pill-title" style="display:flex; align-items:center; gap:4px;">
+                                ${isAce ? '<span class="material-icons-round" style="font-size: 1rem; color:#9d4edd;">bolt</span>' : ''}
+                                <span class="material-icons-round" style="font-size: 1.6rem;">${qIcon}</span>
+                            </div>
+                            <div class="source-pill-meta">${lang} • ${provider}</div>
+                        </div>`;
                 });
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
