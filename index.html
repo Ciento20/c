@@ -2592,8 +2592,32 @@ function renderCurrentView() {
                     </div>
                 </div>
                 ${item.channelIcon ? `
-                <div style="position: absolute; top: 0; right: 0; z-index: 10;">
+                <div style="position: absolute; top: 0; right: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <img loading="lazy" src="${item.channelIcon}" style="height: 28px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));">
+                    ${(() => {
+                        const desc = item.description || '';
+                        const scoreMatch = desc.match(/★\s?(\d+(\.\d+)?)/);
+                        const ratingMatch = desc.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
+                        
+                        let html = '';
+                        if (scoreMatch) {
+                            html += `<div style="background: rgba(0,0,0,0.7); color: #f1c40f; font-size: 0.7rem; font-weight: 800; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px);">${scoreMatch[0]}</div>`;
+                        }
+                        
+                        if (ratingMatch) {
+                            let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
+                            let checkText = rText.toUpperCase();
+                            let bgColor = '#333';
+                            if (checkText.includes('TP') || checkText.includes('0')) bgColor = '#4caf50';
+                            else if (/[37]/.test(checkText) || checkText.includes('⑦')) bgColor = '#2196f3';
+                            else if (/1[23]/.test(checkText) || /[⑫⑬]/.test(checkText)) bgColor = '#ffc107';
+                            else if (checkText.includes('16') || checkText.includes('⑯')) bgColor = '#ff9800';
+                            else if (checkText.includes('18') || checkText.includes('⑱')) bgColor = '#e53935';
+                            
+                            html += `<div style="background: ${bgColor}; color: ${bgColor === '#ffc107' ? '#000' : '#fff'}; font-size: 0.6rem; font-weight: 900; padding: 1px 5px; border-radius: 4px; min-width: 22px; text-align: center; border: 1px solid rgba(255,255,255,0.1);">${rText}</div>`;
+                        }
+                        return html;
+                    })()}
                 </div>` : ''}
             </div>
 
@@ -2603,25 +2627,36 @@ function renderCurrentView() {
                     <img loading="lazy" src="${item.iconSrc || item.channelIcon}" 
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
                          onerror="this.src='${item.channelIcon}'; this.style.padding='15px';">
-                </div>
-
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 2px;">
-                    <div style="font-size: 0.95rem; font-weight: 800; color: #fff; margin-bottom: 4px;">
-                        ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.75rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
+                </div>                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 2px;">
+                    <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${(() => {
+                            const fullDesc = processColoredText(item.description);
+                            const splitPoint = fullDesc.indexOf('·');
+                            let category = (splitPoint !== -1) ? fullDesc.substring(0, splitPoint).trim() : fullDesc;
+                            
+                            // Extraer año para diferenciarlo visualmente
+                            const yearMatch = category.match(/\b(19|20)\d{2}\b/);
+                            const year = yearMatch ? yearMatch[0] : "";
+                            
+                            // Limpiar categoría de estrellas, etiquetas de edad y el año extraído
+                            category = category.replace(/★\s?[\d./]+/g, '');
+                            category = category.replace(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/g, '');
+                            if (year) category = category.replace(year, '');
+                            
+                            const cleanCat = category.replace(/\|/g, '').replace(/<[^>]*>?/gm, '').trim();
+                            
+                            return `<span style="color: var(--primary);">${cleanCat || 'Evento'}</span> 
+                                    ${year ? `<span style="color: #fff; opacity: 0.35; font-size: 0.75rem; font-weight: 500; margin-left: 6px;">${year}</span>` : ''}`;
+                        })()}
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                        <div style="color: var(--primary); font-size: 0.85rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
-                            ${(() => {
-                                const fullDesc = processColoredText(item.description);
-                                const splitPoint = fullDesc.indexOf('·');
-                                let category = (splitPoint !== -1) ? fullDesc.substring(0, splitPoint).trim() : fullDesc;
-                                return category.replace(/\|/g, '').trim() || '&nbsp;';
-                            })()}
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 0.95rem; font-weight: 800; color: #fff;">
+                            ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.75rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
                         </div>
 
                         <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" 
-                             style="cursor: pointer; color: #fff; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                             style="cursor: pointer; color: #fff; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                             <span class="material-icons" style="font-size: 1.2rem;">more_vert</span>
                         </div>
                     </div>
