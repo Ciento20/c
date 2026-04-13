@@ -2597,30 +2597,6 @@ function renderCurrentView() {
                 ${item.channelIcon ? `
                 <div style="position: absolute; top: 0; right: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <img loading="lazy" src="${item.channelIcon}" style="height: 28px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));">
-                    ${(() => {
-                        const desc = item.description || '';
-                        const scoreMatch = desc.match(/★\s?(\d+(\.\d+)?)/);
-                        const ratingMatch = desc.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
-                        
-                        let html = '';
-                        if (scoreMatch) {
-                            html += `<div style="background: rgba(0,0,0,0.7); color: #f1c40f; font-size: 0.7rem; font-weight: 800; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px);">${scoreMatch[0]}</div>`;
-                        }
-                        
-                        if (ratingMatch) {
-                            let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
-                            let checkText = rText.toUpperCase();
-                            let bgColor = '#333';
-                            if (checkText.includes('TP') || checkText.includes('0')) bgColor = '#4caf50';
-                            else if (/[37]/.test(checkText) || checkText.includes('⑦')) bgColor = '#2196f3';
-                            else if (/1[23]/.test(checkText) || /[⑫⑬]/.test(checkText)) bgColor = '#ffc107';
-                            else if (checkText.includes('16') || checkText.includes('⑯')) bgColor = '#ff9800';
-                            else if (checkText.includes('18') || checkText.includes('⑱')) bgColor = '#e53935';
-                            
-                            html += `<div style="background: ${bgColor}; color: ${bgColor === '#ffc107' ? '#000' : '#fff'}; font-size: 0.6rem; font-weight: 900; padding: 1px 5px; border-radius: 4px; min-width: 22px; text-align: center; border: 1px solid rgba(255,255,255,0.1);">${rText}</div>`;
-                        }
-                        return html;
-                    })()}
                 </div>` : ''}
             </div>
 
@@ -2631,31 +2607,61 @@ function renderCurrentView() {
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
                          onerror="this.src='${item.channelIcon}'; this.style.padding='15px';">
                 </div>                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 2px;">
+                    ${(() => {
+                        const fullDesc = item.description || '';
+                        const scoreMatch = fullDesc.match(/★\s?(\d+(\.\d+)?)/);
+                        const yearMatch = fullDesc.match(/\b(19|20)\d{2}\b/);
+                        const ratingMatch = fullDesc.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
+                        
+                        const yearHtml = yearMatch ? `<span style="color: #fff; opacity: 0.4;">${yearMatch[0]}</span>` : '';
+                        
+                        let ratingHtml = '';
+                        if (ratingMatch) {
+                            let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
+                            let checkText = rText.toUpperCase();
+                            let bgColor = '#333';
+                            if (checkText.includes('TP') || checkText.includes('0')) bgColor = '#4caf50';
+                            else if (/[37]/.test(checkText) || checkText.includes('⑦')) bgColor = '#2196f3';
+                            else if (/1[23]/.test(checkText) || /[⑫⑬]/.test(checkText)) bgColor = '#ffc107';
+                            else if (checkText.includes('16') || checkText.includes('⑯')) bgColor = '#ff9800';
+                            else if (checkText.includes('18') || checkText.includes('⑱')) bgColor = '#e53935';
+                            ratingHtml = `<span style="background: ${bgColor}; color: ${bgColor === '#ffc107' ? '#000' : '#fff'}; font-size: 0.55rem; font-weight: 900; padding: 1px 4px; border-radius: 3px; margin-left: 8px; border: 1px solid rgba(255,255,255,0.1); vertical-align: middle;">${rText}</span>`;
+                        }
+
+                        const scoreHtml = scoreMatch ? `<span style="color: #f1c40f; margin-left: 8px;">${scoreMatch[0]}</span>` : '';
+                        
+                        return (yearHtml || ratingHtml || scoreHtml) ? `<div style="font-size: 0.75rem; font-weight: 800; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center;">${yearHtml}${ratingHtml}${scoreHtml}</div>` : '';
+                    })()}
                     <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         ${(() => {
                             const fullDesc = processColoredText(item.description);
                             const splitPoint = fullDesc.indexOf('·');
                             let category = (splitPoint !== -1) ? fullDesc.substring(0, splitPoint).trim() : fullDesc;
                             
-                            // Extraer año para diferenciarlo visualmente
+                            // Extraer año para limpieza
                             const yearMatch = category.match(/\b(19|20)\d{2}\b/);
                             const year = yearMatch ? yearMatch[0] : "";
                             
-                            // Limpiar categoría de estrellas, etiquetas de edad y el año extraído
                             category = category.replace(/★\s?[\d./]+/g, '');
                             category = category.replace(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/g, '');
-                            if (year) category = category.replace(year, '');
+                            if (year) category = category.replace(year, '');                            
                             
                             const cleanCat = category.replace(/\|/g, '').replace(/<[^>]*>?/gm, '').trim();
+                            let mainCat = cleanCat || 'Evento';
+                            let subCat = '';
+                            if (cleanCat.includes(',')) {
+                                const parts = cleanCat.split(',');
+                                mainCat = parts[0].trim();
+                                subCat = `<span style="color: #3b82f6; font-weight: 700; margin-left: 4px;">${parts.slice(1).join(',').trim()}</span>`;
+                            }
                             
-                            return `<span style="color: var(--primary);">${cleanCat || 'Evento'}</span> 
-                                    ${year ? `<span style="color: #fff; opacity: 0.35; font-size: 0.75rem; font-weight: 500; margin-left: 6px;">${year}</span>` : ''}`;
+                            return `<span style="color: var(--primary);">${mainCat}</span>${subCat}`;
                         })()}
                     </div>
                     
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-size: 0.95rem; font-weight: 800; color: #fff;">
-                            ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.75rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: #fff;">
+                            ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.65rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
                         </div>
 
                         <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" 
