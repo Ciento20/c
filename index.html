@@ -138,12 +138,13 @@
             color: var(--color-text-dark);
             font-size: 0.95em;
             cursor: text;
-        }
-
-        input[type="text"]:focus,
+        }        input[type="text"]:focus,
         select:focus {
             outline: none;
-            border-color: var(--color-primary);
+            border-color: var(--primary);
+            /* Añadimos un anillo de enfoque suave (ring) para que los inputs se sientan más modernos y táctiles */
+            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.25);
+            background-color: var(--bg-ui);
         }
 
         button {
@@ -211,18 +212,15 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(180deg, rgba(0,0,0,0) 20%, rgba(0,0,0,0.4) 50%, rgba(10,12,16,1) 100%);
+            /* Oscurecemos el fondo aumentando la opacidad de los negros para que las imágenes sean más opacas */
+            background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.8) 50%, rgba(5,5,5,1) 100%);
             z-index: 1;
             pointer-events: none;
-        }
-
-        .program-card:hover {
+        }        .program-card:hover {
             transform: translateY(-4px) scale(1.02);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--primary);
-        }
-
-        .program-card:hover {
-            box-shadow: 0 4px 16px rgba(0, 229, 255, 0.6);
+            /* Unificamos el foco: eliminamos el cian genérico y aplicamos un resplandor basado en el color primario de la marca */
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--primary), 0 0 20px rgba(var(--primary-rgb), 0.4);
+            z-index: 10;
         }        /* Estilos Vista Canales (Estilo App Moderna) */        .channel-row-modern {
             background: var(--bg-surface);
             border-radius: 18px;
@@ -244,14 +242,10 @@
         .channel-logo-modern {
             width: 54px;
             height: 54px;
-            background: #000;
-            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            padding: 5px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
         .channel-logo-modern img {
             max-width: 100%;
@@ -1682,15 +1676,30 @@
                     const row = document.createElement('div');
                     row.className = 'poster-carousel';
                     row.style.margin = "0 -16px";
-                    row.style.padding = "0 16px";
-
-                    filteredMetas.forEach(meta => {
+                    row.style.padding = "0 16px";                    filteredMetas.forEach(meta => {
                         if (cat.priority < 10) shownInTopCategories.add(meta.id);
                         const card = document.createElement('div');
                         card.className = 'poster-card';
                         card.onclick = () => openStremioDetails(meta, cat.baseUrl);
-                        // OPTIMIZACIÓN TV: Cambiamos backgroundImage por <img> lazy load
-                        card.innerHTML = `<img loading="lazy" src="${meta.poster}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;"><div class="poster-info" style="z-index:2;"></div>`;
+
+                        const genre = Array.isArray(meta.genres) ? meta.genres[0] : '';
+                        const year = meta.releaseInfo || meta.year || '';
+                        const runtime = meta.runtime || '';
+                        const rating = meta.imdbRating ? `★${meta.imdbRating}` : '';
+                        const director = meta.director ? (Array.isArray(meta.director) ? meta.director[0] : meta.director) : '';
+
+                        card.innerHTML = `
+                            <img loading="lazy" src="${meta.poster}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;">
+                            ${rating ? `<div style="position:absolute; top:5px; left:5px; z-index:10; background:rgba(0,0,0,0.85); padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:800; color:#f1c40f; backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.1);">${rating}</div>` : ''}
+                            ${genre ? `<div style="position:absolute; top:5px; right:5px; z-index:10; background:var(--primary); color:#000; padding:1px 4px; border-radius:4px; font-size:0.52rem; font-weight:900; text-transform:uppercase; letter-spacing:0.2px; box-shadow:0 2px 6px rgba(0,0,0,0.6);">${genre}</div>` : ''}
+                            <div class="poster-info" style="z-index:2; height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:2px 5px; box-sizing:border-box; gap:0px; text-align: left;">
+                                <div style="display:flex; flex-direction:column; gap:0px; transform: scale(0.9); transform-origin: left bottom; margin-left: -2px;">
+                                    <div style="display:flex; justify-content:flex-start; align-items:center; font-size:0.6rem; font-weight:800; color:#fff; text-shadow: 0 1px 4px rgba(0,0,0,1);">
+                                        <span>${year}${runtime ? ' • ' + runtime : ''}</span>
+                                    </div>
+                                    ${director ? `<div style="font-size:0.5rem; color:#ddd; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow: 0 1px 3px rgba(0,0,0,1);">${director}</div>` : ''}
+                                </div>
+                            </div>`;
                         row.appendChild(card);
                     });
                     section.appendChild(row);
@@ -1823,7 +1832,7 @@
                 if (bgImage) card.style.backgroundImage = `url('${bgImage}')`;
 
                 card.innerHTML = `
-                    <div style="position: absolute; inset: 0; background: linear-gradient(to top, #000000 0%, rgba(0,0,0,0.7) 40%, transparent 100%); z-index: 1; pointer-events: none;"></div>
+                    <div style="position: absolute; inset: 0; background: linear-gradient(to top, #000000 0%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.4) 100%); z-index: 1; pointer-events: none;"></div>
                     <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px;">
                         <div style="font-size: 0.95rem; color: #ffffff; font-weight: 700; line-height: 1.3; margin-bottom: 8px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${processColoredText(prog.title)}</div>
                         
@@ -2558,64 +2567,63 @@ function renderCurrentView() {
                 card.className = 'program-card';
                 card.style.cursor = 'pointer';
                 card.onclick = (e) => {
-                    // Al pulsar la tarjeta, reproduce directamente el canal
                     if (!e.target.closest('.details-btn')) {
                         openProgramDetails(item.channel, item.start, item.date, true);
                     }
-                };                // Lógica de Fondo: Si no hay iconSrc2, aplicamos mosaico del logo del canal
+                };
                 if (item.iconSrc2) {
                     card.style.backgroundImage = `url('${item.iconSrc2}')`;
                     card.style.backgroundSize = 'cover';
                 } else if (item.channelIcon) {
                     card.style.backgroundImage = `url('${item.channelIcon}')`;
-                    card.style.backgroundSize = '75px'; // Tamaño del patrón
+                    card.style.backgroundSize = '75px'; 
                     card.style.backgroundRepeat = 'repeat';
-                    card.style.backgroundColor = '#0a0c10'; // Fondo oscuro base
-                    card.style.backgroundBlendMode = 'overlay';
-                    card.style.opacity = '0.9';
+                    card.style.backgroundColor = '#0a0c10'; 
+                    card.style.backgroundBlendMode = 'multiply';
+                    card.style.opacity = '0.7';
                 }
 
-                card.innerHTML = `          ${item.channelIcon ? `
-            <div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 6px 10px; border-radius: 8px; backdrop-filter: blur(8px); z-index: 10; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                <img loading="lazy" src="${item.channelIcon}" style="height: 22px; width: auto; max-width: 65px; display: block; object-fit: contain;">
-            </div>` : ''}
-
-          <div style="position: relative; z-index: 2; margin-bottom: 15px; padding-right: 80px;">                <div class="title" style="font-size: 0.88rem; color: #ffffff; font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;">${processColoredText(item.title)}</div>
+                card.innerHTML = `
+            
+            <div style="position: absolute; top: 16px; left: 16px; right: 16px; z-index: 3; display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex: 1; padding-right: 80px;">
+                    <div class="title" style="font-size: 0.95rem; color: #fff; font-weight: 700; line-height: 1.2; text-shadow: 0 2px 4px rgba(0,0,0,0.8); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+                        ${processColoredText(item.title)}
+                    </div>
+                </div>
+                ${item.channelIcon ? `
+                <div style="position: absolute; top: 0; right: 0; z-index: 10;">
+                    <img loading="lazy" src="${item.channelIcon}" style="height: 28px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));">
+                </div>` : ''}
             </div>
-          
-            <div style="display: flex; gap: 20px; position: relative; z-index: 2; align-items: stretch; flex-grow: 1; height: 100%;">                <div style="align-self: flex-start; position: relative; flex-shrink: 0; width: 85px; height: 120px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 25px rgba(0, 0, 0, 0.7); background: #000; display: flex; align-items: center; justify-content: center;">
+
+            
+            <div style="position: absolute; bottom: 16px; left: 16px; right: 16px; height: 120px; display: flex; gap: 16px; align-items: flex-end; z-index: 2;">
+                <div style="width: 85px; height: 120px; border-radius: 12px; overflow: hidden; flex-shrink: 0; box-shadow: 0 5px 15px rgba(0,0,0,0.8); background: #000; border: 1px solid rgba(255,255,255,0.1);">
                     <img loading="lazy" src="${item.iconSrc || item.channelIcon}" 
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
-                         onerror="this.src='${item.channelIcon}'; this.style.padding='15px'; this.style.objectFit='contain';">
+                         onerror="this.src='${item.channelIcon}'; this.style.padding='15px';">
                 </div>
-                
-                
-                <div style="display: flex; flex-direction: column; justify-content: flex-end; flex-grow: 1; margin-bottom: -10px; padding-bottom: 0;">
-                    <div style="font-size: 0.92rem; font-weight: 700; color: #fff;">
-                        ${item.start} - ${item.stop} <span style="color: #999; font-size: 0.72rem; font-weight: 400; margin-left: 8px;">(${item.duration})</span>
+
+                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 2px;">
+                    <div style="font-size: 0.95rem; font-weight: 800; color: #fff; margin-bottom: 4px;">
+                        ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.75rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
-                        ${(() => {
-                            const fullDesc = processColoredText(item.description);
-                            const splitPoint = fullDesc.indexOf('·');                            if (splitPoint !== -1) {
-                                let category = fullDesc.substring(0, splitPoint).trim();
-                                const extra = fullDesc.substring(splitPoint + 1).trim();
-                                // Separamos la categoría del resto de metadata (año, calificación, etc) en el primer |
-                                category = category.replace('|', '<br>|');                                return `<div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-top: 6px;">
-                                    <span style="color: var(--primary); font-size: 0.8rem; font-weight: 600; line-height: 1.3; flex: 1;">${category}</span>
-                                    <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #777; padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 10; margin-top: -4px;">
-                                        <span class="material-icons" style="font-size: 1.3rem;">more_vert</span>
-                                    </div>
-                                </div>`;
-                            }
-                            const formattedDesc = fullDesc.replace('|', '<br>|');
-                            return `<div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-top: 6px;">
-                                <span style="color: var(--primary); font-size: 0.8rem; font-weight: 600; line-height: 1.3; flex: 1;">${formattedDesc}</span>
-                                <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" style="cursor: pointer; color: #777; padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 10; margin-top: -4px;">
-                                    <span class="material-icons" style="font-size: 1.3rem;">more_vert</span>
-                                </div>
-                            </div>`;
-                        })()}
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                        <div style="color: var(--primary); font-size: 0.85rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
+                            ${(() => {
+                                const fullDesc = processColoredText(item.description);
+                                const splitPoint = fullDesc.indexOf('·');
+                                let category = (splitPoint !== -1) ? fullDesc.substring(0, splitPoint).trim() : fullDesc;
+                                return category.replace(/\|/g, '').trim() || '&nbsp;';
+                            })()}
+                        </div>
+
+                        <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" 
+                             style="cursor: pointer; color: #fff; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <span class="material-icons" style="font-size: 1.2rem;">more_vert</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5121,7 +5129,7 @@ function renderCurrentView() {
             </div>
         </div>        <div style="padding: 0 16px;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Ahora en Deportes</h3>
-            <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 10px; margin: 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
+            <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-top: 15px; padding-bottom: 15px; margin: -15px -16px 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
         </div>        <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Por Deporte</h3>
             <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
