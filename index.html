@@ -3348,6 +3348,8 @@ function renderCurrentView() {
                                     video.removeEventListener('playing', removeBlackout);
                                 };
                                 video.addEventListener('playing', removeBlackout);
+                                // Seguro de limpieza: si el vídeo no arranca, quitar el negro tras 4s
+                                setTimeout(removeBlackout, 4000);
                                 
                                 await new Promise(r => setTimeout(r, 1400));
                             }
@@ -3943,6 +3945,8 @@ function renderCurrentView() {
                             video.removeEventListener('playing', removeBlackoutTV);
                         };
                         video.addEventListener('playing', removeBlackoutTV);
+                        // Seguro de limpieza: quitar fondo negro tras 4s para evitar bloqueo
+                        setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
                     }
