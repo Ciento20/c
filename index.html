@@ -205,6 +205,7 @@
             margin: 12px auto;
             background-size: cover;
             background-position: center;
+            background-repeat: no-repeat; /* Evita el efecto de repetición/corte en los bordes */
             transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
         }
 
@@ -2574,6 +2575,8 @@ function renderCurrentView() {
                 if (item.iconSrc2) {
                     card.style.backgroundImage = `url('${item.iconSrc2}')`;
                     card.style.backgroundSize = 'cover';
+                    card.style.backgroundRepeat = 'no-repeat';
+                    card.style.backgroundPosition = 'center';
                 } else if (item.channelIcon) {
                     card.style.backgroundImage = `url('${item.channelIcon}')`;
                     card.style.backgroundSize = '75px'; 
