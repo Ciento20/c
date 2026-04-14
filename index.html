@@ -57,20 +57,19 @@
             }
             window.fbAuth = firebase.auth();
             window.fbDB   = firebase.firestore();
-            _fbReady = true;
-
-            window.fbAuth.onAuthStateChanged(async (user) => {
+            _fbReady = true;            window.fbAuth.onAuthStateChanged(async (user) => {
                 window.fbUser = user;
+                // Actualizamos la UI de inmediato para quitar el estado "Entrando..."
+                _fbUpdateAccountUI();
+                
                 if (user) {
-                    // Si venimos de un login manual, marcar para recargar tras sync
                     const needsReload = !!_realLS.getItem('_fbLoginJustHappened');
                     _realLS.removeItem('_fbLoginJustHappened');
-                    await _fbLoadUserData(needsReload);
-                    _fbStartSync();
+                    // Cargamos datos en segundo plano sin bloquear el hilo principal
+                    _fbLoadUserData(needsReload).then(() => _fbStartSync());
                 } else {
                     if (_syncUnsubscribe) { _syncUnsubscribe(); _syncUnsubscribe = null; }
                 }
-                _fbUpdateAccountUI();
             });
 
             console.log('[FB] Firebase inicializado ✓');
@@ -177,13 +176,11 @@
         if (!_fbReady) return alert('Firebase no configurado. Introduce tus credenciales primero.');
         try { await window.fbAuth.signInAnonymously(); showFbToast('Sesión anónima iniciada ✓'); }
         catch(e) { alert('Error: ' + e.message); }
-    };
-
-    window.fbSignUp = async (email, pass) => {
+    };    window.fbSignUp = async (email, pass, ev) => {
         if (!_fbReady) return alert('⚠️ Primero debes configurar y conectar Firebase.');
         if (!email || !pass) return alert('Introduce email y contraseña.');
         
-        const btn = event.target.closest('button');
+        const btn = ev ? ev.target.closest('button') : event.target.closest('button');
         const originalText = btn.innerHTML;
 
         try {
@@ -200,13 +197,11 @@
             _realLS.removeItem('_fbLoginJustHappened');
             alert('❌ Error al crear cuenta: ' + e.message);
         }
-    };
-
-    window.fbSignIn = async (email, pass) => {
+    };    window.fbSignIn = async (email, pass, ev) => {
         if (!_fbReady) return alert('⚠️ Primero debes configurar y conectar Firebase en el panel superior.');
         if (!email || !pass) return alert('Introduce email y contraseña.');
         
-        const btn = event.target.closest('button');
+        const btn = ev ? ev.target.closest('button') : event.target.closest('button');
         const originalText = btn.innerHTML;
         
         try {
