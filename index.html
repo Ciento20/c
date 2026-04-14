@@ -100,11 +100,21 @@
         try {
             const snap = await window.fbDB.collection('users').doc(window.fbUser.uid)
                 .collection('data').get();
+            if (snap.empty) return; // nada en la nube, no recargar
+            let changed = false;
             snap.forEach(doc => {
                 const val = doc.data().value;
-                if (val !== undefined && val !== null) _realLS.setItem(doc.id, val);
+                if (val !== undefined && val !== null) {
+                    const current = _realLS.getItem(doc.id);
+                    if (current !== val) { _realLS.setItem(doc.id, val); changed = true; }
+                }
             });
             console.log('[FB] Datos cargados desde la nube ✓');
+            // Recargar solo si hubo cambios para que la app los lea en memoria
+            if (changed) {
+                _realLS.setItem('_fbJustSynced', '1');
+                window.location.reload();
+            }
         } catch(e) { console.warn('[FB] loadUserData error:', e); }
     }
 
@@ -288,6 +298,11 @@
     document.addEventListener('DOMContentLoaded', () => {
         _fbUpdateConfigUI();
         _fbUpdateAccountUI();
+        // Mostrar toast si venimos de una recarga por sincronización
+        if (_realLS.getItem('_fbJustSynced') === '1') {
+            _realLS.removeItem('_fbJustSynced');
+            setTimeout(() => showFbToast('✓ Datos sincronizados desde la nube'), 800);
+        }
     });
     </script>
     <meta name="theme-color" content="#0a0c10" />
