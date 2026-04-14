@@ -29,6 +29,8 @@
     window.fbDB   = null;
     let _syncUnsubscribe = null;
     let _fbReady = false;
+    // Flag para evitar que el proxy suba datos mientras cargamos desde la nube
+    let _fbIgnoreProxy = false;
 
     // ── Proxy localStorage ───────────────────────────────
     const _realLS = window.localStorage;
@@ -36,7 +38,7 @@
         getItem(k)    { return _realLS.getItem(k); },
         setItem(k, v) {
             _realLS.setItem(k, v);
-            if (_fbReady && window.fbUser && SYNC_KEYS.includes(k)) _fbSetKey(k, v);
+            if (_fbReady && window.fbUser && !_fbIgnoreProxy && SYNC_KEYS.includes(k)) _fbSetKey(k, v);
         },
         removeItem(k) { _realLS.removeItem(k); },
         get length()  { return _realLS.length; },
@@ -48,11 +50,10 @@
     // ── Inicializa Firebase con el config guardado ───────
     function _fbInit(config) {
         try {
-            // Evitar doble inicialización
             if (!firebase.apps.length) {
                 firebase.initializeApp(config);
             } else {
-                firebase.app(); // usa la app existente
+                firebase.app();
             }
             window.fbAuth = firebase.auth();
             window.fbDB   = firebase.firestore();
@@ -61,7 +62,10 @@
             window.fbAuth.onAuthStateChanged(async (user) => {
                 window.fbUser = user;
                 if (user) {
-                    await _fbLoadUserData();
+                    // Si venimos de un login manual, marcar para recargar tras sync
+                    const needsReload = !!_realLS.getItem('_fbLoginJustHappened');
+                    _realLS.removeItem('_fbLoginJustHappened');
+                    await _fbLoadUserData(needsReload);
                     _fbStartSync();
                 } else {
                     if (_syncUnsubscribe) { _syncUnsubscribe(); _syncUnsubscribe = null; }
@@ -95,41 +99,64 @@
         } catch(e) { console.warn('[FB] setKey error:', e); }
     }
 
-    async function _fbLoadUserData() {
+    // needsReload: true cuando el usuario acaba de hacer login y hay que aplicar los datos en memoria
+    async function _fbLoadUserData(needsReload) {
         if (!window.fbUser || !window.fbDB) return;
         try {
             const snap = await window.fbDB.collection('users').doc(window.fbUser.uid)
                 .collection('data').get();
-            if (snap.empty) return; // nada en la nube, no recargar
+            if (snap.empty) {
+                console.log('[FB] Sin datos en la nube todavía');
+                return;
+            }
             let changed = false;
+            _fbIgnoreProxy = true; // no resubir lo que estamos bajando
             snap.forEach(doc => {
                 const val = doc.data().value;
                 if (val !== undefined && val !== null) {
-                    const current = _realLS.getItem(doc.id);
-                    if (current !== val) { _realLS.setItem(doc.id, val); changed = true; }
+                    if (_realLS.getItem(doc.id) !== val) {
+                        _realLS.setItem(doc.id, val);
+                        changed = true;
+                    }
                 }
             });
+            _fbIgnoreProxy = false;
             console.log('[FB] Datos cargados desde la nube ✓');
-            // Recargar solo si hubo cambios para que la app los lea en memoria
-            if (changed) {
+            if (needsReload && changed) {
                 _realLS.setItem('_fbJustSynced', '1');
                 window.location.reload();
             }
-        } catch(e) { console.warn('[FB] loadUserData error:', e); }
+        } catch(e) {
+            _fbIgnoreProxy = false;
+            console.warn('[FB] loadUserData error:', e);
+        }
     }
 
     function _fbStartSync() {
         if (_syncUnsubscribe) _syncUnsubscribe();
         if (!window.fbUser || !window.fbDB) return;
+        let firstSnapshot = true; // el primer snapshot es el estado inicial, no un cambio externo
         _syncUnsubscribe = window.fbDB.collection('users').doc(window.fbUser.uid)
             .collection('data')
             .onSnapshot(snap => {
+                if (firstSnapshot) { firstSnapshot = false; return; } // ignorar snapshot inicial
+                let changed = false;
+                _fbIgnoreProxy = true;
                 snap.docChanges().forEach(change => {
                     if (change.type === 'modified' || change.type === 'added') {
                         const val = change.doc.data().value;
-                        if (val !== undefined && val !== null) _realLS.setItem(change.doc.id, val);
+                        if (val !== undefined && val !== null) {
+                            if (_realLS.getItem(change.doc.id) !== val) {
+                                _realLS.setItem(change.doc.id, val);
+                                changed = true;
+                            }
+                        }
                     }
                 });
+                _fbIgnoreProxy = false;
+                if (changed) {
+                    showFbToast('☁️ Datos actualizados desde otro dispositivo');
+                }
             }, err => console.warn('[FB] sync error:', err));
     }
 
@@ -153,18 +180,49 @@
     };
 
     window.fbSignUp = async (email, pass) => {
-        if (!_fbReady) return alert('Firebase no configurado.');
+        if (!_fbReady) return alert('⚠️ Primero debes configurar y conectar Firebase.');
+        if (!email || !pass) return alert('Introduce email y contraseña.');
+        
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+
         try {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite; font-size:1.2rem;">sync</span> Creando...';
+            
+            _realLS.setItem('_fbLoginJustHappened', '1');
             await window.fbAuth.createUserWithEmailAndPassword(email, pass);
             await fbPushLocalToCloud();
             showFbToast('Cuenta creada y datos sincronizados ✓');
-        } catch(e) { alert('Error: ' + e.message); }
+        } catch(e) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            _realLS.removeItem('_fbLoginJustHappened');
+            alert('❌ Error al crear cuenta: ' + e.message);
+        }
     };
 
     window.fbSignIn = async (email, pass) => {
-        if (!_fbReady) return alert('Firebase no configurado.');
-        try { await window.fbAuth.signInWithEmailAndPassword(email, pass); showFbToast('Sesión iniciada ✓'); }
-        catch(e) { alert('Error: ' + e.message); }
+        if (!_fbReady) return alert('⚠️ Primero debes configurar y conectar Firebase en el panel superior.');
+        if (!email || !pass) return alert('Introduce email y contraseña.');
+        
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite; font-size:1.2rem;">sync</span> Entrando...';
+            
+            _realLS.setItem('_fbLoginJustHappened', '1');
+            await window.fbAuth.signInWithEmailAndPassword(email, pass);
+            showFbToast('Sesión iniciada correctamente ✓');
+        } catch(e) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            _realLS.removeItem('_fbLoginJustHappened');
+            console.error(e);
+            alert('❌ Error: ' + e.message);
+        }
     };
 
     window.fbSignOut = async () => {
@@ -175,6 +233,7 @@
 
     window.fbLinkEmail = async (email, pass) => {
         if (!window.fbUser || !window.fbUser.isAnonymous) return;
+        if (!email || !pass) return alert('Introduce email y contraseña.');
         const cred = firebase.auth.EmailAuthProvider.credential(email, pass);
         try {
             await window.fbUser.linkWithCredential(cred);
@@ -184,8 +243,10 @@
     };
 
     window.fbForceSync = async () => {
+        if (!window.fbUser) return alert('No hay sesión activa.');
+        showFbToast('Sincronizando…', '#555');
         await fbPushLocalToCloud();
-        showFbToast('Datos sincronizados ✓');
+        showFbToast('✓ Datos subidos a la nube');
     };
 
     // ── Guardar credenciales desde la UI y conectar ──────
@@ -241,8 +302,6 @@
         const cfgSaved = document.getElementById('fb-config-saved');
         if (cfgForm)  cfgForm.style.display  = hasCfg ? 'none' : 'block';
         if (cfgSaved) cfgSaved.style.display = hasCfg ? 'block' : 'none';
-
-        // Rellenar campos si hay config guardada (para editar)
         if (hasCfg) {
             try {
                 const cfg = JSON.parse(_realLS.getItem('firebaseConfig'));
@@ -253,12 +312,19 @@
     }
 
     // ── Actualiza el panel de cuenta ──────────────────────
+    // IDs usados (únicos en el DOM tras el fix del HTML):
+    //   fb-no-auth        → wrapper visible cuando no hay sesión
+    //   fb-anon-section   → botón sesión anónima
+    //   fb-login-section  → formulario login/registro (sin sesión)
+    //   fb-link-section   → formulario vincular email (sesión anónima)
+    //   fb-linked-section → botones sync/logout (sesión con email)
     function _fbUpdateAccountUI() {
         const u = window.fbUser;
         const status    = document.getElementById('fb-account-status');
         const noAuth    = document.getElementById('fb-no-auth');
         const anonUI    = document.getElementById('fb-anon-section');
-        const emailUI   = document.getElementById('fb-email-section');
+        const loginUI   = document.getElementById('fb-login-section');
+        const linkUI    = document.getElementById('fb-link-section');
         const linkedUI  = document.getElementById('fb-linked-section');
         const noCfgMsg  = document.getElementById('fb-no-config-msg');
 
@@ -266,8 +332,7 @@
             if (status)   status.innerHTML = '<span style="color:#666;">Sin configurar</span>';
             if (noCfgMsg) noCfgMsg.style.display = 'block';
             if (noAuth)   noAuth.style.display = 'none';
-            if (anonUI)   anonUI.style.display = 'none';
-            if (emailUI)  emailUI.style.display = 'none';
+            if (linkUI)   linkUI.style.display = 'none';
             if (linkedUI) linkedUI.style.display = 'none';
             return;
         }
@@ -277,20 +342,19 @@
             if (status)   status.innerHTML = '<span style="color:#666;">Sin sesión</span>';
             if (noAuth)   noAuth.style.display = 'block';
             if (anonUI)   anonUI.style.display = 'block';
-            if (emailUI)  emailUI.style.display = 'block';
+            if (loginUI)  loginUI.style.display = 'block';
+            if (linkUI)   linkUI.style.display = 'none';
             if (linkedUI) linkedUI.style.display = 'none';
         } else if (u.isAnonymous) {
             if (status)   status.innerHTML = `<span style="color:#f1c40f;">⚡ Anónimo</span> <span style="color:#555;font-size:0.75rem;">${u.uid.slice(0,8)}…</span>`;
             if (noAuth)   noAuth.style.display = 'none';
-            if (anonUI)   anonUI.style.display = 'none';
-            if (emailUI)  emailUI.style.display = 'block';
+            if (linkUI)   linkUI.style.display = 'block';
             if (linkedUI) linkedUI.style.display = 'none';
         } else {
             if (status)   status.innerHTML = `<span style="color:#238636;">✓ ${u.email || 'Cuenta activa'}</span>`;
             if (noAuth)   noAuth.style.display = 'none';
-            if (anonUI)   anonUI.style.display = 'none';
-            if (emailUI)  emailUI.style.display = 'none';
-            if (linkedUI) linkedUI.style.display = 'flex';
+            if (linkUI)   linkUI.style.display = 'none';
+            if (linkedUI) { linkedUI.style.display = 'flex'; }
         }
     }
 
@@ -298,7 +362,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         _fbUpdateConfigUI();
         _fbUpdateAccountUI();
-        // Mostrar toast si venimos de una recarga por sincronización
+        // Toast si venimos de una recarga post-sync
         if (_realLS.getItem('_fbJustSynced') === '1') {
             _realLS.removeItem('_fbJustSynced');
             setTimeout(() => showFbToast('✓ Datos sincronizados desde la nube'), 800);
@@ -5501,18 +5565,19 @@ function renderCurrentView() {
                         ⚡ Continuar sin cuenta (sesión anónima)
                     </button>
                 </div>
-                <div id="fb-email-section">
+                <!-- Formulario login/registro — IDs únicos: fb-login-email, fb-login-pass -->
+                <div id="fb-login-section">
                     <div style="background:#161b22; border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05); margin-top:8px;">
                         <p style="font-size:0.7rem; color:#58a6ff; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">Cuenta permanente</p>
-                        <input type="email"    id="fb-email-input" class="modern-input" placeholder="correo@ejemplo.com">
-                        <input type="password" id="fb-pass-input"  class="modern-input" placeholder="Contraseña (mín. 6 caracteres)">
+                        <input type="email"    id="fb-login-email" class="modern-input" placeholder="correo@ejemplo.com">
+                        <input type="password" id="fb-login-pass"  class="modern-input" placeholder="Contraseña (mín. 6 caracteres)">
                         <div style="display:flex; gap:8px;">
-                            <button onclick="fbSignIn(document.getElementById('fb-email-input').value, document.getElementById('fb-pass-input').value)"
-                                style="flex:1; background:#1c6ef3; color:#fff; border:none; border-radius:10px; padding:13px; font-weight:700; cursor:pointer; font-size:0.85rem; width:auto;">
+                            <button onclick="fbSignIn(document.getElementById('fb-login-email').value, document.getElementById('fb-login-pass').value, event)"
+                                style="flex:1; background:#1c6ef3; color:#fff; border:none; border-radius:10px; padding:13px; font-weight:700; cursor:pointer; font-size:0.85rem; width:auto; display:flex; align-items:center; justify-content:center; gap:8px;">
                                 Iniciar sesión
                             </button>
-                            <button onclick="fbSignUp(document.getElementById('fb-email-input').value, document.getElementById('fb-pass-input').value)"
-                                style="flex:1; background:#238636; color:#fff; border:none; border-radius:10px; padding:13px; font-weight:700; cursor:pointer; font-size:0.85rem; width:auto;">
+                            <button onclick="fbSignUp(document.getElementById('fb-login-email').value, document.getElementById('fb-login-pass').value, event)"
+                                style="flex:1; background:#238636; color:#fff; border:none; border-radius:10px; padding:13px; font-weight:700; cursor:pointer; font-size:0.85rem; width:auto; display:flex; align-items:center; justify-content:center; gap:8px;">
                                 Crear cuenta
                             </button>
                         </div>
@@ -5520,14 +5585,14 @@ function renderCurrentView() {
                 </div>
             </div>
 
-            <!-- Sesión anónima activa: opción de vincular email -->
-            <div id="fb-email-section" style="display:none;">
+            <!-- Sesión anónima activa: opción de vincular email — IDs únicos: fb-link-email, fb-link-pass -->
+            <div id="fb-link-section" style="display:none;">
                 <div style="background:#161b22; border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05);">
                     <p style="font-size:0.7rem; color:#f1c40f; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Vincular cuenta permanente</p>
                     <p style="font-size:0.72rem; color:#555; margin-bottom:12px;">Guarda tu sesión anónima con un email para no perder los datos.</p>
-                    <input type="email"    id="fb-email-input" class="modern-input" placeholder="correo@ejemplo.com">
-                    <input type="password" id="fb-pass-input"  class="modern-input" placeholder="Contraseña (mín. 6 caracteres)">
-                    <button onclick="fbLinkEmail(document.getElementById('fb-email-input').value, document.getElementById('fb-pass-input').value)"
+                    <input type="email"    id="fb-link-email" class="modern-input" placeholder="correo@ejemplo.com">
+                    <input type="password" id="fb-link-pass"  class="modern-input" placeholder="Contraseña (mín. 6 caracteres)">
+                    <button onclick="fbLinkEmail(document.getElementById('fb-link-email').value, document.getElementById('fb-link-pass').value)"
                         class="modern-btn" style="background:#f1c40f; color:#000; margin-bottom:0;">
                         Vincular y guardar datos
                     </button>
@@ -5549,12 +5614,6 @@ function renderCurrentView() {
                 Addons · Favoritos · Progreso · Configuración<br>sincronizados automáticamente entre dispositivos.
             </p>
         </div>
-
-        <script>
-            fbAuth && fbAuth.onAuthStateChanged && fbAuth.onAuthStateChanged(u => {
-                _fbUpdateAccountUI();
-            });
-        </script>
     </div>
 
     
