@@ -5,6 +5,291 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script>
+    // ════════════════════════════════════════════════════
+    //  🔥 FIREBASE — Inicialización dinámica desde UI
+    //  Las credenciales se guardan en localStorage bajo
+    //  la clave 'firebaseConfig' (nunca en el código).
+    // ════════════════════════════════════════════════════
+
+    const SYNC_KEYS = [
+        'streamSources','stremioAddons','epgSourceUrl',
+        'userSelectedChannels','customChannelOrder',
+        'userFavs','userMyList',
+        'continueWatching','videoProgress','watchedEps',
+        'onlyLiveEvents','isP2PEnabled','hideNoImageEvents','hideNoVideoChannels'
+    ];
+
+    window.fbUser = null;
+    window.fbAuth = null;
+    window.fbDB   = null;
+    let _syncUnsubscribe = null;
+    let _fbReady = false;
+
+    // ── Proxy localStorage ───────────────────────────────
+    const _realLS = window.localStorage;
+    const _lsProxy = {
+        getItem(k)    { return _realLS.getItem(k); },
+        setItem(k, v) {
+            _realLS.setItem(k, v);
+            if (_fbReady && window.fbUser && SYNC_KEYS.includes(k)) _fbSetKey(k, v);
+        },
+        removeItem(k) { _realLS.removeItem(k); },
+        get length()  { return _realLS.length; },
+        key(i)        { return _realLS.key(i); },
+        clear()       { _realLS.clear(); }
+    };
+    Object.defineProperty(window, 'localStorage', { get: () => _lsProxy });
+
+    // ── Inicializa Firebase con el config guardado ───────
+    function _fbInit(config) {
+        try {
+            // Evitar doble inicialización
+            if (!firebase.apps.length) {
+                firebase.initializeApp(config);
+            } else {
+                firebase.app(); // usa la app existente
+            }
+            window.fbAuth = firebase.auth();
+            window.fbDB   = firebase.firestore();
+            _fbReady = true;
+
+            window.fbAuth.onAuthStateChanged(async (user) => {
+                window.fbUser = user;
+                if (user) {
+                    await _fbLoadUserData();
+                    _fbStartSync();
+                } else {
+                    if (_syncUnsubscribe) { _syncUnsubscribe(); _syncUnsubscribe = null; }
+                }
+                _fbUpdateAccountUI();
+            });
+
+            console.log('[FB] Firebase inicializado ✓');
+            return true;
+        } catch(e) {
+            console.error('[FB] Error al inicializar:', e);
+            return false;
+        }
+    }
+
+    // ── Al cargar la página, intenta auto-inicializar ────
+    (function() {
+        const saved = _realLS.getItem('firebaseConfig');
+        if (saved) {
+            try { _fbInit(JSON.parse(saved)); } catch(e) {}
+        }
+    })();
+
+    // ── CRUD Firestore ────────────────────────────────────
+    async function _fbSetKey(key, value) {
+        if (!window.fbUser || !window.fbDB) return;
+        try {
+            await window.fbDB.collection('users').doc(window.fbUser.uid)
+                .collection('data').doc(key)
+                .set({ value, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        } catch(e) { console.warn('[FB] setKey error:', e); }
+    }
+
+    async function _fbLoadUserData() {
+        if (!window.fbUser || !window.fbDB) return;
+        try {
+            const snap = await window.fbDB.collection('users').doc(window.fbUser.uid)
+                .collection('data').get();
+            snap.forEach(doc => {
+                const val = doc.data().value;
+                if (val !== undefined && val !== null) _realLS.setItem(doc.id, val);
+            });
+            console.log('[FB] Datos cargados desde la nube ✓');
+        } catch(e) { console.warn('[FB] loadUserData error:', e); }
+    }
+
+    function _fbStartSync() {
+        if (_syncUnsubscribe) _syncUnsubscribe();
+        if (!window.fbUser || !window.fbDB) return;
+        _syncUnsubscribe = window.fbDB.collection('users').doc(window.fbUser.uid)
+            .collection('data')
+            .onSnapshot(snap => {
+                snap.docChanges().forEach(change => {
+                    if (change.type === 'modified' || change.type === 'added') {
+                        const val = change.doc.data().value;
+                        if (val !== undefined && val !== null) _realLS.setItem(change.doc.id, val);
+                    }
+                });
+            }, err => console.warn('[FB] sync error:', err));
+    }
+
+    async function fbPushLocalToCloud() {
+        if (!window.fbUser || !window.fbDB) return;
+        const batch = window.fbDB.batch();
+        const userRef = window.fbDB.collection('users').doc(window.fbUser.uid).collection('data');
+        SYNC_KEYS.forEach(key => {
+            const val = _realLS.getItem(key);
+            if (val !== null) batch.set(userRef.doc(key), { value: val, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        });
+        await batch.commit();
+        console.log('[FB] Datos subidos a la nube ✓');
+    }
+
+    // ── Funciones públicas de Auth ────────────────────────
+    window.fbSignInAnon = async () => {
+        if (!_fbReady) return alert('Firebase no configurado. Introduce tus credenciales primero.');
+        try { await window.fbAuth.signInAnonymously(); showFbToast('Sesión anónima iniciada ✓'); }
+        catch(e) { alert('Error: ' + e.message); }
+    };
+
+    window.fbSignUp = async (email, pass) => {
+        if (!_fbReady) return alert('Firebase no configurado.');
+        try {
+            await window.fbAuth.createUserWithEmailAndPassword(email, pass);
+            await fbPushLocalToCloud();
+            showFbToast('Cuenta creada y datos sincronizados ✓');
+        } catch(e) { alert('Error: ' + e.message); }
+    };
+
+    window.fbSignIn = async (email, pass) => {
+        if (!_fbReady) return alert('Firebase no configurado.');
+        try { await window.fbAuth.signInWithEmailAndPassword(email, pass); showFbToast('Sesión iniciada ✓'); }
+        catch(e) { alert('Error: ' + e.message); }
+    };
+
+    window.fbSignOut = async () => {
+        if (!window.fbAuth) return;
+        await window.fbAuth.signOut();
+        showFbToast('Sesión cerrada');
+    };
+
+    window.fbLinkEmail = async (email, pass) => {
+        if (!window.fbUser || !window.fbUser.isAnonymous) return;
+        const cred = firebase.auth.EmailAuthProvider.credential(email, pass);
+        try {
+            await window.fbUser.linkWithCredential(cred);
+            await fbPushLocalToCloud();
+            showFbToast('Cuenta vinculada ✓');
+        } catch(e) { alert('Error: ' + e.message); }
+    };
+
+    window.fbForceSync = async () => {
+        await fbPushLocalToCloud();
+        showFbToast('Datos sincronizados ✓');
+    };
+
+    // ── Guardar credenciales desde la UI y conectar ──────
+    window.fbSaveConfig = async () => {
+        const fields = ['fb-cfg-apiKey','fb-cfg-authDomain','fb-cfg-projectId',
+                        'fb-cfg-storageBucket','fb-cfg-messagingSenderId','fb-cfg-appId'];
+        const config = {};
+        for (const id of fields) {
+            const el = document.getElementById(id);
+            if (!el || !el.value.trim()) return alert('Rellena todos los campos del formulario Firebase.');
+            config[id.replace('fb-cfg-','')] = el.value.trim();
+        }
+        _realLS.setItem('firebaseConfig', JSON.stringify(config));
+        const ok = _fbInit(config);
+        if (ok) {
+            showFbToast('Firebase conectado ✓');
+            _fbUpdateConfigUI();
+        } else {
+            alert('Error al conectar. Revisa las credenciales.');
+        }
+    };
+
+    window.fbDeleteConfig = () => {
+        if (!confirm('¿Eliminar credenciales de Firebase? La sincronización se desactivará.')) return;
+        _realLS.removeItem('firebaseConfig');
+        if (window.fbAuth) window.fbAuth.signOut().catch(()=>{});
+        window.fbUser = null; window.fbAuth = null; window.fbDB = null; _fbReady = false;
+        _fbUpdateConfigUI();
+        _fbUpdateAccountUI();
+        showFbToast('Credenciales eliminadas');
+    };
+
+    // ── Toast ─────────────────────────────────────────────
+    function showFbToast(msg, color) {
+        let t = document.getElementById('fb-toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'fb-toast';
+            t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:12px;font-size:0.85rem;font-weight:700;z-index:99999;transition:opacity 0.4s;pointer-events:none;white-space:nowrap;';
+            document.body.appendChild(t);
+        }
+        t.style.background = color || '#238636';
+        t.style.color = '#fff';
+        t.textContent = msg;
+        t.style.opacity = '1';
+        setTimeout(() => { t.style.opacity = '0'; }, 3000);
+    }
+
+    // ── Actualiza el panel de configuración ──────────────
+    function _fbUpdateConfigUI() {
+        const hasCfg = !!_realLS.getItem('firebaseConfig');
+        const cfgForm  = document.getElementById('fb-config-form');
+        const cfgSaved = document.getElementById('fb-config-saved');
+        if (cfgForm)  cfgForm.style.display  = hasCfg ? 'none' : 'block';
+        if (cfgSaved) cfgSaved.style.display = hasCfg ? 'block' : 'none';
+
+        // Rellenar campos si hay config guardada (para editar)
+        if (hasCfg) {
+            try {
+                const cfg = JSON.parse(_realLS.getItem('firebaseConfig'));
+                const pid = document.getElementById('fb-cfg-project-display');
+                if (pid) pid.textContent = cfg.projectId || '';
+            } catch(e) {}
+        }
+    }
+
+    // ── Actualiza el panel de cuenta ──────────────────────
+    function _fbUpdateAccountUI() {
+        const u = window.fbUser;
+        const status    = document.getElementById('fb-account-status');
+        const noAuth    = document.getElementById('fb-no-auth');
+        const anonUI    = document.getElementById('fb-anon-section');
+        const emailUI   = document.getElementById('fb-email-section');
+        const linkedUI  = document.getElementById('fb-linked-section');
+        const noCfgMsg  = document.getElementById('fb-no-config-msg');
+
+        if (!_fbReady) {
+            if (status)   status.innerHTML = '<span style="color:#666;">Sin configurar</span>';
+            if (noCfgMsg) noCfgMsg.style.display = 'block';
+            if (noAuth)   noAuth.style.display = 'none';
+            if (anonUI)   anonUI.style.display = 'none';
+            if (emailUI)  emailUI.style.display = 'none';
+            if (linkedUI) linkedUI.style.display = 'none';
+            return;
+        }
+        if (noCfgMsg) noCfgMsg.style.display = 'none';
+
+        if (!u) {
+            if (status)   status.innerHTML = '<span style="color:#666;">Sin sesión</span>';
+            if (noAuth)   noAuth.style.display = 'block';
+            if (anonUI)   anonUI.style.display = 'block';
+            if (emailUI)  emailUI.style.display = 'block';
+            if (linkedUI) linkedUI.style.display = 'none';
+        } else if (u.isAnonymous) {
+            if (status)   status.innerHTML = `<span style="color:#f1c40f;">⚡ Anónimo</span> <span style="color:#555;font-size:0.75rem;">${u.uid.slice(0,8)}…</span>`;
+            if (noAuth)   noAuth.style.display = 'none';
+            if (anonUI)   anonUI.style.display = 'none';
+            if (emailUI)  emailUI.style.display = 'block';
+            if (linkedUI) linkedUI.style.display = 'none';
+        } else {
+            if (status)   status.innerHTML = `<span style="color:#238636;">✓ ${u.email || 'Cuenta activa'}</span>`;
+            if (noAuth)   noAuth.style.display = 'none';
+            if (anonUI)   anonUI.style.display = 'none';
+            if (emailUI)  emailUI.style.display = 'none';
+            if (linkedUI) linkedUI.style.display = 'flex';
+        }
+    }
+
+    // Ejecutar al cargar DOM
+    document.addEventListener('DOMContentLoaded', () => {
+        _fbUpdateConfigUI();
+        _fbUpdateAccountUI();
+    });
+    </script>
     <meta name="theme-color" content="#0a0c10" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -68,7 +353,7 @@
             --section-gap: 24px;
             --card-gap: 16px;
 
-            /* Compatibilidad */
+            /* Compatibilidad - Modo Oscuro */
             --color-bg-dark-start: var(--bg-surface);
             --color-bg-dark-end: var(--bg-deep);
             --color-primary: var(--primary);
@@ -78,6 +363,16 @@
             --color-bg-input-dark: var(--bg-ui);
             --color-bg-card-dark: var(--bg-surface);
             --color-bg-controls-dark: var(--bg-ui);
+            --color-border-input-dark: rgba(255, 255, 255, 0.12);
+
+            /* Variables Modo Claro */
+            --color-bg-light-start: #f0f2f5;
+            --color-bg-light-end: #e8eaed;
+            --color-text-light: #1a1a2e;
+            --color-text-muted-light: #555770;
+            --color-bg-card-light: #ffffff;
+            --color-bg-controls-light: #f4f4f4;
+            --color-border-input-light: #c8ccd2;
         }
 
         body {
@@ -798,6 +1093,45 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* Settings cards */
+        .settings-card {
+            display: flex;
+            align-items: center;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 18px;
+            padding: 16px 18px;
+            margin-bottom: 10px;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .settings-card:active { background: rgba(255,255,255,0.07); }
+        .settings-card:hover { background: rgba(255,255,255,0.05); }
+
+        .settings-icon-wrapper {
+            width: 42px;
+            height: 42px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Custom fullscreen button */
+        .custom-fullscreen-btn {
+            background: none !important;
+            border: none !important;
+            color: white !important;
+            width: auto !important;
+            padding: 6px !important;
+            margin: 0 !important;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 
     <style>        .channel-tab { min-width: 52px; height: 48px; display: flex; align-items: center; justify-content: center; background: #2a2a2a; border-radius: 6px; color: #fff; font-size: 0.70em; font-weight: bold; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; overflow: hidden; flex-shrink: 0; }
@@ -1427,7 +1761,7 @@
     <div id="grid-container" style="margin-top: 0;"></div>
 
 
-    <div id="loader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+    <div id="loader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: radial-gradient(circle, #1a1b26 0%, #000 100%);">
         <div class="intro-logo-container">
             <div class="intro-text">🎥</div>
         </div>
@@ -1989,7 +2323,7 @@
             loader.style.display = 'flex';
 
             try {
-                const response = await fetch(url);
+                const response = await raceFetch(url);
                 if (!response.ok) throw new Error("No se pudo cargar el archivo EPG.");
                 const xmlText = await response.text();
 
@@ -2674,14 +3008,7 @@ function renderCurrentView() {
         `;
                 dataList.appendChild(card);
             });
-        }        function toggleDarkMode() {
-            document.body.classList.toggle('light-mode');
-            const isLight = document.body.classList.contains('light-mode');
-            document.getElementById('themeToggleBtn').textContent = isLight ? '☀️' : '🌙';
-        }        function toggleChronologicalOrder() {
-            // Función desactivada: El orden cronológico es permanente
-            renderCurrentView();
-        }// Listener de uploadXmlBtn eliminado
+        }
 
         // Filtros
         document.getElementById('channelDropdown').addEventListener('input', () => {
@@ -2950,14 +3277,13 @@ function renderCurrentView() {
 
         function saveAllAddons() {
             const epgUrl = document.getElementById('epgSourceInput').value.trim();
-            const streamsText = document.getElementById('streamSourcesInput').value;
             
             // Guardar EPG
             localStorage.setItem('epgSourceUrl', epgUrl);
             
-            // Guardar Streams
-            streamSources = streamsText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            // Guardar Streams (ya gestionados en memoria por addNewAddonRow/removeAddonGeneric)
             localStorage.setItem('streamSources', JSON.stringify(streamSources));
+            localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons));
             
             alert("Configuración guardada. Recargando datos...");
             location.reload();
@@ -3090,7 +3416,7 @@ function renderCurrentView() {
             } else {
                 titleEl.textContent = meta.name;
             }            // Priorizar descripción en español si existe, si no, limpiar la inglesa            // Mostrar placeholder de carga mientras obtenemos la sinopsis completa
-            modal.querySelector('.detail-desc').innerHTML = '<div style="text-align:center; padding:30px; opacity:0.5;"><i class="fas fa-circle-notch fa-spin"></i> Cargando detalles...</div>';
+            modal.querySelector('.detail-desc').innerHTML = '<div style="text-align:center; padding:30px; opacity:0.5;"><span class="material-icons" style="animation:spin 1s linear infinite; font-size:1.4rem; vertical-align:middle;">sync</span> Cargando detalles...</div>';
             
             const playBtn = modal.querySelector('.detail-play-btn');
             const metaContainer = modal.querySelector('.detail-meta');
@@ -3156,7 +3482,7 @@ function renderCurrentView() {
 
                     let allStreams = [];
                     let addonsResponded = 0;
-                    playBtn.innerHTML = `<span class="material-icons fa-spin">sync</span> Buscando... (0/${stremioAddons.length})`;
+                    playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite; vertical-align:middle;">sync</span> Buscando... (0/${stremioAddons.length})`;
                     playBtn.style.background = '#222';
 
                     const oldSelector = document.querySelector('.stremio-stream-selector');
@@ -3218,7 +3544,7 @@ function renderCurrentView() {
                                     setTimeout(() => playBtn.click(), 150);
                                 }
                             }
-                            playBtn.innerHTML = `<span class="material-icons fa-spin">sync</span> Buscando... (${addonsResponded}/${stremioAddons.length})`;
+                            playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite; vertical-align:middle;">sync</span> Buscando... (${addonsResponded}/${stremioAddons.length})`;
                         } catch (e) { addonsResponded++; }
                     });
                 };
@@ -4042,15 +4368,6 @@ function renderCurrentView() {
     setTimeout(() => document.addEventListener('click', close), 10);
 };
 
-            window.toggleVideoScaling = (e) => {
-                const v = document.getElementById('main-video-player');
-                const modes = ['contain', 'cover', 'fill'];
-                let current = modes.indexOf(v.style.objectFit);
-                v.style.objectFit = modes[(current + 1) % modes.length];
-            };
-
-            
-
             window.castToDevice = async (e) => {
                 if(e) e.stopPropagation();
                 const v = document.getElementById('main-video-player');
@@ -4065,19 +4382,6 @@ function renderCurrentView() {
                 } catch (err) {
                     console.log('Cast UI fallback enabled');
                 }
-            };            window.toggleAppFullscreen = async () => {
-                try {
-                    if (!document.fullscreenElement) {
-                        const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
-                        await requestFS.call(container);
-                        if (screen.orientation && screen.orientation.lock) {
-                            await screen.orientation.lock('landscape').catch(() => {});
-                        }
-                    } else {
-                        if (document.exitFullscreen) await document.exitFullscreen();
-                        else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
-                    }
-                } catch (err) { console.warn('FS Error:', err); }
             };                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
@@ -4343,18 +4647,17 @@ function renderCurrentView() {
             }).slice(0, 15);
 
             filteredEvents.forEach((prog, index) => {
-                const card = document.createElement('div');
-                card.className = 'poster-card';
-                const bg = prog.iconSrc || prog.iconSrc2 || 'https://via.placeholder.com/150x225?text=No+Image';
-                card.style.backgroundImage = `url('${bg}')`;
-                card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
-                
-                card.innerHTML = `
-                    <div class="poster-info"></div>
-                `;
-                
-                if (index < 7) containers[0].appendChild(card);
-                else containers[1].appendChild(card.cloneNode(true));
+                const makeCard = () => {
+                    const card = document.createElement('div');
+                    card.className = 'poster-card';
+                    const bg = prog.iconSrc2 || prog.iconSrc || '';
+                    if (bg) card.style.backgroundImage = `url('${bg}')`;
+                    card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
+                    card.innerHTML = `<div class="poster-info"></div>`;
+                    return card;
+                };
+                if (index < 7) containers[0].appendChild(makeCard());
+                else containers[1].appendChild(makeCard());
             });
 
             // Ocultar subsecciones vacías en la vista de categoría
@@ -4461,12 +4764,12 @@ function renderCurrentView() {
             } catch(err) {}
         };
 
-        const updateFSIcon = () => {
-            const btn = document.getElementById('customFSBtn');
+        // Listener de cambio de pantalla completa para sincronizar el botón del reproductor cuando existe
+        ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => document.addEventListener(evt, () => {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-            if (btn) btn.innerHTML = isFS ? '<span class="material-icons">fullscreen_exit</span>' : '<span class="material-icons">fullscreen</span>';
-        };
-        ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => document.addEventListener(evt, updateFSIcon));
+            const btn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
+            if (btn) btn.querySelector('span').textContent = isFS ? 'fullscreen_exit' : 'screen_rotation';
+        }));
 
         function toggleVodView() {
             const epgView = document.getElementById('epg-view-content');
@@ -4514,7 +4817,9 @@ function renderCurrentView() {
             modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
             
             video.pause();
+            if (window.hls) { window.hls.destroy(); window.hls = null; }
             video.src = "";
+            video.load();
             video.style.display = 'none';
             
             if(iframe) {
@@ -4813,7 +5118,8 @@ function renderCurrentView() {
             const epgUrl = document.getElementById('epgSourceInput').value.trim();
             localStorage.setItem('epgSourceUrl', epgUrl);
             localStorage.setItem('streamSources', JSON.stringify(streamSources));
-            alert("Configuración guardada correctamente.");
+            localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons));
+            alert("Configuración guardada. Recargando...");
             location.reload();
         }
 
@@ -4898,7 +5204,7 @@ function renderCurrentView() {
 
             // 2. RESULTADOS STREMIO (BÚSQUEDA PROFUNDA EN ADDONS)
             if (stremioAddons.length > 0) {
-                const loadingHtml = '<div id="stremio-search-loading" style="color:var(--primary); font-size:0.65rem; font-weight:800; margin: 20px 0 10px 5px; text-transform:uppercase; letter-spacing:1px;"><i class="fas fa-circle-notch fa-spin"></i> Buscando en la nube...</div>';
+                const loadingHtml = '<div id="stremio-search-loading" style="color:var(--primary); font-size:0.65rem; font-weight:800; margin: 20px 0 10px 5px; text-transform:uppercase; letter-spacing:1px; display:flex; align-items:center; gap:8px;"><span class="material-icons" style="font-size:1rem; animation: spin 1s linear infinite;">sync</span> Buscando en la nube...</div>';
                 resultsContainer.insertAdjacentHTML('beforeend', loadingHtml);
                 
                 for (const url of stremioAddons) {
@@ -4953,7 +5259,7 @@ function renderCurrentView() {
         function closeChannelSelector() {
             document.getElementById('channelSelectorModal').style.display = 'none';
             
-            // Guardar selección y orden personalizado
+            // Guardar selección y orden personalizado (el proxy de localStorage sincroniza con Firebase)
             localStorage.setItem('userSelectedChannels', JSON.stringify([...userSelectedChannels]));
             localStorage.setItem('customChannelOrder', JSON.stringify(channelsList));
             
@@ -5119,6 +5425,121 @@ function renderCurrentView() {
                 </div>
             </div>
         </div>
+
+        <!-- ══ SINCRONIZACIÓN EN LA NUBE (FIREBASE) ══ -->
+        <p style="color: #666; font-size: 0.85rem; margin: 28px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">☁️ Sincronización en la nube</p>
+        <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
+
+            <!-- ── Paso 1: Configurar Firebase ── -->
+            <div class="settings-card" style="margin-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px;">
+                    <div class="settings-icon-wrapper"><span class="material-icons" style="color:#ff9800; font-size:1.5rem;">settings_ethernet</span></div>
+                    <div>
+                        <div style="font-weight:700; color:white; font-size:1.05rem;">Proyecto Firebase</div>
+                        <div id="fb-account-status" style="font-size:0.82rem; margin-top:3px; color:#888;">Cargando…</div>
+                    </div>
+                </div>
+
+                <!-- Config guardada (modo compacto) -->
+                <div id="fb-config-saved" style="display:none;">
+                    <div style="background:#0d1117; border-radius:12px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(88,166,255,0.2);">
+                        <div>
+                            <div style="font-size:0.7rem; color:#58a6ff; font-weight:800; text-transform:uppercase; letter-spacing:1px;">Proyecto conectado</div>
+                            <div id="fb-cfg-project-display" style="font-size:0.85rem; color:#eee; margin-top:3px; font-weight:600;"></div>
+                        </div>
+                        <button onclick="fbDeleteConfig()" style="background:rgba(239,71,111,0.1); border:1px solid rgba(239,71,111,0.3); color:#ef476f; border-radius:10px; padding:7px 12px; cursor:pointer; font-size:0.75rem; font-weight:700; width:auto;">
+                            Desconectar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulario de credenciales (primera vez) -->
+                <div id="fb-config-form" style="display:none;">
+                    <p style="font-size:0.72rem; color:#555; margin-bottom:12px; line-height:1.6;">
+                        Ve a <span style="color:#58a6ff;">console.firebase.google.com</span> → Tu proyecto → Configuración → Añadir app web y pega los datos aquí.
+                    </p>
+                    <input type="text"     id="fb-cfg-apiKey"            class="modern-input" placeholder="apiKey">
+                    <input type="text"     id="fb-cfg-authDomain"        class="modern-input" placeholder="authDomain  (proyecto.firebaseapp.com)">
+                    <input type="text"     id="fb-cfg-projectId"         class="modern-input" placeholder="projectId">
+                    <input type="text"     id="fb-cfg-storageBucket"     class="modern-input" placeholder="storageBucket  (proyecto.appspot.com)">
+                    <input type="text"     id="fb-cfg-messagingSenderId" class="modern-input" placeholder="messagingSenderId">
+                    <input type="text"     id="fb-cfg-appId"             class="modern-input" placeholder="appId">
+                    <button onclick="fbSaveConfig()" class="modern-btn" style="background:#ff9800; margin-bottom:0;">
+                        <span class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:6px;">cloud_done</span>
+                        Conectar Firebase
+                    </button>
+                    <p style="font-size:0.68rem; color:#333; margin-top:10px; text-align:center;">
+                        Las credenciales se guardan solo en este dispositivo (localStorage). Nunca se envían a terceros.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ── Paso 2: Autenticación ── -->
+            <div id="fb-no-config-msg" style="display:none; text-align:center; padding:10px 0 4px 0;">
+                <p style="font-size:0.8rem; color:#444;">Configura el proyecto Firebase arriba para activar la sincronización.</p>
+            </div>
+
+            <!-- Sin sesión -->
+            <div id="fb-no-auth" style="display:none;">
+                <div id="fb-anon-section" style="margin-bottom:8px;">
+                    <button onclick="fbSignInAnon()" class="modern-btn" style="background:#333; color:#bbb; margin-bottom:0;">
+                        ⚡ Continuar sin cuenta (sesión anónima)
+                    </button>
+                </div>
+                <div id="fb-email-section">
+                    <div style="background:#161b22; border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05); margin-top:8px;">
+                        <p style="font-size:0.7rem; color:#58a6ff; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">Cuenta permanente</p>
+                        <input type="email"    id="fb-email-input" class="modern-input" placeholder="correo@ejemplo.com">
+                        <input type="password" id="fb-pass-input"  class="modern-input" placeholder="Contraseña (mín. 6 caracteres)">
+                        <div style="display:flex; gap:8px;">
+                            <button onclick="fbSignIn(document.getElementById('fb-email-input').value, document.getElementById('fb-pass-input').value)"
+                                style="flex:1; background:#1c6ef3; color:#fff; border:none; border-radius:10px; padding:13px; font-weight:700; cursor:pointer; font-size:0.85rem; width:auto;">
+                                Iniciar sesión
+                            </button>
+                            <button onclick="fbSignUp(document.getElementById('fb-email-input').value, document.getElementById('fb-pass-input').value)"
+                                style="flex:1; background:#238636; color:#fff; border:none; border-radius:10px; padding:13px; font-weight:700; cursor:pointer; font-size:0.85rem; width:auto;">
+                                Crear cuenta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sesión anónima activa: opción de vincular email -->
+            <div id="fb-email-section" style="display:none;">
+                <div style="background:#161b22; border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05);">
+                    <p style="font-size:0.7rem; color:#f1c40f; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Vincular cuenta permanente</p>
+                    <p style="font-size:0.72rem; color:#555; margin-bottom:12px;">Guarda tu sesión anónima con un email para no perder los datos.</p>
+                    <input type="email"    id="fb-email-input" class="modern-input" placeholder="correo@ejemplo.com">
+                    <input type="password" id="fb-pass-input"  class="modern-input" placeholder="Contraseña (mín. 6 caracteres)">
+                    <button onclick="fbLinkEmail(document.getElementById('fb-email-input').value, document.getElementById('fb-pass-input').value)"
+                        class="modern-btn" style="background:#f1c40f; color:#000; margin-bottom:0;">
+                        Vincular y guardar datos
+                    </button>
+                </div>
+            </div>
+
+            <!-- Usuario autenticado con email -->
+            <div id="fb-linked-section" style="display:none; flex-direction:column; gap:8px;">
+                <button onclick="fbForceSync()" class="modern-btn" style="background:#1c6ef3; margin-bottom:0;">
+                    <span class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:6px;">sync</span>
+                    Sincronizar ahora
+                </button>
+                <button onclick="if(confirm('¿Cerrar sesión?')) fbSignOut();" class="modern-btn" style="background:#222; color:#888; margin-bottom:0;">
+                    Cerrar sesión
+                </button>
+            </div>
+
+            <p style="font-size:0.7rem; color:#333; margin-top:16px; text-align:center; line-height:1.5;">
+                Addons · Favoritos · Progreso · Configuración<br>sincronizados automáticamente entre dispositivos.
+            </p>
+        </div>
+
+        <script>
+            fbAuth && fbAuth.onAuthStateChanged && fbAuth.onAuthStateChanged(u => {
+                _fbUpdateAccountUI();
+            });
+        </script>
     </div>
 
     
