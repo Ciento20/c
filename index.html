@@ -2935,8 +2935,8 @@ function renderCurrentView() {
             </div>
 
             
-            <div style="position: absolute; bottom: 16px; left: 16px; right: 16px; height: 120px; display: flex; gap: 16px; align-items: flex-end; z-index: 2;">
-                <div style="width: 85px; height: 120px; border-radius: 12px; overflow: hidden; flex-shrink: 0; box-shadow: 0 5px 15px rgba(0,0,0,0.8); background: #000; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="position: absolute; top: 16px; bottom: 16px; left: 16px; right: 16px; display: flex; gap: 16px; align-items: flex-end; z-index: 2;">
+                <div style="width: 85px; height: 120px; align-self: center; border-radius: 12px; overflow: hidden; flex-shrink: 0; box-shadow: 0 5px 15px rgba(0,0,0,0.8); background: #000; border: 1px solid rgba(255,255,255,0.1);">
                     <img loading="lazy" src="${item.iconSrc || item.channelIcon}" 
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
                          onerror="this.src='${item.channelIcon}'; this.style.padding='15px';">
