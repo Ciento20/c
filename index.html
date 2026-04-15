@@ -5,16 +5,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <!-- Firebase SDKs -->
+
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script>
-    // ════════════════════════════════════════════════════
-    //  🔥 FIREBASE — Inicialización dinámica desde UI
-    //  Las credenciales se guardan en localStorage bajo
-    //  la clave 'firebaseConfig' (nunca en el código).
-    // ════════════════════════════════════════════════════
 
     const SYNC_KEYS = [
         'streamSources','stremioAddons','epgSourceUrl',
@@ -29,10 +24,8 @@
     window.fbDB   = null;
     let _syncUnsubscribe = null;
     let _fbReady = false;
-    // Flag para evitar que el proxy suba datos mientras cargamos desde la nube
     let _fbIgnoreProxy = false;
 
-    // ── Proxy localStorage ───────────────────────────────
     const _realLS = window.localStorage;
     const _lsProxy = {
         getItem(k)    { return _realLS.getItem(k); },
@@ -47,7 +40,6 @@
     };
     Object.defineProperty(window, 'localStorage', { get: () => _lsProxy });
 
-    // ── Inicializa Firebase con el config guardado ───────
     function _fbInit(config) {
         try {
             if (!firebase.apps.length) {
@@ -59,13 +51,11 @@
             window.fbDB   = firebase.firestore();
             _fbReady = true;            window.fbAuth.onAuthStateChanged(async (user) => {
                 window.fbUser = user;
-                // Actualizamos la UI de inmediato para quitar el estado "Entrando..."
                 _fbUpdateAccountUI();
-                
+
                 if (user) {
                     const needsReload = !!_realLS.getItem('_fbLoginJustHappened');
                     _realLS.removeItem('_fbLoginJustHappened');
-                    // Cargamos datos en segundo plano sin bloquear el hilo principal
                     _fbLoadUserData(needsReload).then(() => _fbStartSync());
                 } else {
                     if (_syncUnsubscribe) { _syncUnsubscribe(); _syncUnsubscribe = null; }
@@ -80,7 +70,6 @@
         }
     }
 
-    // ── Al cargar la página, intenta auto-inicializar ────
     (function() {
         const saved = _realLS.getItem('firebaseConfig');
         if (saved) {
@@ -88,7 +77,6 @@
         }
     })();
 
-    // ── CRUD Firestore ────────────────────────────────────
     async function _fbSetKey(key, value) {
         if (!window.fbUser || !window.fbDB) return;
         try {
@@ -98,7 +86,6 @@
         } catch(e) { console.warn('[FB] setKey error:', e); }
     }
 
-    // needsReload: true cuando el usuario acaba de hacer login y hay que aplicar los datos en memoria
     async function _fbLoadUserData(needsReload) {
         if (!window.fbUser || !window.fbDB) return;
         try {
@@ -109,7 +96,7 @@
                 return;
             }
             let changed = false;
-            _fbIgnoreProxy = true; // no resubir lo que estamos bajando
+            _fbIgnoreProxy = true;
             snap.forEach(doc => {
                 const val = doc.data().value;
                 if (val !== undefined && val !== null) {
@@ -134,11 +121,11 @@
     function _fbStartSync() {
         if (_syncUnsubscribe) _syncUnsubscribe();
         if (!window.fbUser || !window.fbDB) return;
-        let firstSnapshot = true; // el primer snapshot es el estado inicial, no un cambio externo
+        let firstSnapshot = true;
         _syncUnsubscribe = window.fbDB.collection('users').doc(window.fbUser.uid)
             .collection('data')
             .onSnapshot(snap => {
-                if (firstSnapshot) { firstSnapshot = false; return; } // ignorar snapshot inicial
+                if (firstSnapshot) { firstSnapshot = false; return; }
                 let changed = false;
                 _fbIgnoreProxy = true;
                 snap.docChanges().forEach(change => {
@@ -171,7 +158,6 @@
         console.log('[FB] Datos subidos a la nube ✓');
     }
 
-    // ── Funciones públicas de Auth ────────────────────────
     window.fbSignInAnon = async () => {
         if (!_fbReady) return alert('Firebase no configurado. Introduce tus credenciales primero.');
         try { await window.fbAuth.signInAnonymously(); showFbToast('Sesión anónima iniciada ✓'); }
@@ -179,14 +165,14 @@
     };    window.fbSignUp = async (email, pass, ev) => {
         if (!_fbReady) return alert('⚠️ Primero debes configurar y conectar Firebase.');
         if (!email || !pass) return alert('Introduce email y contraseña.');
-        
+
         const btn = ev ? ev.target.closest('button') : event.target.closest('button');
         const originalText = btn.innerHTML;
 
         try {
             btn.disabled = true;
             btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite; font-size:1.2rem;">sync</span> Creando...';
-            
+
             _realLS.setItem('_fbLoginJustHappened', '1');
             await window.fbAuth.createUserWithEmailAndPassword(email, pass);
             await fbPushLocalToCloud();
@@ -200,14 +186,14 @@
     };    window.fbSignIn = async (email, pass, ev) => {
         if (!_fbReady) return alert('⚠️ Primero debes configurar y conectar Firebase en el panel superior.');
         if (!email || !pass) return alert('Introduce email y contraseña.');
-        
+
         const btn = ev ? ev.target.closest('button') : event.target.closest('button');
         const originalText = btn.innerHTML;
-        
+
         try {
             btn.disabled = true;
             btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite; font-size:1.2rem;">sync</span> Entrando...';
-            
+
             _realLS.setItem('_fbLoginJustHappened', '1');
             await window.fbAuth.signInWithEmailAndPassword(email, pass);
             showFbToast('Sesión iniciada correctamente ✓');
@@ -249,13 +235,11 @@
         let raw = area.value.trim();
         if (!raw) return alert('Pega el JSON primero.');
         try {
-            // Extraer el objeto si pegan el bloque de código completo del SDK
             if (raw.includes('{')) raw = raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
-            
-            // Intento de parseo robusto (limpia comas finales y comillas simples)
+
             const cleanJson = raw.replace(/'/g, '"').replace(/,(\s*})/g, '$1');
             const config = JSON.parse(cleanJson);
-            
+
             const fields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
             let found = 0;
             fields.forEach(f => {
@@ -264,7 +248,7 @@
                     found++;
                 }
             });
-            
+
             if (found > 0) {
                 showFbToast(`✓ ${found} campos importados`, '#58a6ff');
                 area.value = '';
@@ -277,7 +261,6 @@
         }
     };
 
-    // ── Guardar credenciales desde la UI y conectar ──────
     window.fbSaveConfig = async () => {
         const fields = ['fb-cfg-apiKey','fb-cfg-authDomain','fb-cfg-projectId',
                         'fb-cfg-storageBucket','fb-cfg-messagingSenderId','fb-cfg-appId'];
@@ -307,7 +290,6 @@
         showFbToast('Credenciales eliminadas');
     };
 
-    // ── Toast ─────────────────────────────────────────────
     function showFbToast(msg, color) {
         let t = document.getElementById('fb-toast');
         if (!t) {
@@ -323,7 +305,6 @@
         setTimeout(() => { t.style.opacity = '0'; }, 3000);
     }
 
-    // ── Actualiza el panel de configuración ──────────────
     function _fbUpdateConfigUI() {
         const hasCfg = !!_realLS.getItem('firebaseConfig');
         const cfgForm  = document.getElementById('fb-config-form');
@@ -339,13 +320,6 @@
         }
     }
 
-    // ── Actualiza el panel de cuenta ──────────────────────
-    // IDs usados (únicos en el DOM tras el fix del HTML):
-    //   fb-no-auth        → wrapper visible cuando no hay sesión
-    //   fb-anon-section   → botón sesión anónima
-    //   fb-login-section  → formulario login/registro (sin sesión)
-    //   fb-link-section   → formulario vincular email (sesión anónima)
-    //   fb-linked-section → botones sync/logout (sesión con email)
     function _fbUpdateAccountUI() {
         const u = window.fbUser;
         const status    = document.getElementById('fb-account-status');
@@ -386,11 +360,9 @@
         }
     }
 
-    // Ejecutar al cargar DOM
     document.addEventListener('DOMContentLoaded', () => {
         _fbUpdateConfigUI();
         _fbUpdateAccountUI();
-        // Toast si venimos de una recarga post-sync
         if (_realLS.getItem('_fbJustSynced') === '1') {
             _realLS.removeItem('_fbJustSynced');
             setTimeout(() => showFbToast('✓ Datos sincronizados desde la nube'), 800);
@@ -444,7 +416,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Round" rel="stylesheet" />
     <style>        :root {
-            /* PALETA PREMIUM REFINADA - ESTILO CAMALEÓN */
+
             --bg-deep: #050505;
             --bg-surface: #090909;
             --primary-rgb: 88, 166, 255;
@@ -455,12 +427,12 @@
             --text-muted: #8b949e;
             --glass: rgba(22, 27, 34, 0.8);
 
-            /* Espaciado unificado */
+
             --nav-height: 75px;
             --section-gap: 24px;
             --card-gap: 16px;
 
-            /* Compatibilidad - Modo Oscuro */
+
             --color-bg-dark-start: var(--bg-surface);
             --color-bg-dark-end: var(--bg-deep);
             --color-primary: var(--primary);
@@ -472,7 +444,7 @@
             --color-bg-controls-dark: var(--bg-ui);
             --color-border-input-dark: rgba(255, 255, 255, 0.12);
 
-            /* Variables Modo Claro */
+
             --color-bg-light-start: #f0f2f5;
             --color-bg-light-end: #e8eaed;
             --color-text-light: #1a1a2e;
@@ -520,14 +492,13 @@
             box-sizing: border-box;
         }
 
-
         #controls {
             margin-bottom: 25px;
             text-align: center;
             padding: 15px;
             border-radius: 10px;
-            /* background: var(--color-bg-controls-dark); */
-            /* box-shadow: 0 0 8px rgba(0, 0, 0, 0.3); */
+
+
         }
 
         input[type="text"],
@@ -544,7 +515,7 @@
         select:focus {
             outline: none;
             border-color: var(--primary);
-            /* Añadimos un anillo de enfoque suave (ring) para que los inputs se sientan más modernos y táctiles */
+
             box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.25);
             background-color: var(--bg-ui);
         }
@@ -590,7 +561,7 @@
             flex-direction: column;
             gap: var(--card-gap);
             margin-top: 0px;
-            padding-bottom: 20px; /* Margen extra para que el último elemento respire */
+            padding-bottom: 20px;
         }        .program-card {
             position: relative;
             background-color: var(--bg-surface) !important;
@@ -607,7 +578,7 @@
             margin: 12px auto;
             background-size: cover;
             background-position: center;
-            background-repeat: no-repeat; /* Evita el efecto de repetición/corte en los bordes */
+            background-repeat: no-repeat;
             transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
         }
 
@@ -615,16 +586,16 @@
             content: '';
             position: absolute;
             inset: 0;
-            /* Oscurecemos el fondo aumentando la opacidad de los negros para que las imágenes sean más opacas */
+
             background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.8) 50%, rgba(5,5,5,1) 100%);
             z-index: 1;
             pointer-events: none;
         }        .program-card:hover {
             transform: translateY(-4px) scale(1.02);
-            /* Unificamos el foco: eliminamos el cian genérico y aplicamos un resplandor basado en el color primario de la marca */
+
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--primary), 0 0 20px rgba(var(--primary-rgb), 0.4);
             z-index: 10;
-        }        /* Estilos Vista Canales (Estilo App Moderna) */        .channel-row-modern {
+        }                .channel-row-modern {
             background: var(--bg-surface);
             border-radius: 18px;
             padding: 16px 20px;
@@ -641,7 +612,7 @@
             background: var(--bg-ui);
         }
         .channel-row-modern:hover { background: rgba(255,255,255,0.08); }
-        
+
         .channel-logo-modern {
             width: 54px;
             height: 54px;
@@ -689,7 +660,7 @@
 
         .bar-fill-modern {
             height: 100%;
-            background: var(--color-primary); 
+            background: var(--color-primary);
             box-shadow: 0 0 8px rgba(8, 129, 170, 0.4);
             border-radius: 3px;
         }
@@ -820,7 +791,7 @@
             gap: 15px;
             justify-content: center;
             flex-wrap: nowrap;
-            /* que no se envuelvan */
+
         }
 
         input[type="text"],
@@ -851,7 +822,6 @@
         }
 
 
-        /* Cinematic Intro (Estilo Netflix/Premium) */
         #loader {
             transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), visibility 1.2s;
             background: radial-gradient(circle, #1a1b26 0%, #000 100%) !important;
@@ -863,7 +833,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* Animación más larga para que el ícono esté presente durante todo el fundido */
+
             animation: intro-zoom 4.5s forwards cubic-bezier(0.2, 0, 0.2, 1);
             will-change: transform, opacity;
         }
@@ -904,8 +874,8 @@
         }        @keyframes intro-zoom {
             0% { transform: scale(0.5); opacity: 0; filter: blur(15px); }
             15% { opacity: 1; filter: blur(0px); transform: scale(1); }
-            75% { transform: scale(1.15); opacity: 1; filter: blur(0px); } 
-            100% { transform: scale(50); opacity: 0; filter: blur(10px); } /* Explosión suavizada con desvanecimiento */
+            75% { transform: scale(1.15); opacity: 1; filter: blur(0px); }
+            100% { transform: scale(50); opacity: 0; filter: blur(10px); }
         }
 
         @keyframes text-reveal {
@@ -914,11 +884,11 @@
         }
 
         @keyframes bar-glide {
-            0% { left: -110%; } 
+            0% { left: -110%; }
             100% { left: 110%; }
         }
 
-        /* Light mode overrides */
+
         body.light-mode {
             background: linear-gradient(180deg, var(--color-bg-light-start), var(--color-bg-light-end));
             color: var(--color-text-light);
@@ -928,12 +898,12 @@
             background-color: var(--color-bg-card-light);
             color: var(--color-text-light);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            /* Sombra más suave para modo claro */
+
         }
 
         body.light-mode .program-card:hover {
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-            /* Sombra más suave al pasar el ratón */
+
         }
 
         body.light-mode .card-date,
@@ -951,27 +921,27 @@
         body.light-mode button {
             background-color: var(--color-primary-hover);
             color: var(--color-text-light);
-            /* Asegura texto oscuro en botones claros */
+
         }
 
         body.light-mode .card-date,
         body.light-mode .card-time,
         body.light-mode .card-text .title {
             color: var(--color-text-light);
-            /* Asegura que la fecha, hora y título sean oscuros */
+
         }
 
-        /* --- Estilos para los Controles (filtros) en modo claro --- */
+
         body.light-mode input[type="text"],
         body.light-mode select,
         body.light-mode input[type="date"],
         body.light-mode input[type="number"] {
             background-color: var(--color-bg-controls-light);
-            /* Fondo más claro para inputs/selects */
+
             border-color: var(--color-border-input-dark);
-            /* Borde que contraste */
+
             color: var(--color-text-light);
-            /* Texto oscuro en inputs */
+
         }
 
         body.light-mode input[type="text"]:focus,
@@ -980,139 +950,139 @@
         body.light-mode input[type="number"]:focus {
             outline: none;
             border-color: var(--color-primary);
-            /* Borde al enfocar, usando el color primario */
+
         }
 
         body.light-mode #controls {
             background: var(--color-bg-controls-light);
-            /* Fondo para la sección de controles */
+
             box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-            /* Sombra suave para controles */
+
         }
 
         body.light-mode label {
-            /* Asegura el color del texto de la etiqueta en modo claro */
+
             color: var(--color-text-muted-light);
         }
 
-        /* --- Estilos de la Grilla en modo claro --- */
+
         body.light-mode #grid-container table {
             border: 1px solid var(--color-border-input-dark);
-            /* Borde exterior de la tabla */
+
         }
 
         body.light-mode #grid-container th {
             background-color: var(--color-bg-controls-light);
-            /* Fondo de los encabezados de la tabla */
+
             color: var(--color-text-light);
-            /* Texto de los encabezados */
+
             border: 1px solid var(--color-border-input-dark);
 
-            /* PROPIEDADES STICKY AÑADIDAS */
+
             position: sticky;
-            /* NUEVA LÍNEA */
+
             left: 0;
-            /* NUEVA LÍNEA */
+
             z-index: 10;
-            /* NUEVA LÍNEA */
+
         }
 
         body.light-mode #grid-container td {
             border: 1px solid var(--color-border-input-dark);
-            /* Borde de las celdas de la grilla */
+
             color: var(--color-text-light);
             background-color: #ffffff;
-            /* Las celdas VACÍAS por defecto serán BLANCAS */
+
         }
 
         body.light-mode #grid-container td[style*="background: rgb(51, 51, 51)"] {
-            /* Celda con PROGRAMA (en modo oscuro tenía #333) */
+
             background-color: #f0f0f0 !important;
-            /* Fondo GRIS CLARO para las celdas con CONTENIDO de programa */
+
             color: var(--color-text-light);
         }
 
         body.light-mode #grid-container td[style*="background: rgb(34, 34, 34)"] {
-            /* Celda del CANAL (en modo oscuro tenía #222) */
+
             background-color: #e0e0e0 !important;
-            /* Fondo GRIS MEDIO para el nombre del canal */
+
             color: var(--color-text-light);
 
-            /* PROPIEDADES STICKY AÑADIDAS */
+
             position: sticky;
-            /* NUEVA LÍNEA */
+
             left: 0;
-            /* NUEVA LÍNEA */
+
             z-index: 9;
-            /* NUEVA LÍNEA */
+
         }
 
         body.light-mode #grid-container td>div {
-            /* Título del programa en grilla */
+
             color: var(--color-text-light);
         }
 
         body.light-mode #grid-container td>div:last-child {
-            /* Hora del programa en grilla */
+
             color: var(--color-text-light) !important;
-            /* <--- ¡AÑADIDO !important! */
+
         }
 
-        /* --- ESTILOS ADICIONALES PARA MODO OSCURO (STICKY) --- */
+
         #grid-container th {
-            /* Encabezado fijo (para el scroll vertical, si se aplica) */
+
             z-index: 10;
             position: sticky;
             top: 0;
-            /* Si quieres que el encabezado de las horas también sea sticky verticalmente */
+
         }
 
-        /* Estilo específico para el TH de "Canal" (la primera celda de la cabecera) */
+
         #grid-container th:first-child {
             background: #222 !important;
             z-index: 11;
-            /* Asegura que esté por encima de las celdas de programas y los otros THs */
+
             position: sticky;
-            /* Hacemos que sea sticky horizontal y verticalmente */
+
             left: 0;
         }
 
-        /* Estilo específico para la celda de Canal (la primera de cada fila) */
+
         #grid-container td:first-child {
             position: sticky;
             left: 0;
             z-index: 9;
-            /* Debe estar por debajo del TH fijo */
+
             background: #222 !important;
-            /* Fondo fijo para modo oscuro */
+
         }
 
-        /* Estilo específico para la celda de Canal en modo claro */
+
         body.light-mode #grid-container th:first-child {
             background-color: #e0e0e0 !important;
-            /* Fondo del encabezado de canal en modo claro */
+
             z-index: 11;
             position: sticky;
             left: 0;
         }
 
-        /* --- Estilos del Loader en modo claro --- */
+
         body.light-mode #loader-spinner {
             border-color: var(--color-primary-hover);
-            /* Color del spinner */
+
             border-top-color: transparent;
         }
 
         body.light-mode #loader p {
             color: var(--color-text-muted-light) !important;
-            /* Texto del loader */
+
         }
 
-        /* Responsive styles */        #grid-container {
+                #grid-container {
             width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            padding-bottom: 40px; /* Margen inferior para que la tabla no pegue con la nav */
+            padding-bottom: 40px;
             margin-top: 10px;
         }
 
@@ -1124,8 +1094,8 @@
             .program-card {
                 padding: 12px;
                 border-radius: 10px;
-                aspect-ratio: 16 / 9 !important; /* Forzamos el ratio también en móviles */
-                min-height: auto !important; /* Eliminamos la altura fija para que el ratio mande */
+                aspect-ratio: 16 / 9 !important;
+                min-height: auto !important;
             }
             .card-header {
                 flex-direction: column;
@@ -1201,7 +1171,7 @@
             }
         }
 
-        /* Settings cards */
+
         .settings-card {
             display: flex;
             align-items: center;
@@ -1226,7 +1196,7 @@
             flex-shrink: 0;
         }
 
-        /* Custom fullscreen button */
+
         .custom-fullscreen-btn {
             background: none !important;
             border: none !important;
@@ -1242,29 +1212,29 @@
     </style>
 
     <style>        .channel-tab { min-width: 52px; height: 48px; display: flex; align-items: center; justify-content: center; background: #2a2a2a; border-radius: 6px; color: #fff; font-size: 0.70em; font-weight: bold; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; overflow: hidden; flex-shrink: 0; }
-        .channel-tab:first-child { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-radius: 6px; min-width: 52px; box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.7); margin-right: 6px; } 
+        .channel-tab:first-child { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-radius: 6px; min-width: 52px; box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.7); margin-right: 6px; }
         .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -6px; width: 6px; height: 100%; background: var(--bg-surface); pointer-events: none; }
         .channel-tab img { max-width: 50px; max-height: 40px; object-fit: contain; }
         .channel-tab.active { border-color: var(--color-primary) !important; }
         .date-tab { color: #888; font-size: 1.1em; font-weight: 600; cursor: pointer; padding-bottom: 5px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex-shrink: 0; }        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
         #channel-tabs::-webkit-scrollbar, #date-tabs::-webkit-scrollbar, #hour-tabs::-webkit-scrollbar { display: none; }
-        
-        /* Fix "Todo el día" button sticky behavior */
+
+
         #hour-tabs .date-tab:first-child {
             position: sticky;
             left: 0;
             z-index: 20;
             background: var(--bg-surface);
-            /* Sombra suavizada sin artefactos laterales */
+
             box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.8);
             margin-right: 10px;
         }
 
         body.light-mode #modern-controls-container { background: #f4f4f4 !important; }
-        
+
         body.light-mode #hour-tabs .date-tab:first-child {
             background: #fff;
-            /* Sombra suavizada para modo claro */
+
             box-shadow: -20px 0 0 #fff, 10px 0 15px -10px rgba(0,0,0,0.15);
             margin-right: 10px;
         }
@@ -1275,7 +1245,7 @@
         body.light-mode .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -6px; width: 6px; height: 100%; background: #f4f4f4; pointer-events: none; }
         body.light-mode #currentChannelLabel { color: #333 !important; }
 
-        /* Estilos Vista Categoría (Estilo Móvil Premium) */
+
         #sport-category-view {
             position: fixed;
             inset: 0;
@@ -1324,7 +1294,7 @@
             position: relative;
             flex-shrink: 0;
             box-shadow: 0 8px 20px rgba(0,0,0,0.6);
-            overflow: hidden; /* Asegura que el gradiente inferior respete las esquinas redondeadas */
+            overflow: hidden;
         }
 
         .poster-card::after {
@@ -1342,7 +1312,7 @@
             z-index: 2;
         }
 
-        /* Estilos Menú Contextual Quick Actions */
+
         .quick-menu {
             position: fixed;
             background: #1a1a1a;
@@ -1371,16 +1341,16 @@
             font-size: 1.1rem;
             color: var(--color-primary);
         }
-        /* Estilos Temporadas y Episodios (Estilo App) */
+
         .season-tabs { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; margin: 15px 0 5px 0; }
         .season-tabs::-webkit-scrollbar { display: none; }
         .season-pill { background: #1c1c1e; color: #888; padding: 8px 20px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap; border: 1px solid rgba(255,255,255,0.05); transition: all 0.2s; }
         .season-pill.active { background: var(--primary); color: #000; box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3); }
-        
+
         .episodes-list { display: flex; flex-direction: column; gap: 18px; margin-top: 15px; padding-bottom: 20px; }
         .episode-item { display: flex; gap: 14px; cursor: pointer; align-items: flex-start; }
         .episode-item:active { opacity: 0.7; transform: scale(0.98); }
-        
+
         .ep-thumb-box { position: relative; width: 130px; height: 75px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
         .ep-thumb-box img { width: 100%; height: 100%; object-fit: cover; }
         .ep-play-tag { position: absolute; top: 6px; right: 6px; background: var(--primary); color: #fff; border-radius: 4px; padding: 2px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(88, 166, 255, 0.6); }
@@ -1392,7 +1362,7 @@
         .ep-date { font-size: 0.75rem; color: #666; font-weight: 500; white-space: nowrap; }
         .ep-summary { font-size: 0.78rem; color: #888; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-        /* Estilos Barra Inferior */        .bottom-nav {
+                .bottom-nav {
             position: fixed;
             bottom: 20px;
             left: 50%;
@@ -1445,7 +1415,7 @@
         body.light-mode .nav-item.active {
             color: var(--color-primary-hover);
         }
-            /* Estilos Detalle de Programa (Estilo Imagen) */
+
         .detail-overlay {
             position: fixed;
             inset: 0;
@@ -1483,7 +1453,7 @@
             background-position: center;
             position: relative;
             background-color: #000;
-        }        /* UI REPRODUCTOR PREMIUM (ESTILO IMAGEN) */
+        }
         .player-ui-overlay {
             position: absolute;
             inset: 0;
@@ -1507,9 +1477,9 @@
             z-index: 30;
         }
         .player-center-controls { display: flex; align-items: center; justify-content: center; gap: 40px; flex-grow: 1; }
-        
-        .player-btn-large { 
-            background: none; border: none; color: white; cursor: pointer; 
+
+        .player-btn-large {
+            background: none; border: none; color: white; cursor: pointer;
             filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
         }
         .player-btn-large span { font-size: 60px !important; }
@@ -1595,7 +1565,7 @@
         }
 
         .player-action-item:hover { color: #fff; }
-        .player-action-item span { font-size: 20px !important; }        /* Ocultar nativos */
+        .player-action-item span { font-size: 20px !important; }
         video.stremio-mode::-webkit-media-controls { display: none !important; }
         #main-video-player.stremio-mode { pointer-events: none; }
 
@@ -1705,7 +1675,7 @@
             font-size: 0.9rem;
             color: #ccc;
             line-height: 1.5;
-            /* Eliminadas restricciones para mostrar texto completo */
+
             display: block;
         }
 
@@ -1756,7 +1726,7 @@
             font-size: 0.75rem;
             color: #aaa;
             margin-top: 8px;
-        }        /* Estilos para selector de fuentes Premium */
+        }
         .source-selector {
             display: flex;
             gap: 10px;
@@ -1819,14 +1789,14 @@
             </button>
             <div id="currentChannelLabel" style="color: #fff; font-size: 1rem; font-weight: 600; min-height: 19px;">Todos los canales</div>
         </div>
-        
+
         <div id="channel-tabs" style="display: flex; overflow-x: auto; gap: 12px; padding: 0 20px 15px 20px; scrollbar-width: none; border-bottom: 1px solid #2a2a2a;">
-            
+
         </div>        <div id="date-tabs" style="display: flex; overflow-x: auto; gap: 24px; padding: 12px 20px; scrollbar-width: none; background: var(--bg-deep); border-bottom: 1px solid var(--bg-ui);">
-            
+
         </div>
         <div id="hour-tabs" style="display: flex; overflow-x: auto; gap: 15px; padding: 12px 20px; scrollbar-width: none; background: var(--bg-surface); border-bottom: 1px solid var(--bg-ui);">
-            
+
         </div>
     </div>
 
@@ -1834,8 +1804,8 @@
         <input type="text" id="channelFilter" placeholder="Buscar Canal" style="display:none;" />
         <select id="channelDropdown" style="display:none;"><option value="">Seleccionar Canal</option></select>
         <input type="date" id="dateFilter" style="display:none;" />
-        
-        
+
+
         <select id="hourFilter" style="display:none;">
             <option value="">Cualquier Hora</option>
             <option value="0">00:00</option>
@@ -1867,7 +1837,6 @@
 
     <div id="grid-container" style="margin-top: 0;"></div>
 
-
     <div id="loader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: radial-gradient(circle, #1a1b26 0%, #000 100%);">
         <div class="intro-logo-container">
             <div class="intro-text">🎥</div>
@@ -1878,9 +1847,8 @@
     <div id="result-count"></div>
 
     <script>        let epgData = [];
-        let channelStreams = {}; 
+        let channelStreams = {};
 
-        // Función de carrera para obtener datos lo más rápido posible evitando bloqueos CORS
         async function raceFetch(url) {
             const targets = [
                 url,
@@ -1888,7 +1856,7 @@
                 `https://api.codetabs.com/cors-proxy/${encodeURIComponent(url)}`,
                 `https://corsproxy.io/?${encodeURIComponent(url)}`
             ];
-            return Promise.any(targets.map(t => 
+            return Promise.any(targets.map(t =>
                 fetch(t).then(res => {
                     if (!res.ok) throw new Error('Fail');
                     return res;
@@ -1904,14 +1872,11 @@
 
         async function fetchStremioCatalog(addonUrl) {
             try {
-                // Usamos raceFetch para el manifest para evitar bloqueos CORS iniciales
                 const manifestRes = await raceFetch(addonUrl);
                 const manifest = await manifestRes.json();
                 const baseUrl = addonUrl.replace('/manifest.json', '');
                 const catalogsData = [];
 
-                // Limitar a los 3 primeros catálogos para evitar saturar la memoria en TV
-                // Eliminamos el límite de 3 para mostrar todas las secciones (Netflix, Disney+, etc.)
                 const catalogsToFetch = (manifest.catalogs || []);
 
                 for (const cat of catalogsToFetch) {
@@ -1943,8 +1908,7 @@
             const homeView = document.getElementById('home-view');
             const settingsView = document.getElementById('settings-view');
             const gridContainer = document.getElementById('grid-container');
-            
-            // Reset general
+
             if(homeView) homeView.style.display = 'none';
             if(settingsView) settingsView.style.display = 'none';
             dataList.style.display = 'none';
@@ -1972,7 +1936,6 @@
             const carousel = document.getElementById('live-sports-carousel');
             const cinemaBanner = document.getElementById('cinema-banner-carousel');
 
-            // --- LÓGICA CONTINUAR VIENDO (CARGA PRIORITARIA) ---
             const continueSection = document.getElementById('continue-watching-section');
             const continueContainer = document.getElementById('continue-watching-container');
             const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
@@ -1984,8 +1947,7 @@
                     continueData.forEach(item => {
                         const card = document.createElement('div');
                         card.className = 'poster-card';
-                        
-                        // Obtener progreso guardado para este stream específico
+
                         const savedProg = videoProgress[item.lastStreamId];
                         const percent = savedProg ? savedProg.percent : 0;
 
@@ -1998,7 +1960,7 @@
                                 openStremioDetails(item, item.baseUrl);
                             }
                         };
-                        
+
                         card.innerHTML = `
                             <img loading="lazy" src="${item.poster}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;">
                             <div class="continue-menu-btn" onclick="showContinueWatchingMenu(event, '${item.id}')" style="position:absolute; top:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; backdrop-filter:blur(5px); border:1px solid rgba(255,255,255,0.1);">
@@ -2016,19 +1978,18 @@
                 }
             }
 
-            // Cargar Catálogos Stremio (Muestra el catálogo completo independientemente de la señal de TV)
             const stremioContainer = document.getElementById('stremio-catalogs-container');
             const stremioSection = document.getElementById('stremio-section');
             if (stremioContainer) {
                 stremioContainer.innerHTML = '';
-                if (stremioSection) stremioSection.style.display = stremioAddons.length > 0 ? 'block' : 'none';                // Recopilamos los IDs que ya están en las listas de arriba para que no se repitan abajo
+                if (stremioSection) stremioSection.style.display = stremioAddons.length > 0 ? 'block' : 'none';
                 const idsInLists = new Set([
                     ...(JSON.parse(localStorage.getItem('continueWatching') || '[]')).map(i => i.id),
                     ...(JSON.parse(localStorage.getItem('userMyList') || '[]')).map(i => i.id)
-                ]);                // Carga en PARALELO: No esperamos a que uno termine para empezar el otro
+                ]);
                 const catalogPromises = stremioAddons.map(url => fetchStremioCatalog(url));
                 const results = await Promise.allSettled(catalogPromises);
-                
+
                 const allCatalogs = [];
                 results.forEach(result => {
                     if (result.status === 'fulfilled' && result.value) {
@@ -2041,21 +2002,18 @@
                     if (n.includes('new') || n.includes('nuevo')) return 1;
                     if (n.includes('featured') || n.includes('destacado')) return 2;
                     if (n.includes('popular')) return 3;
-                    return 99; // Otros catálogos
+                    return 99;
                 };
 
                 const shownInTopCategories = new Set();                const sortedCatalogs = allCatalogs
                     .map(cat => ({ ...cat, priority: getPriority(cat.catalogName) }))
                     .sort((a, b) => a.priority - b.priority);
 
-                // OPTIMIZACIÓN TV: Renderizado por lotes (Chunking). Evita crear cientos de nodos DOM de golpe congelando el procesador de la tele.
                 let catIndex = 0;
-                // Reducimos el tiempo entre secciones para que la carga sea más ágil
                 function renderNextCatalog() {
                     if (catIndex >= sortedCatalogs.length) return;
                     const cat = sortedCatalogs[catIndex++];
 
-                    // Filtrar catálogos molestos de Cinemeta
                     const name = (cat.catalogName || '').toLowerCase();
                     if (name.includes('last videos') || name.includes('calendar videos')) {
                         renderNextCatalog();
@@ -2076,7 +2034,7 @@
                     section.style.marginBottom = "25px";
                     const platform = cat.catalogName || 'Streaming';
                     const typeLabel = cat.type === 'movie' ? 'Películas' : (cat.type === 'series' ? 'Series' : '');
-                    
+
                     const platformLogos = {
                         'netflix': 'https://static.wikia.nocookie.net/logopedia/images/b/be/Netflix_N.svg/revision/latest/scale-to-width-down/250?cb=20220429163838',
                         'disney+': 'https://static.wikia.nocookie.net/logopedia/images/f/f8/Disney%2B_%282024%29.svg/revision/latest?cb=20251230182350',
@@ -2088,7 +2046,6 @@
                     let platformDisplay = platform;
                     const pKey = platform.toLowerCase();
 
-                    // Sistema de Iconos para categorías dinámicas
                     const categoryIcons = {
                         'new': 'fiber_new',
                         'nuevo': 'fiber_new',
@@ -2099,7 +2056,6 @@
 
                     for (const key in categoryIcons) {
                         if (pKey.includes(key)) {
-                            // Se elimina el texto (NEW, FEATURED, POPULAR) dejando solo el icono con un tamaño ligeramente mayor
                             platformDisplay = `<span class="material-icons-round" style="font-size: 1.6rem; color: var(--primary); vertical-align: middle;">${categoryIcons[key]}</span>`;
                             break;
                         }
@@ -2147,20 +2103,18 @@
                     section.appendChild(row);
                     stremioContainer.appendChild(section);
 
-                    // Cede el control al navegador 150ms antes de procesar el siguiente catálogo.
-                    requestAnimationFrame(() => setTimeout(renderNextCatalog, 80)); 
+                    requestAnimationFrame(() => setTimeout(renderNextCatalog, 80));
                 }
                 renderNextCatalog();
             }
             const cinemaDots = document.getElementById('cinema-banner-dots');
-            
+
             carousel.innerHTML = '';
             if(cinemaBanner) cinemaBanner.innerHTML = '';
             if(cinemaDots) cinemaDots.innerHTML = '';
 
             const now = new Date();
 
-            // --- LÓGICA CARRUSEL DE CINE (BANNER TOP) ---
             const cinemaProgs = epgData
                 .filter(p => {
                     if (!userSelectedChannels.has(p.channel)) return false;
@@ -2169,13 +2123,12 @@
                     return categoryPart.includes('cine') || categoryPart.includes('película');
                 })
                 .map(p => {
-                    // Extraemos la nota numérica (ej: de "★ 8.5/10" extraemos 8.5) para poder ordenar
                     const scoreMatch = (p.description || '').match(/★\s?(\d+(\.\d+)?)/);
                     const scoreValue = scoreMatch ? parseFloat(scoreMatch[1]) : 0;
                     return { ...p, _sortScore: scoreValue };
                 })
-                .sort((a, b) => b._sortScore - a._sortScore) // Ordenar de mejor a peor puntuación
-                .slice(0, 6);            // Ocultar la sección si no hay películas
+                .sort((a, b) => b._sortScore - a._sortScore)
+                .slice(0, 6);
             const bannerContainer = document.getElementById('cinema-section');
             if (bannerContainer) {
                 bannerContainer.style.display = cinemaProgs.length > 0 ? 'block' : 'none';
@@ -2185,10 +2138,10 @@
                 const slide = document.createElement('div');
                 slide.style.cssText = `min-width: 100%; height: 100%; scroll-snap-align: start; position: relative; cursor: pointer; background: url('${prog.iconSrc2 || prog.iconSrc}') center/cover no-repeat;`;
                 slide.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
-                
+
                 slide.innerHTML = `
                     <div style="position: absolute; inset: 0; background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 40%, transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 40%);"></div>
-                    
+
                     <div style="position: absolute; top: 16px; left: 16px; right: 16px; z-index: 3; display: flex; justify-content: flex-end; align-items: flex-start;">
                         <img src="${prog.channelIcon}" style="height: 28px; width: auto; max-width: 100px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));" onerror="this.style.display='none'">
                     </div>
@@ -2201,7 +2154,7 @@
                 const dot = document.createElement('div');
                 dot.style.cssText = `width: 6px; height: 6px; background: ${idx === 0 ? 'var(--primary)' : 'rgba(255,255,255,0.4)'}; border-radius: 50%; transition: all 0.3s ease;`;
                 cinemaDots.appendChild(dot);
-            });            // Auto-scroll para los dots y Rotación Automática
+            });
             if(cinemaBanner) {
                 cinemaBanner.onscroll = () => {
                     const index = Math.round(cinemaBanner.scrollLeft / cinemaBanner.offsetWidth);
@@ -2212,11 +2165,10 @@
                     });
                 };
 
-                // Lógica de rotación automática cada 5 segundos
                 if (window.cinemaInterval) clearInterval(window.cinemaInterval);
                 window.cinemaInterval = setInterval(() => {
                     if (!cinemaBanner || cinemaBanner.offsetWidth === 0) return;
-                    
+
                     const scrollWidth = cinemaBanner.offsetWidth;
                     const maxScroll = cinemaBanner.scrollWidth - scrollWidth;
                     let nextScroll = cinemaBanner.scrollLeft + scrollWidth;
@@ -2231,8 +2183,7 @@
                     });
                 }, 5000);
             }
-            
-            // --- LÓGICA DEPORTES (ORIGINAL) ---
+
             const liveProgs = epgData.filter(p => {
                 if (!userSelectedChannels.has(p.channel)) return false;
                 if (hideNoImageEvents) {
@@ -2251,9 +2202,8 @@
                 const start = new Date(y, m - 1, d, h, min);
                 const stop = new Date(y, m - 1, d, sh, smin);
                 return now >= start && now <= stop;
-            }).slice(0, 15); 
+            }).slice(0, 15);
 
-            // Ocultar sección de deportes en Inicio si está vacía
             if (carousel && carousel.parentElement) {
                 carousel.parentElement.style.display = liveProgs.length > 0 ? 'block' : 'none';
             }
@@ -2268,8 +2218,7 @@
                 card.className = 'program-card';
                 card.style.cssText = 'min-width: 260px; width: 260px; flex-shrink: 0; margin: 0; background-size: cover; background-position: center; background-repeat: no-repeat; cursor: pointer; padding: 0; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden;';
                 card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date, true);
-                
-                // Al igual que en eventos, priorizamos iconSrc2 para el fondo si existe
+
                 const bgImage = prog.iconSrc2 || prog.iconSrc;
                 if (bgImage) card.style.backgroundImage = `url('${bgImage}')`;
 
@@ -2277,12 +2226,12 @@
                     <div style="position: absolute; inset: 0; background: linear-gradient(to top, #000000 0%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.4) 100%); z-index: 1; pointer-events: none;"></div>
                     <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px;">
                         <div style="font-size: 0.95rem; color: #ffffff; font-weight: 700; line-height: 1.3; margin-bottom: 8px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${processColoredText(prog.title)}</div>
-                        
+
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
                             <img src="${prog.channelIcon}" style="height: 16px; width: auto; max-width: 50px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">
                             <span style="font-size: 0.8rem; color: #fff; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">${prog.start} - ${prog.stop}</span>
                         </div>
-                        
+
                         <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
                             <div style="width: ${progress}%; height: 100%; background: var(--color-primary); box-shadow: 0 0 8px var(--color-primary);"></div>
                         </div>
@@ -2291,19 +2240,16 @@
                 carousel.appendChild(card);
             });
 
-            // --- LÓGICA OCULTAR CATEGORÍAS SIN EVENTOS ---
             const categoriesSection = document.getElementById('categories-section');
             const categoriesContainer = document.getElementById('categories-container');
-            
+
             if (categoriesSection && categoriesContainer) {
                 const categoryItems = categoriesContainer.querySelectorAll('div[onclick*="openSportCategory"]');
                 let totalVisibleCategories = 0;
 
                 categoryItems.forEach(item => {
-                    // Extraer el nombre de la categoría del atributo onclick
                     const categoryName = item.getAttribute('onclick').match(/'([^']+)'/)[1];
-                    
-                    // Verificar si existe al menos un programa en el EPG para esta categoría
+
                     const hasEvents = epgData.some(p => {
                         if (!userSelectedChannels.has(p.channel)) return false;
                         const categoryPart = (p.description || '').split('·')[0].toLowerCase();
@@ -2318,7 +2264,6 @@
                     }
                 });
 
-                // Mostrar la sección completa solo si hay al menos una categoría con eventos
                 categoriesSection.style.display = totalVisibleCategories > 0 ? 'block' : 'none';
             }
         }
@@ -2388,7 +2333,7 @@
                 `;
                 dataList.appendChild(row);
             });
-            
+
         }
         let channelsList = [];
         let visibleChannelsList = [];
@@ -2399,21 +2344,18 @@
         let pageSize = 30;
         let renderedItems = 0;
 
-        // Función para obtener la fecha actual en formato YYYY-MM-DD
         function getCurrentDateFormatted() {
             const today = new Date();
             const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0'); // Los meses son de 0-11
+            const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         }
 
-        // Función para establecer la fecha y hora actuales en los filtros
         function setDateToCurrent() {
             const now = new Date();
             document.getElementById('dateFilter').value = getCurrentDateFormatted();
-            
-            // Establecer la hora actual en el selector
+
             const currentHour = now.getHours();
             document.getElementById('hourFilter').value = currentHour;
         }
@@ -2421,12 +2363,12 @@
         async function fetchXML() {
             const loader = document.getElementById('loader');
             const url = localStorage.getItem('epgSourceUrl');
-            
+
             if (!url) {
                 console.log("URL de EPG no configurada.");
                 return;
             }
-            
+
             loader.style.display = 'flex';
 
             try {
@@ -2434,28 +2376,25 @@
                 if (!response.ok) throw new Error("No se pudo cargar el archivo EPG.");
                 const xmlText = await response.text();
 
-                // Parsear XML con promesa para no bloquear UI
                 await new Promise(resolve => {
                     setTimeout(() => {
                         parseXML(xmlText);
                         resolve();
-                    }, 50); // Permite que el loader se pinte antes del parseo pesado
-                });                // No renderizamos la tabla de eventos aquí para permitir que la vista de Inicio sea la principal al cargar
+                    }, 50);
+                });
 
             } catch (err) {
                 alert("Error al cargar el EPG: " + err.message);            } finally {
-                // Sincronización refinada con el clímax de la animación CSS (2.4s)
                 setTimeout(() => {
                     loader.style.opacity = '0';
                     setTimeout(() => {
                         loader.style.display = 'none';
                         loader.style.visibility = 'hidden';
-                        // Reset de estado para futuras cargas
                         loader.style.opacity = '1';
                     }, 600);
                 }, 2400);
             }
-        }// Listener de fileInput eliminado
+        }
 
         function parseXML(xmlText) {
             const parser = new DOMParser();
@@ -2470,8 +2409,8 @@
 
             const channels = {};
             const channelElements = xmlDoc.getElementsByTagName('channel');
-            const tempChannelsSet = new Set(); // Usamos un Set para evitar duplicados
-            channelsList = []; // Reiniciamos channelsList
+            const tempChannelsSet = new Set();
+            channelsList = [];
 
             for (let i = 0; i < channelElements.length; i++) {
                 const channel = channelElements[i];
@@ -2479,16 +2418,15 @@
                 const iconSrc = channel.getElementsByTagName('icon')[0]?.getAttribute('src') || '';
                 channels[channelId] = iconSrc;
 
-                // Si el canal no ha sido añadido aún, lo añadimos a la lista
                 if (!tempChannelsSet.has(channelId)) {
                     tempChannelsSet.add(channelId);
                     channelsList.push(channelId);
                     userSelectedChannels.add(channelId);
                 }
-            }            // Cargar selección guardada de Local Storage
+            }
             const savedChannels = localStorage.getItem('userSelectedChannels');
             const savedOrder = localStorage.getItem('customChannelOrder');
-            
+
             if (savedOrder) {
                 const parsedOrder = JSON.parse(savedOrder);
                 const filteredOrder = parsedOrder.filter(id => channelsList.includes(id));
@@ -2498,7 +2436,7 @@
             if (savedChannels) {
                 userSelectedChannels = new Set(JSON.parse(savedChannels));
             }
-            
+
             visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
 
             for (let i = 0; i < programmes.length; i++) {
@@ -2528,19 +2466,15 @@
             }            populateChannelDropdown();
         }
 
-        // ✅ Nueva función: convierte una fecha EPG (con zona horaria) a objeto Date
         function parseEPGDate(epgDateStr) {
-            // Ejemplo de entrada: "20251116060000 +0100"
             const match = epgDateStr.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}) ([\+\-]\d{4})$/);
             if (!match) return null;
 
             const [_, y, mo, d, h, mi, s, tz] = match;
-            // Convertimos a formato ISO con zona horaria
             const isoString = `${y}-${mo}-${d}T${h}:${mi}:${s}${tz.slice(0, 3)}:${tz.slice(3)}`;
             return new Date(isoString);
         }
 
-        // ✅ Nueva función: formatea la fecha (dd/mm/yyyy)
         function formatXMLTVDate(epgDateStr) {
             const date = parseEPGDate(epgDateStr);
             if (!date) return '';
@@ -2550,7 +2484,6 @@
             return `${day}/${month}/${year}`;
         }
 
-        // ✅ Nueva función: formatea la hora local (hh:mm)
         function formatXMLTVTime(epgDateStr) {
             const date = parseEPGDate(epgDateStr);
             if (!date) return '';
@@ -2559,7 +2492,6 @@
             return `${hour}:${minute}`;
         }
 
-        // ✅ Ajuste de calculateDuration para que use la nueva función
         function calculateDuration(start, stop) {
             const startDate = parseEPGDate(start);
             const stopDate = parseEPGDate(stop);
@@ -2575,10 +2507,10 @@
         }        function populateChannelDropdown() {
             const dropdown = document.getElementById('channelDropdown');
             dropdown.innerHTML = '<option value="">Seleccionar Canal</option>';
-            
+
             const channelTabs = document.getElementById('channel-tabs');
             channelTabs.innerHTML = `<div class="channel-tab active" data-val="" onclick="selectChannelTab(this, '', 'Todos los canales')">Todos</div>`;
-            
+
             visibleChannelsList.forEach(channelId => {
                 const option = document.createElement('option');
                 option.value = channelId;
@@ -2631,7 +2563,7 @@
             document.querySelectorAll('.channel-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
             document.getElementById('currentChannelLabel').textContent = displayName;
-            
+
             document.getElementById('channelFilter').value = channelId;
             document.getElementById('channelDropdown').value = channelId;
             renderCurrentView();
@@ -2640,26 +2572,26 @@
         function buildDateTabs() {
             const dateTabs = document.getElementById('date-tabs');
             dateTabs.innerHTML = '';
-            
+
             const today = new Date();
             const daysMap = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
             const currentDateVal = document.getElementById('dateFilter').value;
-            
+
             for(let i = -2; i <= 5; i++) {
                 const d = new Date(today);
                 d.setDate(today.getDate() + i);
-                
+
                 let label = '';
                 if (i === -1) label = 'Ayer';
                 else if (i === 0) label = 'Hoy';
                 else if (i === 1) label = 'Mañana';
                 else label = daysMap[d.getDay()];
-                
+
                 const year = d.getFullYear();
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
                 const formattedDate = `${year}-${month}-${day}`;
-                
+
                 const tab = document.createElement('div');
                 tab.className = 'date-tab';
                 if(formattedDate === currentDateVal) tab.classList.add('active');
@@ -2672,42 +2604,39 @@
         function selectDateTab(element, dateStr) {
             document.querySelectorAll('.date-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
-            
+
             document.getElementById('dateFilter').value = dateStr;
             renderTable(true);
         }        function processColoredText(text) {
             if (!text) return '';
 
-            // Reemplazo de la palabra DIRECTO por icono Material Design (Rojo con sombra)
             text = text.replace(/\bDIRECTO\b/g, '<span class="material-icons" style="color: #ff4757; font-size: 1.1rem; vertical-align: middle; margin-right: 4px; filter: drop-shadow(0 0 3px rgba(255, 71, 87, 0.6));">sensors</span>');
 
-            // Añadimos 'i' para que no distinga mayúsculas de minúsculas en las etiquetas
             const regex = /\[COLOR\s*(\w+)\](.*?)\[\/COLOR\]/gi;
             let firstMatch = true;
             let lastWasSeason = false;
-            
+
             return text.replace(regex, (match, colorName, content) => {
                 const breakLine = firstMatch ? '<br>' : '';
                 firstMatch = false;
-                
+
                 let finalColor = colorName;
                 let extraStyle = '';
                 const contentTrim = content.trim();
-                
-                // Identificamos si es una temporada independientemente del nombre del color (Ej: T1, T2026, T1E2)
+
                 if (/^T\d+/i.test(contentTrim)) {
                     finalColor = 'var(--primary)';
                     lastWasSeason = true;
-                }                // Si es el texto que va justo después de la temporada (Azul oscuro sólido sin sombra)
+                }
                 else if (lastWasSeason) {
                     finalColor = '#0d47a1';
                     extraStyle = '';
                     lastWasSeason = false;
-                } // Resto de colores se mantienen sin alterar
+                }
                 else {
                     lastWasSeason = false;
                 }
-                
+
                 return `${breakLine}<span style="color: ${finalColor}; font-size: 0.9em; font-weight: 500;${extraStyle}">${content}</span>`;
             });
         }
@@ -2724,7 +2653,7 @@
             date: document.getElementById('dateFilter').value,
             hour: document.getElementById('hourFilter').value
         };        filteredData = epgData.filter(item => {
-            if (!userSelectedChannels.has(item.channel)) return false;            // Filtro estricto: Solo coincide con "DIRECTO" en mayúsculas y como palabra completa
+            if (!userSelectedChannels.has(item.channel)) return false;
             if (onlyLiveEvents && !/\bDIRECTO\b/.test(item.title)) return false;
             if (hideNoImageEvents) {
                 const clean = (v) => (v || '').toLowerCase().replace(/movistar\+?/g, '').replace(/m\s?\+/g, '').replace(/\bhd\b/g, '').replace(/[^a-z0-9]/g, '').trim();
@@ -2755,9 +2684,7 @@
             }
 
             return true;
-        });        // -------------------------------
-        // ORDENACIÓN (CRONOLÓGICA O POR CANAL)
-        // -------------------------------
+        });
         if (isChronologicalOrder) {
             filteredData.sort((a, b) => {
                 const keyA = a.date.split('/').reverse().join('') + a.start.replace(':', '');
@@ -2789,7 +2716,7 @@
         }
     }
 
-    
+
 }
 
         let gridView = false;
@@ -2816,7 +2743,7 @@ function renderCurrentView() {
             date: document.getElementById('dateFilter').value,
             hour: document.getElementById('hourFilter').value
         };        filteredData = epgData.filter(item => {
-            if (!userSelectedChannels.has(item.channel)) return false;            // Filtro estricto: Solo coincide con "DIRECTO" en mayúsculas y como palabra completa
+            if (!userSelectedChannels.has(item.channel)) return false;
             if (onlyLiveEvents && !/\bDIRECTO\b/.test(item.title)) return false;
             if (hideNoImageEvents) {
                 const clean = (v) => (v || '').toLowerCase().replace(/movistar\+?/g, '').replace(/m\s?\+/g, '').replace(/\bhd\b/g, '').replace(/[^a-z0-9]/g, '').trim();
@@ -2849,9 +2776,6 @@ function renderCurrentView() {
             return true;
         });
 
-        // -------------------------------
-        // ORDENAR CANALES POR LONGITUD
-        // -------------------------------
         if (filters.channel) {
             filteredData.sort((a, b) => {
                 const aIncludes = a.channel.toLowerCase().includes(filters.channel);
@@ -2864,7 +2788,7 @@ function renderCurrentView() {
         }
 
         renderGridView();
-        
+
 
     } else {
         document.getElementById('grid-container').style.display = 'none';
@@ -2872,7 +2796,6 @@ function renderCurrentView() {
         renderTable(true);
     }
 }
-
 
         function renderGridView() {
             const container = document.getElementById('grid-container');
@@ -2896,8 +2819,6 @@ function renderCurrentView() {
             }
             table.appendChild(hoursRow);
 
-            // Filtrar channelsList para incluir solo los canales que tienen programas actualmente filtrados
-            // Pero ahora, channelsList ya tiene el orden del XML
             const channelsInFilteredData = new Set(filteredData.map(item => item.channel));
             const sortedChannels = channelsList.filter(channel => channelsInFilteredData.has(channel));
 
@@ -3020,15 +2941,15 @@ function renderCurrentView() {
                     card.style.backgroundPosition = 'center';
                 } else if (item.channelIcon) {
                     card.style.backgroundImage = `url('${item.channelIcon}')`;
-                    card.style.backgroundSize = '75px'; 
+                    card.style.backgroundSize = '75px';
                     card.style.backgroundRepeat = 'repeat';
-                    card.style.backgroundColor = '#0a0c10'; 
+                    card.style.backgroundColor = '#0a0c10';
                     card.style.backgroundBlendMode = 'multiply';
                     card.style.opacity = '0.7';
                 }
 
                 card.innerHTML = `
-            
+
             <div style="position: absolute; top: 16px; left: 16px; right: 16px; z-index: 3; display: flex; justify-content: space-between; align-items: flex-start;">
                 <div style="flex: 1; padding-right: 80px;">
                     <div class="title" style="font-size: 0.95rem; color: #fff; font-weight: 700; line-height: 1.2; text-shadow: 0 2px 4px rgba(0,0,0,0.8); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
@@ -3041,10 +2962,10 @@ function renderCurrentView() {
                 </div>` : ''}
             </div>
 
-            
+
             <div style="position: absolute; top: 16px; bottom: 16px; left: 16px; right: 16px; display: flex; gap: 16px; align-items: flex-end; z-index: 2;">
                 <div style="width: 85px; height: 120px; align-self: center; border-radius: 12px; overflow: hidden; flex-shrink: 0; box-shadow: 0 5px 15px rgba(0,0,0,0.8); background: #000; border: 1px solid rgba(255,255,255,0.1);">
-                    <img loading="lazy" src="${item.iconSrc || item.channelIcon}" 
+                    <img loading="lazy" src="${item.iconSrc || item.channelIcon}"
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
                          onerror="this.src='${item.channelIcon}'; this.style.padding='15px';">
                 </div>                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 2px;">
@@ -3053,9 +2974,9 @@ function renderCurrentView() {
                         const scoreMatch = fullDesc.match(/★\s?(\d+(\.\d+)?)/);
                         const yearMatch = fullDesc.match(/\b(19|20)\d{2}\b/);
                         const ratingMatch = fullDesc.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
-                        
+
                         const yearHtml = yearMatch ? `<span style="color: #fff; opacity: 0.4;">${yearMatch[0]}</span>` : '';
-                        
+
                         let ratingHtml = '';
                         if (ratingMatch) {
                             let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
@@ -3070,7 +2991,7 @@ function renderCurrentView() {
                         }
 
                         const scoreHtml = scoreMatch ? `<span style="color: #f1c40f; margin-left: 8px;">${scoreMatch[0]}</span>` : '';
-                        
+
                         return (yearHtml || ratingHtml || scoreHtml) ? `<div style="font-size: 0.75rem; font-weight: 800; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center;">${yearHtml}${ratingHtml}${scoreHtml}</div>` : '';
                     })()}
                     <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -3078,15 +2999,14 @@ function renderCurrentView() {
                             const fullDesc = processColoredText(item.description);
                             const splitPoint = fullDesc.indexOf('·');
                             let category = (splitPoint !== -1) ? fullDesc.substring(0, splitPoint).trim() : fullDesc;
-                            
-                            // Extraer año para limpieza
+
                             const yearMatch = category.match(/\b(19|20)\d{2}\b/);
                             const year = yearMatch ? yearMatch[0] : "";
-                            
+
                             category = category.replace(/★\s?[\d./]+/g, '');
                             category = category.replace(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/g, '');
-                            if (year) category = category.replace(year, '');                            
-                            
+                            if (year) category = category.replace(year, '');
+
                             const cleanCat = category.replace(/\|/g, '').replace(/<[^>]*>?/gm, '').trim();
                             let mainCat = cleanCat || 'Evento';
                             let subCat = '';
@@ -3095,17 +3015,17 @@ function renderCurrentView() {
                                 mainCat = parts[0].trim();
                                 subCat = `<span style="color: #3b82f6; font-weight: 700; margin-left: 4px;">${parts.slice(1).join(',').trim()}</span>`;
                             }
-                            
+
                             return `<span style="color: var(--primary);">${mainCat}</span>${subCat}`;
                         })()}
                     </div>
-                    
+
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-size: 0.75rem; font-weight: 800; color: #fff;">
                             ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.65rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
                         </div>
 
-                        <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')" 
+                        <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')"
                              style="cursor: pointer; color: #fff; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                             <span class="material-icons" style="font-size: 1.2rem;">more_vert</span>
                         </div>
@@ -3117,7 +3037,6 @@ function renderCurrentView() {
             });
         }
 
-        // Filtros
         document.getElementById('channelDropdown').addEventListener('input', () => {
             document.getElementById('channelFilter').value = document.getElementById('channelDropdown').value;
             renderCurrentView();
@@ -3131,8 +3050,6 @@ function renderCurrentView() {
             renderTable(true);
         });
 
-
-        // Evitar renderizados excesivos con debounce
         function debounce(func, delay = 300) {
             let timer;
             return function(...args) {
@@ -3141,7 +3058,6 @@ function renderCurrentView() {
             };
         }
 
-        // Aplica debounce a los filtros de texto
         ['channelFilter', 'dateFilter', 'hourFilter'].forEach(id => {
             document.getElementById(id).addEventListener('input', debounce(() => {
                 document.getElementById('channelDropdown').value = '';
@@ -3149,27 +3065,21 @@ function renderCurrentView() {
             }));
         });
 
-        // IMPORTANTE: Se añade la condición currentMainView === 'events' para evitar que se cuelen eventos en la vista de canales
         window.addEventListener('scroll', () => {
-            // Solo aplica el scroll infinito si estamos en la pestaña EVENTOS, en modo lista y quedan ítems por cargar
             if (currentMainView === 'events' && !gridView && (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 200) && renderedItems < filteredData.length) {
-                renderTable(false); 
+                renderTable(false);
             }
         });
 
-        // Llama a setDateToCurrent al cargar la página para establecer la fecha inicial
         document.addEventListener('DOMContentLoaded', setDateToCurrent);        fetchXML().then(() => {
             switchMainView('home');
-            // OPTIMIZACIÓN TV: Retrasamos la carga y parseo de listas IPTV para liberar el hilo principal y dejar que la interfaz de Inicio se renderice fluida.
             setTimeout(() => {
                 requestAnimationFrame(() => loadAllStreamSources());
             }, 1200);
         });        function normalizeName(name) {
             if (!name) return '';
             let n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            // Eliminación más agresiva de etiquetas comunes (incluso si no hay espacio: F1HD)
             n = n.replace(/\b(hd|sd|geo|espana|es|plus|\+|premium|uhd|directo|tv|24h|1080p|720p)\b/g, '');
-            // Solo caracteres alfanuméricos
             n = n.replace(/[^a-z0-9]/g, '');
             return n.trim();
         }        async function loadAllStreamSources() {
@@ -3183,7 +3093,6 @@ function renderCurrentView() {
                     const text = await response.text();
                     let items = [];
 
-                    // 1. Extracción rápida de datos
                     if (text.includes('#EXTINF')) {
                         const lines = text.split('\n');
                         let curN='', curL='', curB='';
@@ -3205,15 +3114,12 @@ function renderCurrentView() {
                         } catch(e){}
                     }
 
-                    // 2. Procesamiento por lotes asíncronos (Evita el congelamiento)
                     const CHUNK_SIZE = 300;
                     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
                         const chunk = items.slice(i, i + CHUNK_SIZE);
                         chunk.forEach(item => {
-                            // Esta función ahora se encarga de añadir el canal si no existe en EPG
                             matchStreamToChannel(item.n, item.u, item.n, item.l, item.b);
                         });
-                        // Devolvemos el control al navegador para que la UI no se bloquee
                         await new Promise(resolve => setTimeout(resolve, 0));
                     }
                 } catch (e) { console.error("Error en fuente:", e); }
@@ -3342,32 +3248,28 @@ function renderCurrentView() {
             if (!normalizedStream) return;
 
             let foundMatch = false;
-            // Intentamos vincular con un canal existente de la guía
             for (const channelId of channelsList) {
                 const normalizedChannel = normalizeName(channelId);
                 if (normalizedChannel === normalizedStream || normalizedChannel.includes(normalizedStream) || normalizedStream.includes(normalizedChannel)) {
                     addStreamToChannel(channelId, streamUrl, rawName, customLogo, customBanner);
                     foundMatch = true;
-                    break; // Una vez vinculado, no seguimos buscando
+                    break;
                 }
             }
 
-            // Si NO se encontró en EPG, lo inyectamos como canal nuevo (Pero sin reconstruir todo el DOM cada vez)
             if (!foundMatch && !channelsList.includes(finalStreamName)) {
                 channelsList.push(finalStreamName);
                 userSelectedChannels.add(finalStreamName);
                 addStreamToChannel(finalStreamName, streamUrl, rawName, customLogo, customBanner);
-                
-                // Actualizamos la lista interna de canales visibles
+
                 visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
             }
-        }        // Objeto global para almacenar logos y banners personalizados detectados en las listas
+        }
         let customMediaMap = {};
 
         function addStreamToChannel(channelId, url, streamName = '', customLogo = '', customBanner = '') {
             if (!channelStreams[channelId]) channelStreams[channelId] = [];
-            
-            // Guardar media personalizada si viene en la lista
+
             if (!customMediaMap[channelId]) customMediaMap[channelId] = { logo: '', banner: '' };
             if (customLogo) customMediaMap[channelId].logo = customLogo;
             if (customBanner) customMediaMap[channelId].banner = customBanner;
@@ -3376,7 +3278,7 @@ function renderCurrentView() {
             const lang = streamName.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'ES';
             const addonName = streamName.split(' ')[0] || 'Stream';
             const info = `${quality} | ${lang} | ${addonName}`;
-            
+
             if (!channelStreams[channelId].find(s => s.url === url)) {
                 channelStreams[channelId].push({ url, info });
             }
@@ -3384,14 +3286,12 @@ function renderCurrentView() {
 
         function saveAllAddons() {
             const epgUrl = document.getElementById('epgSourceInput').value.trim();
-            
-            // Guardar EPG
+
             localStorage.setItem('epgSourceUrl', epgUrl);
-            
-            // Guardar Streams (ya gestionados en memoria por addNewAddonRow/removeAddonGeneric)
+
             localStorage.setItem('streamSources', JSON.stringify(streamSources));
             localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons));
-            
+
             alert("Configuración guardada. Recargando datos...");
             location.reload();
         }        function openMyListView() {
@@ -3399,16 +3299,16 @@ function renderCurrentView() {
             const moviesContainer = document.getElementById('my-list-movies');
             const seriesContainer = document.getElementById('my-list-series');
             const myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
-            
+
             moviesContainer.innerHTML = '';
             seriesContainer.innerHTML = '';
-            
+
             const movies = myList.filter(i => i.type === 'movie');
             const series = myList.filter(i => i.type === 'series');
-            
+
             document.getElementById('my-list-movies-section').style.display = movies.length > 0 ? 'block' : 'none';
             document.getElementById('my-list-series-section').style.display = series.length > 0 ? 'block' : 'none';
-            
+
             if (myList.length === 0) {
                 moviesContainer.style.display = 'block';
                 moviesContainer.innerHTML = '<div style="color:#666; padding:20px; font-size:0.9rem; text-align:center; width:100%;">Tu lista está vacía. Guarda películas o series para verlas aquí.</div>';
@@ -3427,24 +3327,21 @@ function renderCurrentView() {
 
             movies.forEach(item => moviesContainer.appendChild(createCard(item)));
             series.forEach(item => seriesContainer.appendChild(createCard(item)));
-            
+
             modal.style.display = 'flex';
         }        window.playStremioDirect = (meta) => {
             const video = document.getElementById('main-video-player');
-            
-            // Cargamos la metadata completa en segundo plano
-            meta.autoPlay = false; 
+
+            meta.autoPlay = false;
             openStremioDetails(meta, meta.baseUrl);
-            
-            // Mostramos los controles del reproductor sobre la imagen
+
             document.getElementById('player-container').classList.add('show-controls');
-            
+
             video.src = meta.cachedStream.url;
             video.style.display = 'block';
             video.classList.add('stremio-mode');
             document.getElementById('playerControls').style.display = 'flex';
-            
-            // Restaurar progreso guardado
+
             const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
             if (savedProg[meta.lastStreamId] && savedProg[meta.lastStreamId].time) {
                 video.currentTime = savedProg[meta.lastStreamId].time;
@@ -3453,7 +3350,6 @@ function renderCurrentView() {
             video.play();
             if (window.toggleAppFullscreen) window.toggleAppFullscreen();
 
-            // Gestionar progreso en modo directo
             video.ontimeupdate = () => {
                 const cur = video.currentTime; const dur = video.duration;
                 if(dur && !window.isDraggingScrubber) {
@@ -3474,12 +3370,10 @@ function renderCurrentView() {
 
         async function openStremioDetails(meta, baseUrl) {
             const modal = document.getElementById('programDetailModal');
-            
-            // Asegurar que los controles del reproductor estén ocultos al entrar en la ficha
+
             document.getElementById('playerControls').style.display = 'none';
             document.getElementById('player-container').classList.remove('show-controls');
-            
-            // ELIMINAR enlaces de canales de TV previos y limpiar interfaz
+
             modal.querySelectorAll('.source-selector').forEach(el => el.remove());
             const channelLogo = modal.querySelector('.detail-channel-logo');
             if (channelLogo) channelLogo.style.display = 'none';
@@ -3488,26 +3382,24 @@ function renderCurrentView() {
             const ratingFloating = document.getElementById('detail-rating-floating');
             if (ratingFloating) ratingFloating.style.display = 'none';            modal.querySelector('.detail-badge').style.display = 'none';
             modal.querySelector('.detail-progress-container').style.display = 'none';
-            // Limpiar datos residuales de TV (horas y tiempo restante)
             modal.querySelector('.detail-time').textContent = '';
             modal.querySelector('.detail-remaining').textContent = '';
 
-            // Actualizar la edad recomendada específica de la película/serie
             const ratingBadge = document.getElementById('detail-rating-badge');
             if (ratingBadge) {
                 const certification = meta.certification || '';
                 if (certification) {
                     ratingBadge.style.display = 'block';
                     ratingBadge.textContent = certification;
-                    
+
                     let rText = certification.toUpperCase();
                     let bgColor = '#333';
-                    let textColor = '#fff';                    if (rText.includes('TP') || rText === 'G' || rText.includes('0') || rText.includes('APTA')) bgColor = '#4caf50'; 
+                    let textColor = '#fff';                    if (rText.includes('TP') || rText === 'G' || rText.includes('0') || rText.includes('APTA')) bgColor = '#4caf50';
                     else if (rText.includes('3') || rText.includes('7') || rText.includes('⑦')) bgColor = '#2196f3';
                     else if (rText.includes('12') || rText.includes('13') || rText.includes('⑫') || rText.includes('⑬')) { bgColor = '#ffc107'; textColor = '#000'; }
                     else if (rText.includes('16') || rText.includes('⑯')) bgColor = '#ff9800';
                     else if (rText.includes('18') || rText.includes('R') || rText.includes('⑱')) bgColor = '#e53935';
-                    
+
                     ratingBadge.style.background = bgColor;
                     ratingBadge.style.color = textColor;
                 } else {
@@ -3517,19 +3409,19 @@ function renderCurrentView() {
 
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
             const titleEl = modal.querySelector('.detail-title');
-            titleEl.innerHTML = ''; 
+            titleEl.innerHTML = '';
             if (meta.logo) {
                 titleEl.innerHTML = `<img src="${meta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
             } else {
                 titleEl.textContent = meta.name;
-            }            // Priorizar descripción en español si existe, si no, limpiar la inglesa            // Mostrar placeholder de carga mientras obtenemos la sinopsis completa
+            }
             modal.querySelector('.detail-desc').innerHTML = '<div style="text-align:center; padding:30px; opacity:0.5;"><span class="material-icons" style="animation:spin 1s linear infinite; font-size:1.4rem; vertical-align:middle;">sync</span> Cargando detalles...</div>';
-            
+
             const playBtn = modal.querySelector('.detail-play-btn');
             const metaContainer = modal.querySelector('.detail-meta');
-            
+
             modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
-            
+
             const addListBtn = document.getElementById('add-to-list-btn');
             if(addListBtn) {
                 addListBtn.style.display = 'flex';
@@ -3559,14 +3451,12 @@ function renderCurrentView() {
             playBtn.style.color = '#777';
             playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Cargando información...`;
             modal.style.display = 'flex';            try {
-                // RENDERIZADO INMEDIATO
                 const initialDesc = meta.description || 'Cargando detalles...';
                 modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${initialDesc}</div>`;
-                
+
                 if (meta.type === 'movie' || meta.lastStreamId) {
                     setTimeout(() => window.fetchStreamsForId(meta.lastStreamId || meta.id, meta.autoPlay), 50);
                 }                let fullMeta = meta;
-                // OPTIMIZACIÓN: Usamos la primera respuesta válida recibida para no bloquear la interfaz
                 try {
                     const fastMeta = await Promise.any(stremioAddons.map(async (url) => {
                         const res = await raceFetch(`${url.replace('/manifest.json', '')}/meta/${meta.type}/${meta.id}.json?language=es-ES`);
@@ -3575,14 +3465,14 @@ function renderCurrentView() {
                         throw new Error('Sin meta');
                     }));
                     fullMeta = fastMeta;
-                } catch(e) { /* Si fallan todos, mantenemos la meta básica del catálogo */ }
+                } catch(e) {  }
 
                 if (fullMeta.logo && !titleEl.querySelector('img')) {
                     titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
                 }
 
                 const finalDesc = fullMeta.description_es || fullMeta.description || initialDesc;
-                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';// OPTIMIZACIÓN ULTRA: Carga Progresiva Real
+                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
                 window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
@@ -3609,7 +3499,6 @@ function renderCurrentView() {
                             }
 
                             const lastFP = localStorage.getItem('lastStremioFingerprint');
-                            // Ordenar: lo que más se parece a lo último visto, arriba del todo
                             allStreams.sort((a, b) => {
                                 if (!lastFP) return 0;
                                 const score = (s) => (s.title + s.name).toLowerCase().split(/[\s|/.,_-]+/).filter(w => w.length > 2 && lastFP.toLowerCase().includes(w)).length;
@@ -3640,12 +3529,11 @@ function renderCurrentView() {
                             const res = await raceFetch(`${url.replace('/manifest.json', '')}/stream/${fullMeta.type}/${streamId}.json`);
                             const data = await res.json();
                             addonsResponded++;
-                            
+
                             if (data.streams && data.streams.length > 0) {
                                 allStreams.push(...data.streams);
-                                // Forzar refresco de UI asíncrono
                                 setTimeout(renderStreams, 0);
-                                
+
                                 if (autoPlayMatch && !hasAuto && data.streams.some(s => s.url)) {
                                     hasAuto = true;
                                     setTimeout(() => playBtn.click(), 150);
@@ -3665,7 +3553,7 @@ function renderCurrentView() {
                 });
                 extraMetaHtml += '</div>';
 
-                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;                // Definir fetchStreamsForId con soporte para auto-reproducción y similitud de fuentes
+                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;
                 window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
@@ -3713,17 +3601,16 @@ function renderCurrentView() {
                     window.currentlyFetchingId = null;
 
                     if (allStreams.length > 0) {
-                        // LÓGICA DE BÚSQUEDA POR SIMILITUD (Fingerprinting)
                         const lastFingerprint = localStorage.getItem('lastStremioFingerprint');
                         let bestIdx = 0;
 
                         if (lastFingerprint) {
                             let maxScore = -1;
                             const targetWords = lastFingerprint.toLowerCase().split(/[\s|/.,_-]+/);
-                            
+
                             allStreams.forEach((st, i) => {
-                                if (autoPlayMatch && !st.url) return; // Priorizar enlaces directos en autoplay
-                                
+                                if (autoPlayMatch && !st.url) return;
+
                                 const currentText = ((st.title || "") + " " + (st.name || "")).toLowerCase();
                                 let score = 0;
                                 targetWords.forEach(word => {
@@ -3737,7 +3624,7 @@ function renderCurrentView() {
                         playBtn.style.background = 'var(--color-primary)';
                         playBtn.style.color = '#000';
                         playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
-                        
+
                         const oldSelector = document.querySelector('.stremio-stream-selector');
                         if (oldSelector) oldSelector.remove();            if (allStreams.length > 1) {
                 let selectorHtml = '<div class="source-selector stremio-stream-selector" style="width: 100%; margin-bottom: 10px;">';
@@ -3748,14 +3635,13 @@ function renderCurrentView() {
                     const addonName = st.name || "Addon";                    let qIcon = 'hd';
                     if(quality === '4K') qIcon = '4k';
                     else if(quality === 'SD') qIcon = 'sd';
-                    
+
                     const displayTitle = `<div class="source-pill-title"><span class="material-icons-round" style="font-size: 1.6rem;">${qIcon}</span></div>`;
                     const displayMeta = `<div class="source-pill-meta">${lang} • ${addonName}</div>`;
-                    
+
                     selectorHtml += `<div class="source-pill ${i === bestIdx ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}">${displayTitle}${displayMeta}</div>`;
                 });
                 selectorHtml += '</div>';
-                // Insertar encima del contenedor de botones para que ocupe todo el ancho y no se corte
                 playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
             }
 
@@ -3763,20 +3649,17 @@ function renderCurrentView() {
                         window.changeStremioSource = (idx) => {
                             window.currentStremioStreamIdx = idx;
                             const selected = allStreams[idx];
-                            // Guardar huella para el siguiente capítulo
                             localStorage.setItem('lastStremioFingerprint', (selected.title || "") + " " + (selected.name || ""));
-                            
+
                             document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
                                 p.classList.toggle('active', i === idx);
                             });
                         };
 
-                        // Autoplay si viene del botón de siguiente capítulo
                         if (autoPlayMatch) {
                             window.changeStremioSource(bestIdx);
                             setTimeout(() => playBtn.click(), 200);
                         }                        playBtn.onclick = async () => {
-                            // Guardar en Continuar Viendo (Historial Reciente)
                             const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
                             const itemToSave = {
                                 id: fullMeta.id,
@@ -3785,20 +3668,18 @@ function renderCurrentView() {
                                 background: fullMeta.background,
                                 type: fullMeta.type,
                                 baseUrl: baseUrl,                                lastStreamId: streamId,
-                                cachedStream: allStreams[window.currentStremioStreamIdx || 0] // Guardar enlace para carga directa
+                                cachedStream: allStreams[window.currentStremioStreamIdx || 0]
                             };
                             const filtered = continueData.filter(i => i.id !== itemToSave.id);
                             filtered.unshift(itemToSave);
-                            localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 3)));                            // --- EFECTO CINEMÁTICO PREMIUM (ESTILO INTRO) ---
+                            localStorage.setItem('continueWatching', JSON.stringify(filtered.slice(0, 3)));
                             const logoImg = titleEl.querySelector('img');
                             if (logoImg) {
-                                // 1. Creamos un fondo radial oscuro para aislar el logo
                                 const backdrop = document.createElement('div');
                                 backdrop.id = 'cinematic-blackout';
                                 backdrop.style.cssText = `position: fixed; inset: 0; background: #000; z-index: 10000; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;`;
                                 document.body.appendChild(backdrop);
 
-                                // 2. Clonamos el logo
                                 const clone = logoImg.cloneNode(true);
                                 const rect = logoImg.getBoundingClientRect();
                                 const displayWidth = Math.min(rect.width * 1.5, window.innerWidth * 0.7);
@@ -3810,19 +3691,16 @@ function renderCurrentView() {
                                     clone.style.opacity = '1';
                                     clone.style.filter = 'blur(0px)';
                                     clone.style.transform = 'translate(-50%, -50%) scale(1)';
-                                    
+
                                     setTimeout(() => {
                                         clone.style.transform = 'translate(-50%, -50%) scale(80)';
                                         clone.style.opacity = '0';
                                         clone.style.filter = 'blur(20px)';
-                                        // NO quitamos el backdrop aquí para mantener la pantalla en negro durante la carga
-                                    }, 850); 
+                                    }, 850);
                                 });
 
-                                // Quitamos el logo después de la explosión pero mantenemos el fondo negro
                                 setTimeout(() => { clone.remove(); }, 2000);
-                                
-                                // Escuchamos cuando el vídeo realmente empieza a reproducirse para quitar el negro
+
                                 const video = document.getElementById('main-video-player');
                                 const removeBlackout = () => {
                                     const b = document.getElementById('cinematic-blackout');
@@ -3833,27 +3711,24 @@ function renderCurrentView() {
                                     video.removeEventListener('playing', removeBlackout);
                                 };
                                 video.addEventListener('playing', removeBlackout);
-                                // Seguro de limpieza: si el vídeo no arranca, quitar el negro tras 4s
                                 setTimeout(removeBlackout, 4000);
-                                
+
                                 await new Promise(r => setTimeout(r, 1400));
                             }
 
                             const stream = allStreams[window.currentStremioStreamIdx || 0];
-                            
+
                             if (isP2PEnabled) {
-                                // Modo Especial: Abrir vía protocolo stremio:// para evitar buffer en navegador
                                 const stremioLink = `stremio://detail/${fullMeta.type}/${fullMeta.id}/${streamId}`;
                                 window.location.href = stremioLink;
                                 return;
                             }                            if (stream.url) {
                                 const video = document.getElementById('main-video-player');
-                                
-                                // Limpiar subtítulos y fuentes previas para evitar el icono de error
+
                                 video.pause();
                                 video.removeAttribute('src');
                                 video.load();
-                                Array.from(video.querySelectorAll('track')).forEach(t => t.remove());                                // BUSCAR SUBTÍTULOS EN ADDONS (OpenSubtitles, etc)
+                                Array.from(video.querySelectorAll('track')).forEach(t => t.remove());
                                 stremioAddons.forEach(async (addonUrl) => {
                                     try {
                                         const addonBase = addonUrl.replace('/manifest.json', '');
@@ -3863,16 +3738,13 @@ function renderCurrentView() {
                                             if (subData.subtitles) {
                                                 subData.subtitles.forEach(async (sub) => {
                                                     try {
-                                                        // Descargar el subtítulo a través de proxy para saltar CORS
                                                         const srtRes = await raceFetch(sub.url);
                                                         let srtText = await srtRes.text();
-                                                        
-                                                        // Convertir SRT a VTT sobre la marcha (Requisito de HTML5)
+
                                                         if (!srtText.includes('WEBVTT')) {
                                                             srtText = 'WEBVTT\n\n' + srtText.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
                                                         }
-                                                        
-                                                        // Crear un archivo local en memoria (Blob) para inyectarlo sin alertas de seguridad
+
                                                         const blob = new Blob([srtText], { type: 'text/vtt' });
                                                         const track = document.createElement('track');
                                                         track.kind = 'subtitles';
@@ -3880,8 +3752,7 @@ function renderCurrentView() {
                                                         track.srclang = sub.lang;
                                                         track.src = URL.createObjectURL(blob);
                                                         video.appendChild(track);
-                                                        
-                                                        // Activar el botón CC en la interfaz
+
                                                         const subBtn = document.getElementById('subtitleBtn');
                                                         if (subBtn) {
                                                             subBtn.style.display = 'flex';
@@ -3906,8 +3777,7 @@ function renderCurrentView() {
                                     const btn = document.getElementById('centerPlayBtn');
                                     if(btn) btn.innerHTML = '<span class="material-icons">play_circle</span>';
                                 };
-            
-                                // FUNCIONES GLOBALES REPRODUCTOR (LIBERADAS DEL IF FANTASMA)
+
                                 window.togglePlaybackSpeed = (e) => {
     if(e) e.stopPropagation();
     const v = document.getElementById('main-video-player');
@@ -3954,7 +3824,7 @@ function renderCurrentView() {
                                     const container = document.getElementById('player-container');
                                     const tracks = v.textTracks;
                                     if(!tracks || tracks.length === 0) return alert('No hay subtítulos disponibles');
-                                    
+
                                     let menu = document.getElementById('customSubtitleMenu');
                                     if(!menu) {
                                         menu = document.createElement('div');
@@ -3969,9 +3839,9 @@ function renderCurrentView() {
                                         menu.style.boxShadow = '0 10px 30px rgba(0,0,0,0.9)';
                                         container.appendChild(menu);
                                     }
-                                    
+
                                     menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
-                                    
+
                                     const createItem = (label, icon, active, callback) => {
                                         const item = document.createElement('div');
                                         item.className = 'quick-menu-item';
@@ -3997,7 +3867,7 @@ function renderCurrentView() {
                                     }
 
                                     menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-                                    
+
                                     const close = (ev) => { if(!menu.contains(ev.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
                                     setTimeout(() => document.addEventListener('click', close), 10);
                                 };
@@ -4006,7 +3876,6 @@ function renderCurrentView() {
                                     if(e) e.stopPropagation();
                                     const v = document.getElementById('main-video-player');
                                     if (!v) return;
-                                    // Activamos controles nativos como respaldo silencioso
                                     v.controls = true;
                                     try {
                                         if (v.remote && typeof v.remote.prompt === 'function') {
@@ -4019,12 +3888,11 @@ function renderCurrentView() {
                                     }
                                 };
                                 video.src = stream.url;
-                                
+
                                 const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
                                 if (savedProg[streamId] && savedProg[streamId].time) {
                                     video.currentTime = savedProg[streamId].time;
                                 }                                video.ontimeupdate = () => {
-                                    // Actualizar UI Custom
                                     const cur = video.currentTime; const dur = video.duration;
                                     if(dur && !window.isDraggingScrubber) {
                                         const per = (cur / dur) * 100;
@@ -4039,7 +3907,6 @@ function renderCurrentView() {
                                         const percentage = (video.currentTime / video.duration) * 100;
                                         const remaining = video.duration - video.currentTime;
 
-                                        // Lógica de Siguiente Capítulo (90 segundos antes)
                                         if (fullMeta.type === 'series' && remaining <= 90) {
                                             const currentIndex = fullMeta.videos.findIndex(v => v.id === streamId);
                                             const nextEp = fullMeta.videos[currentIndex + 1];                                            if (nextEp && !document.getElementById('next-ep-overlay')) {
@@ -4069,8 +3936,7 @@ function renderCurrentView() {
                                         localStorage.setItem('videoProgress', JSON.stringify(progress));
                                     }
                                 };                            video.play();
-                            
-                            // Ir a pantalla completa y rotar
+
                             const container = video.parentElement;
                             const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
                             if (requestFS) {
@@ -4086,7 +3952,7 @@ function renderCurrentView() {
                                 window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
                             }
                         };
-                        
+
                         if (meta.autoPlay) {
                             setTimeout(() => {
                                 playBtn.click();
@@ -4112,32 +3978,30 @@ function renderCurrentView() {
                     const listContainer = document.getElementById('episodesList');                    window.updateSeason = (seasonNum, autoFetchId = null) => {
                         const watched = JSON.parse(localStorage.getItem('watchedEps') || '[]');
                         const progData = JSON.parse(localStorage.getItem('videoProgress') || '{}');
-                        
-                        // 1. Ejecutar la búsqueda de enlaces inmediatamente (funcionalidad)
+
                         if (autoFetchId) window.fetchStreamsForId(autoFetchId);
 
                         document.querySelectorAll('.season-pill').forEach(p => p.classList.toggle('active', parseInt(p.dataset.season) === seasonNum));
-                        
+
                         const episodes = [...fullMeta.videos.filter(v => v.season === seasonNum).sort((a, b) => a.episode - b.episode)];
                         listContainer.innerHTML = '';
 
                         const renderBatch = () => {
                             if (episodes.length === 0) return;
 
-                            const batch = episodes.splice(0, 6); // Lotes de 6 capítulos por frame
+                            const batch = episodes.splice(0, 6);
                             const fragment = document.createDocumentFragment();                            batch.forEach(e => {
                                 const item = document.createElement('div');
                                 item.className = 'episode-item';
-                                // 2. Marcar visualmente el episodio que se está cargando
                                 if (autoFetchId && e.id === autoFetchId) item.style.borderLeft = '4px solid var(--primary)';
-                                
+
                                 const percent = progData[e.id]?.percent || 0;
-                                item.onclick = () => { 
+                                item.onclick = () => {
                                     document.querySelectorAll('.episode-item').forEach(el => el.style.borderLeft = 'none');
                                     item.style.borderLeft = '4px solid var(--primary)';
-                                    window.fetchStreamsForId(e.id); 
+                                    window.fetchStreamsForId(e.id);
                                 };
-                                
+
                                 item.innerHTML = `
                                     <div class="ep-thumb-box">
                                         <img loading="lazy" src="${e.thumbnail || fullMeta.background || fullMeta.poster}" onerror="this.src='${fullMeta.poster}'">
@@ -4150,28 +4014,25 @@ function renderCurrentView() {
                                     </div>`;
                                 fragment.appendChild(item);
                             });
-                            
+
                             listContainer.appendChild(fragment);
-                            // Ceder el control al navegador para que pinte y luego seguir con el siguiente lote
                             requestAnimationFrame(renderBatch);
                         };
 
                         renderBatch();
-                    };                    // 3. Lógica de selección forzada: T1E1 (ignora T0), Progreso o Siguiente
+                    };
                     const progData = JSON.parse(localStorage.getItem('videoProgress') || '{}');
                     const watched = JSON.parse(localStorage.getItem('watchedEps') || '[]');
-                    
+
                     let initialSeason = seasons.includes(1) ? 1 : seasons[0];
                     let targetEpId = null;
 
-                    // Prioridad 1: Episodio que el usuario está viendo actualmente (a medias)
                     const unfinished = fullMeta.videos.find(v => progData[v.id]);
-                    
+
                     if (unfinished) {
                         targetEpId = unfinished.id;
                         initialSeason = unfinished.season;
                     } else {
-                        // Prioridad 2: Si terminó el anterior, el siguiente capítulo
                         const viewed = fullMeta.videos.filter(v => watched.includes(v.id));
                         if (viewed.length > 0) {
                             const last = viewed[viewed.length - 1];
@@ -4179,7 +4040,6 @@ function renderCurrentView() {
                             targetEpId = next ? next.id : last.id;
                             initialSeason = next ? next.season : last.season;
                         } else {
-                            // Prioridad 3: Usuario nuevo -> Temporada 1, Episodio 1
                             const t1e1 = fullMeta.videos.find(v => v.season === 1 && v.episode === 1);
                             targetEpId = t1e1 ? t1e1.id : fullMeta.videos[0].id;
                             initialSeason = t1e1 ? 1 : initialSeason;
@@ -4190,25 +4050,22 @@ function renderCurrentView() {
                         <div class="season-pill ${s === initialSeason ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">T${s}</div>
                     `).join('');
 
-                    // Carga inicial automática de fuentes y UI
                     window.updateSeason(initialSeason, targetEpId);
                 } else {
-                    // Si es película, simplemente buscamos sus streams directamente
                     window.fetchStreamsForId(meta.id);
                 }
             } catch (e) { playBtn.style.background = '#333';
                 playBtn.style.color = '#777';
-                playBtn.innerHTML = "Error al cargar información"; 
+                playBtn.innerHTML = "Error al cargar información";
             }
         }
 
         function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
             const now = new Date();
-            // Ocultar controles personalizados para TV en directo
             document.getElementById('playerControls').style.display = 'none';
             document.getElementById('player-container').classList.remove('show-controls');
             let prog;
-            
+
             if (startTime && progDate) {
                 prog = epgData.find(p => p.channel === channelId && p.start === startTime && p.date === progDate);
             } else {
@@ -4231,10 +4088,10 @@ function renderCurrentView() {
                 const stop = new Date(y, m - 1, d, prog.stop.split(':')[0], prog.stop.split(':')[1]);
                 const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));
                 const diff = Math.round((stop - now) / 60000);                const bgImg = customMediaMap[channelId]?.banner || prog.iconSrc2 || prog.iconSrc;
-                
+
                 modal.querySelector('.detail-bg').style.backgroundImage = `url('${bgImg}')`;                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
                 modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
-                
+
                 const rawDesc = processColoredText(prog.description);
                 const splitIndex = rawDesc.indexOf('·');                const parts = rawDesc.split('·');
                 document.getElementById('detail-metadata-fixed').style.display = 'none';
@@ -4244,12 +4101,10 @@ function renderCurrentView() {
                     let plotText = parts[1] ? parts[1].trim() : "Sin descripción disponible.";
                     let technicalDetails = parts.slice(2);
 
-                    // Extraer Año
                     const yearMatch = metaInfo.match(/\b(19|20)\d{2}\b/);
                     let foundYear = yearMatch ? yearMatch[0] : "";
                     if (foundYear) metaInfo = metaInfo.replace(foundYear, "").trim();
 
-                    // Extraer Estrellas
                     const starMatch = metaInfo.match(/★\s?(\d+(\.\d+)?\/\d+)/);
                     const starFloating = document.getElementById('detail-rating-floating');
                     if (starMatch && starFloating) {
@@ -4258,14 +4113,14 @@ function renderCurrentView() {
                         metaInfo = metaInfo.replace(starMatch[0], "").trim();
                     } else if (starFloating) {
                         starFloating.style.display = 'none';
-                    }                    // Extraer Calificación con Colores dinámicos (EPG)
+                    }
                     const ratingMatch = metaInfo.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
                     const ratingBadge = document.getElementById('detail-rating-badge');
                     if (ratingMatch && ratingBadge) {
                         let rText = ratingMatch[0].replace(/[\(\)]/g, '').trim();
                         ratingBadge.textContent = rText;
                         ratingBadge.style.display = 'block';
-                        
+
                         let checkText = rText.toUpperCase();
                         let bgColor = '#333';
                         let textColor = '#fff';
@@ -4278,23 +4133,19 @@ function renderCurrentView() {
 
                         ratingBadge.style.background = bgColor;
                         ratingBadge.style.color = textColor;
-                        
+
                         metaInfo = metaInfo.replace(ratingMatch[0], "").trim();
                     }
 
-                    // Limpiar Categoría (lo que queda en metaInfo)
                     let category = metaInfo.replace(/\|/g, '').replace(/,\s*$/, '').trim();
 
-                    // CONSTRUIR DISEÑO PREMIUM (MISMO QUE VOD)
                     let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:20px; background:rgba(255,255,255,0.03); padding:18px; border-radius:16px; border: 1px solid rgba(255,255,255,0.08);">';
-                    
-                    // Limpiamos etiquetas HTML para evitar colores heredados y forzar el tema premium
+
                     const cleanCategory = category.replace(/<[^>]*>?/gm, '');
-                    
+
                     if(category) extraMetaHtml += `<div style="display: flex; flex-direction: column; justify-content: center;"><span style="color:var(--primary); font-size:0.65rem; font-weight:800; text-transform:uppercase; display:block; letter-spacing:0.5px; margin-bottom:4px;">Categoría</span><span style="font-size:0.85rem; color:#fff; font-weight:500;">${cleanCategory}</span></div>`;
                     if(foundYear) extraMetaHtml += `<div><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block;">Año</span><span style="font-size:0.8rem; color:#eee;">${foundYear}</span></div>`;
-                    
-                    // Ficha Técnica (País, Dirección, Reparto, etc.)
+
                     technicalDetails.forEach(detail => {
                         let [label, ...val] = detail.split(':');
                         if(label && val.length > 0) {
@@ -4309,7 +4160,7 @@ function renderCurrentView() {
                 } else {
                     modal.querySelector('.detail-desc').innerHTML = rawDesc;
                 }
-                
+
                 const channelLogoImg = modal.querySelector('.detail-channel-logo');
                 if (channelLogoImg) {
                     channelLogoImg.src = prog.channelIcon || '';
@@ -4317,22 +4168,21 @@ function renderCurrentView() {
                 }
                 modal.querySelector('.detail-progress-fill').style.width = `${progress}%`;
                 modal.querySelector('.detail-remaining').textContent = diff > 0 ? `${diff} min restantes` : 'Finalizando';
-                
+
                 const isLive = now >= start && now <= stop;
                 modal.querySelector('.detail-badge').style.display = isLive ? 'block' : 'none';
                 modal.querySelector('.detail-progress-container').style.display = isLive ? 'block' : 'none';            } else {
-                // Fallback mejorado: Priorizar banner personalizado, luego logo y finalmente icono EPG
                 const customBanner = customMediaMap[channelId]?.banner;
                 const customLogo = customMediaMap[channelId]?.logo;
                 const epgIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
-                
+
                 const finalBg = customBanner || customLogo || epgIcon;
                 modal.querySelector('.detail-bg').style.backgroundImage = finalBg ? `url('${finalBg}')` : 'none';
-                
+
                 modal.querySelector('.detail-title').textContent = channelId;
                 modal.querySelector('.detail-time').textContent = "Emisión en directo";
                 modal.querySelector('.detail-desc').textContent = "No hay información de programación disponible en este momento.";
-                
+
                 const addListBtn = document.getElementById('add-to-list-btn');
                 if(addListBtn) addListBtn.style.display = 'none';
 
@@ -4348,26 +4198,23 @@ function renderCurrentView() {
             const sources = channelStreams[channelId] || [];
             let currentSourceIdx = 0;
 
-            // Renderizar selector de señales
             let selectorHtml = '';
             if (sources.length > 0) {
                 selectorHtml = '<div class="source-selector" style="width: 100%; margin-bottom: 15px;">';
                 sources.forEach((sourceObj, i) => {
                     const url = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const rawInfo = typeof sourceObj === 'string' ? `ENLACE ${i+1}` : sourceObj.info;
-                    
-                    // Extraer metadatos para evitar que todos los botones parezcan iguales
+
                     const quality = rawInfo.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
                     const lang = rawInfo.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'ES';
-                    // Si hay varios pipes, intentamos sacar el nombre del addon o servidor
                     const provider = rawInfo.split('|').length > 1 ? rawInfo.split('|').pop().trim() : `Señal ${i+1}`;
-                    
+
                     const isAce = url.startsWith('acestream://');                    let qIcon = 'hd';
                     if(quality === '4K') qIcon = '4k';
                     else if(quality === 'SD') qIcon = 'sd';
 
                     selectorHtml += `
-                        <div class="source-pill ${i === 0 ? 'active' : ''}" 
+                        <div class="source-pill ${i === 0 ? 'active' : ''}"
                              style="${isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15);' : ''}"
                              onclick="window.changeSource(${i}, '${channelId}')">
                             <div class="source-pill-title" style="display:flex; align-items:center; gap:4px;">
@@ -4380,18 +4227,15 @@ function renderCurrentView() {
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            // Insertar encima del contenedor de botones en el footer fijo
             playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
 
             window.changeSource = (idx, cid) => {
                 currentSourceIdx = idx;
                 document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
-                // Si ya está reproduciendo, forzar el click para recargar
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
                 }
             };            if (sources.length > 0) {                playBtn.onclick = async () => {
-                    // --- EFECTO CINEMÁTICO PREMIUM (LOGO CANAL) ---
                     const logoImg = modal.querySelector('.detail-channel-logo');
                     if (logoImg && logoImg.style.display !== 'none' && logoImg.src) {
                         const backdrop = document.createElement('div');
@@ -4410,7 +4254,7 @@ function renderCurrentView() {
                             clone.style.opacity = '1';
                             clone.style.filter = 'blur(0px)';
                             clone.style.transform = 'translate(-50%, -50%) scale(1)';
-                            
+
                             setTimeout(() => {
                                 clone.style.transform = 'translate(-50%, -50%) scale(80)';
                                 clone.style.opacity = '0';
@@ -4430,7 +4274,6 @@ function renderCurrentView() {
                             video.removeEventListener('playing', removeBlackoutTV);
                         };
                         video.addEventListener('playing', removeBlackoutTV);
-                        // Seguro de limpieza: quitar fondo negro tras 4s para evitar bloqueo
                         setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
@@ -4442,8 +4285,7 @@ function renderCurrentView() {
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
             document.getElementById('playerControls').style.display = 'none';
-            
-            // FUNCIONES ADICIONALES REPRODUCTOR
+
             window.togglePlaybackSpeed = (e) => {
     if(e) e.stopPropagation();
     const v = document.getElementById('main-video-player');
@@ -4492,7 +4334,6 @@ function renderCurrentView() {
             };                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
-                    // Abrir enlaces Acestream en aplicación externa
                     if (streamUrl.startsWith('acestream://')) {
                         window.location.href = streamUrl;
                         return;
@@ -4502,7 +4343,7 @@ function renderCurrentView() {
                         iframe.style.display = 'none';
                         video.style.display = 'block';
                         fsBtn.style.display = 'flex';
-                        fsBtn.style.opacity = '0'; // Oculto inicialmente al reproducir
+                        fsBtn.style.opacity = '0';
                         if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
                             window.hls = new Hls();
@@ -4515,7 +4356,7 @@ function renderCurrentView() {
                                 const container = document.getElementById('player-container');
                                 const tracks = video.textTracks;
                                 if(!tracks || tracks.length === 0) return alert('No hay subtítulos disponibles');
-                                
+
                                 let menu = document.getElementById('customSubtitleMenu');
                                 if(!menu) {
                                     menu = document.createElement('div');
@@ -4530,9 +4371,9 @@ function renderCurrentView() {
                                     menu.style.boxShadow = '0 10px 30px rgba(0,0,0,0.9)';
                                     container.appendChild(menu);
                                 }
-                                
+
                                 menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
-                                
+
                                 const createItem = (label, icon, active, callback) => {
                                     const item = document.createElement('div');
                                     item.className = 'quick-menu-item';
@@ -4560,7 +4401,7 @@ function renderCurrentView() {
                                 }
 
                                 menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-                                
+
                                 const close = (ev) => { if(!menu.contains(ev.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
                                 setTimeout(() => document.addEventListener('click', close), 10);
                             };
@@ -4579,30 +4420,28 @@ function renderCurrentView() {
                 playBtn.innerHTML = `<span class="material-icons">play_circle</span> Ver Directo`;            } else {
                 const addListBtn = document.getElementById('add-to-list-btn');
                 if (addListBtn) addListBtn.style.display = 'none';
-                
+
                 playBtn.onclick = null;
                 playBtn.style.background = '#333';
                 playBtn.style.color = '#777';
                 playBtn.innerHTML = `<span class="material-icons">block</span> No disponible`;
-            }            // --- INTEGRACIÓN VOD (STREMIO) DESDE EPG ---
+            }
             const vodContainer = document.getElementById('vod-epg-results');
             const vodToggleBtn = document.getElementById('vod-toggle-btn');
             vodContainer.innerHTML = '';
-            window.bestVodMatch = null; // Reiniciar coincidencia
+            window.bestVodMatch = null;
 
             if(vodToggleBtn) {
                 vodToggleBtn.style.display = 'none';
-                // Por defecto el botón solo conmuta la vista, pero lo cambiaremos si hay match
                 vodToggleBtn.onclick = () => toggleVodView();
             }
 
             if (prog && stremioAddons.length > 0) {
                 const fullDesc = (prog.description || '').toLowerCase();
                 const categoryPart = fullDesc.split('·')[0].trim();
-                
+
                 const isMovie = categoryPart.includes('cine') || categoryPart.includes('película');
                 const isSeries = categoryPart.includes('serie');                if (isMovie || isSeries) {
-                    // Limpieza avanzada de títulos EPG (elimina etiquetas de TV y prefijos)
                     const cleanTitle = prog.title
                         .replace(/\[.*?\]|\(.*?\)/g, '')
                         .replace(/\b(CINE|PELÍCULA|SERIE|ESTRENO|DIRECTO|VIVO|HD|4K|MOVISTAR\+?)\b[:\s-]*/gi, '')
@@ -4610,7 +4449,6 @@ function renderCurrentView() {
                         .trim();
 
                     const searchType = isSeries ? 'series' : 'movie';
-                    // Extraer año de la descripción del EPG para filtrar resultados exactos
                     const epgYearMatch = (prog.description || '').match(/\b(19|20)\d{2}\b/);
                     const epgYear = epgYearMatch ? epgYearMatch[0] : null;
 
@@ -4619,9 +4457,8 @@ function renderCurrentView() {
                             const baseUrl = url.replace('/manifest.json', '');
                             const searchRes = await fetch(`${baseUrl}/catalog/${searchType}/top/search=${encodeURIComponent(cleanTitle)}.json`);
                             const searchData = await searchRes.json();
-                            
+
                             if (searchData.metas && searchData.metas.length > 0) {
-                                // Lógica de filtrado por año para evitar falsos positivos
                                 let best = searchData.metas[0];
                                 if (epgYear) {
                                     const yearMatch = searchData.metas.find(m => m.year == epgYear || m.releaseInfo == epgYear);
@@ -4630,7 +4467,7 @@ function renderCurrentView() {
 
                                 if(vodToggleBtn) {
                                     vodToggleBtn.style.display = 'flex';
-                                    
+
                                     if (!window.bestVodMatch) {
                                         window.bestVodMatch = { meta: best, baseUrl: baseUrl };
                                         vodToggleBtn.onclick = (e) => {
@@ -4639,8 +4476,7 @@ function renderCurrentView() {
                                         };
                                     }
                                 }
-                                
-                                // Llenamos la lista secundaria por si se desea cambiar manualmente
+
                                 searchData.metas.slice(0, 5).forEach(meta => {
                                     const row = document.createElement('div');
                                     row.className = 'channel-row-modern';
@@ -4661,11 +4497,8 @@ function renderCurrentView() {
                     });
                 }
             }
-            // -------------------------------------------
 
             modal.style.display = 'flex';
-            // Solo abrimos el modal; la pantalla completa se activa al pulsar el botón azul manualmente
-            // if (autoPlay && streamUrl) { playBtn.click(); }
         }        function showContinueWatchingMenu(e, itemId) {
             e.preventDefault();
             e.stopPropagation();
@@ -4674,12 +4507,10 @@ function renderCurrentView() {
             const item = continueData.find(i => i.id === itemId);
             if (!item) return;
 
-            // Limpiar opciones estándar de TV
             document.getElementById('menu-play-opt').style.display = 'none';
             document.getElementById('menu-fav-opt').style.display = 'none';
             document.getElementById('menu-share-opt').style.display = 'none';
 
-            // Limpiar opciones previas de este menú
             const existingCustom = menu.querySelectorAll('.continue-custom-opt');
             existingCustom.forEach(el => el.remove());
 
@@ -4691,12 +4522,10 @@ function renderCurrentView() {
                 return opt;
             };
 
-            // 1. Detalles
             menu.appendChild(createOpt('Detalles', 'description', '#58a6ff', () => {
                 openStremioDetails(item, item.baseUrl);
             }));
 
-            // 2. Eliminar Progreso
             menu.appendChild(createOpt('Eliminar Progreso', 'history', '#f1c40f', () => {
                 const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
                 if (item.lastStreamId) delete progress[item.lastStreamId];
@@ -4704,7 +4533,6 @@ function renderCurrentView() {
                 renderHomeView();
             }));
 
-            // 3. Eliminar de la biblioteca (Mi Lista)
             menu.appendChild(createOpt('Eliminar de la biblioteca', 'layers_clear', '#9b59b6', () => {
                 let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
                 myList = myList.filter(i => i.id !== itemId);
@@ -4712,7 +4540,6 @@ function renderCurrentView() {
                 renderHomeView();
             }));
 
-            // 4. Marcar como No Visto (Quitar de Seguir Viendo)
             menu.appendChild(createOpt('Marcar como No Visto', 'visibility_off', '#ef476f', () => {
                 let data = JSON.parse(localStorage.getItem('continueWatching') || '[]');
                 data = data.filter(i => i.id !== itemId);
@@ -4739,14 +4566,13 @@ function renderCurrentView() {
         function openSportCategory(sportName) {
             const view = document.getElementById('sport-category-view');
             document.getElementById('active-sport-title').textContent = sportName;
-            
+
             const containers = [
                 document.getElementById('upcoming-matches-carousel'),
                 document.getElementById('highlights-carousel')
             ];
             containers.forEach(c => c.innerHTML = '');
 
-            // FILTRADO ESTRICTO: Solo si la categoría (antes del ·) contiene el deporte
             const filteredEvents = epgData.filter(p => {
                 const fullDesc = (p.description || '').toLowerCase();
                 const categoryPart = fullDesc.split('·')[0].trim();
@@ -4767,7 +4593,6 @@ function renderCurrentView() {
                 else containers[1].appendChild(makeCard());
             });
 
-            // Ocultar subsecciones vacías en la vista de categoría
             if (containers[0]) {
                 const hasUpcoming = filteredEvents.length > 0;
                 containers[0].style.display = hasUpcoming ? 'flex' : 'none';
@@ -4811,9 +4636,9 @@ function renderCurrentView() {
             const menu = document.getElementById('quickContextMenu');
             const favs = JSON.parse(localStorage.getItem('userFavs') || '[]');
             const isFav = favs.includes(channelId);
-            
+
             document.getElementById('menu-fav-opt').innerHTML = `<i class="material-icons">${isFav ? 'star' : 'star_border'}</i> ${isFav ? 'Quitar Favorito' : 'Añadir Favorito'}`;
-            
+
             document.getElementById('menu-play-opt').onclick = () => { menu.style.display = 'none'; openProgramDetails(channelId, start, date, true); };
             document.getElementById('menu-fav-opt').onclick = () => { menu.style.display = 'none'; toggleFavorite(channelId); };
             document.getElementById('menu-share-opt').onclick = () => { menu.style.display = 'none'; shareEvent(title || channelId, channelId); };
@@ -4858,7 +4683,7 @@ function renderCurrentView() {
                 const d = document;
                 const container = document.getElementById('player-container');
                 const isFS = !!(d.fullscreenElement || d.webkitFullscreenElement || d.mozFullScreenElement || d.msFullscreenElement);
-                
+
                 if (isFS) {
                     const exit = d.exitFullscreen || d.webkitExitFullscreen || d.mozCancelFullScreen || d.msExitFullscreen;
                     if (exit) await exit.call(d).catch(()=>{});
@@ -4871,7 +4696,6 @@ function renderCurrentView() {
             } catch(err) {}
         };
 
-        // Listener de cambio de pantalla completa para sincronizar el botón del reproductor cuando existe
         ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => document.addEventListener(evt, () => {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
             const btn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
@@ -4883,7 +4707,7 @@ function renderCurrentView() {
             const epgHeader = document.querySelector('.detail-header-fixed');
             const vodView = document.getElementById('vod-view-content');
             const btn = document.getElementById('vod-toggle-btn');
-            
+
             if (vodView.style.display === 'none') {
                 epgView.style.display = 'none';
                 epgHeader.style.display = 'none';
@@ -4906,11 +4730,11 @@ function renderCurrentView() {
             const epgHeader = document.querySelector('.detail-header-fixed');
             const vodView = document.getElementById('vod-view-content');
             const vodBtn = document.getElementById('vod-toggle-btn');
-            
+
             if(epgView) epgView.style.display = 'block';
             if(epgHeader) epgHeader.style.display = 'block';
             if(vodView) vodView.style.display = 'none';
-            if(vodBtn) { 
+            if(vodBtn) {
                 vodBtn.style.display = 'none';
                 vodBtn.innerHTML = '<span class="material-icons">movie</span> VOD';
             }
@@ -4919,21 +4743,21 @@ function renderCurrentView() {
             const video = document.getElementById('main-video-player');
             const iframe = document.getElementById('main-web-player');
             const starFloating = document.getElementById('detail-rating-floating');
-            
+
             if (starFloating) starFloating.style.display = 'none';
             modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
-            
+
             video.pause();
             if (window.hls) { window.hls.destroy(); window.hls = null; }
             video.src = "";
             video.load();
             video.style.display = 'none';
-            
+
             if(iframe) {
                 iframe.src = "";
                 iframe.style.display = 'none';
             }
-            
+
             modal.style.display = 'none';
         }
 
@@ -4955,12 +4779,10 @@ function renderCurrentView() {
 
         function jumpToPosition(index, newPos) {
             let targetPos = parseInt(newPos) - 1;
-            // Encontrar el índice real en channelsList del elemento que está en la posición visual 'index'
             const activeChannels = channelsList.filter(id => userSelectedChannels.has(id));
             const channelToMove = activeChannels[index];
             const realIdx = channelsList.indexOf(channelToMove);
-            
-            // Encontrar el índice real del destino
+
             const targetChannel = activeChannels[targetPos];
             if(!targetChannel) return;
             const realTargetIdx = channelsList.indexOf(targetChannel);
@@ -4974,7 +4796,7 @@ function renderCurrentView() {
                 modal = document.createElement('div');
                 modal.id = 'channelSelectorModal';
                 modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at top, #161b22, #0a0c10); z-index: 9999; overflow-y: auto; padding: 0; box-sizing: border-box; color: white; display: flex; flex-direction: column; font-family: "Inter", sans-serif;';
-                
+
                 const header = document.createElement('div');
                 header.style.cssText = 'display: flex; flex-direction: column; gap: 15px; padding: 25px 20px; position: sticky; top: 0; background: rgba(10, 12, 16, 0.8); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.05); z-index: 100;';
                 header.innerHTML = `
@@ -4985,7 +4807,7 @@ function renderCurrentView() {
                         </div>
                         <button onclick="closeChannelSelector()" style="background: var(--primary); color: #000; border: none; padding: 6px 12px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.7rem; box-shadow: 0 4px 12px rgba(88, 166, 255, 0.2); transition: all 0.2s; width: auto !important; margin: 0 !important;">GUARDAR</button>
                     </div>
-                    
+
                     <div style="position: relative; margin: 5px 0;">
                         <span class="material-icons-round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #666; font-size: 1.2rem;">search</span>
                         <input type="text" id="selectorSearchInput" placeholder="Buscar canal..." oninput="renderChannelSelectorGrid()" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 15px 12px 42px; color: white; font-size: 0.85rem; outline: none; transition: border-color 0.2s; box-sizing: border-box;">
@@ -4996,13 +4818,13 @@ function renderCurrentView() {
                         <button onclick="setSelectorMode(true)" id="btnModeOrder" style="flex: 1; background: transparent; color: #888; border: none; padding: 8px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size:0.75rem; transition: all 0.3s;">ORDENACIÓN</button>
                     </div>
                 `;
-                
+
                 const presetsWrapper = document.createElement('div');
                 presetsWrapper.style.cssText = 'padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.03);';
-                
+
                 const presetsDiv = document.createElement('div');
                 presetsDiv.style.cssText = 'display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 5px;';
-                
+
                 const presets = [
                     { name: 'Todo', icon: 'done_all', match: () => true },
                     { name: 'Nada', icon: 'close', match: () => false },
@@ -5021,32 +4843,32 @@ function renderCurrentView() {
                 const grid = document.createElement('div');
                 grid.id = 'channelSelectorGrid';
                 grid.style.cssText = 'padding: 20px;';
-                
+
                 modal.appendChild(header);
                 modal.appendChild(presetsWrapper);
                 modal.appendChild(grid);
                 document.body.appendChild(modal);
             }
-            
+
             renderChannelSelectorGrid();
             modal.style.display = 'flex';
         }        function renderChannelSelectorGrid() {
             const grid = document.getElementById('channelSelectorGrid');
             grid.innerHTML = '';
             const searchTerm = document.getElementById('selectorSearchInput')?.value.toLowerCase() || '';
-            
+
             if (isSortingMode) {
                 grid.style.display = 'flex';
                 grid.style.flexDirection = 'column';
                 grid.style.gap = '10px';
-                
+
                 let visualIdx = 1;
                 channelsList.forEach((channelId, index) => {
                     if (!userSelectedChannels.has(channelId)) return;
                     if (searchTerm && !channelId.toLowerCase().includes(searchTerm)) return;                const iconSrc = customMediaMap[channelId]?.logo || epgData.find(p => p.channel === channelId)?.channelIcon || '';
                     const card = document.createElement('div');
                     card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 12px 16px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);`;
-                    
+
                     const currentVisualPos = visualIdx++;
                     card.innerHTML = `
                         <div style="font-size: 1rem; font-weight: 800; color: var(--primary); width: 28px; font-family: 'Inter';">${currentVisualPos}</div>
@@ -5069,15 +4891,15 @@ function renderCurrentView() {
                     const isSelected = userSelectedChannels.has(channelId);                const iconSrc = customMediaMap[channelId]?.logo || epgData.find(p => p.channel === channelId)?.channelIcon || '';
                     const card = document.createElement('div');
                     card.style.cssText = `background: ${isSelected ? 'rgba(88, 166, 255, 0.08)' : '#1c1c1e'}; border: 2px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.03)'}; border-radius: 18px; padding: 16px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); text-align: center; gap: 10px; position: relative; overflow: hidden;`;
-                    
+
                     if (isSelected) card.style.boxShadow = '0 0 15px rgba(88, 166, 255, 0.15)';
-                    
+
                     card.onclick = () => {
                         if (userSelectedChannels.has(channelId)) userSelectedChannels.delete(channelId);
                         else userSelectedChannels.add(channelId);
                         renderChannelSelectorGrid();
                     };
-                    
+
                     card.innerHTML = `
                         <div style="width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 12px; padding: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
                             <img src="${iconSrc}" style="max-width: 100%; max-height: 100%; object-fit: contain;" onerror="this.style.display='none'">
@@ -5104,7 +4926,6 @@ function renderCurrentView() {
             modal.style.display = 'flex';
             const input = document.getElementById('globalSearchInput');
             input.focus();
-            // Al abrir, disparamos la búsqueda vacía para mostrar recomendaciones
             performGlobalSearch('');
         }
 
@@ -5136,7 +4957,7 @@ function renderCurrentView() {
             const createCard = (url, type, index, listArray, storageKey) => {
                 const card = document.createElement('div');
                 card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; animation: modalFadeIn 0.3s ease;`;
-                
+
                 let icon = 'link';
                 let color = '#58a6ff';
                 if (type === 'STREMIO') { icon = 'movie'; color = '#7b2cbf'; }
@@ -5162,13 +4983,11 @@ function renderCurrentView() {
                 return card;
             };
 
-            // Sección Canales
             if (streamSources.length > 0) {
                 container.appendChild(createSectionTitle('Listas de Canales (M3U/JSON)'));
                 streamSources.forEach((url, i) => container.appendChild(createCard(url, 'STREAM', i, streamSources, 'streamSources')));
             }
 
-            // Sección Stremio
             if (stremioAddons.length > 0) {
                 container.appendChild(createSectionTitle('Addons de Stremio'));
                 stremioAddons.forEach((url, i) => container.appendChild(createCard(url, 'STREMIO', i, stremioAddons, 'stremioAddons')));
@@ -5237,7 +5056,7 @@ function renderCurrentView() {
         async function importMasterConfig() {
             const url = document.getElementById('masterGistInput').value.trim();
             if(!url) return alert("Introduce la URL del Gist");
-            
+
             const rawUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
             const loader = document.getElementById('loader');
             loader.style.display = 'flex';            try {
@@ -5263,7 +5082,7 @@ function renderCurrentView() {
 
             if (q.length < 2) {
                 resultsContainer.innerHTML = '<div style="color:var(--primary); font-size:0.75rem; font-weight:800; margin: 10px 0 15px 5px; letter-spacing:1px; text-transform:uppercase; opacity:0.8;">Sugerencias destacadas</div>';
-                const recommendations = epgData.filter(p => 
+                const recommendations = epgData.filter(p =>
                     p.iconSrc2 && (p.description.toLowerCase().includes('cine') || p.description.toLowerCase().includes('deporte'))
                 ).sort(() => 0.5 - Math.random()).slice(0, 10);
 
@@ -5285,9 +5104,8 @@ function renderCurrentView() {
                 return;
             }
 
-            // 1. RESULTADOS TV (EPG)
-            const filteredEpg = epgData.filter(p => 
-                p.title.toLowerCase().includes(q) || 
+            const filteredEpg = epgData.filter(p =>
+                p.title.toLowerCase().includes(q) ||
                 p.channel.toLowerCase().includes(q)
             ).slice(0, 20);
 
@@ -5309,28 +5127,25 @@ function renderCurrentView() {
                 });
             }
 
-            // 2. RESULTADOS STREMIO (BÚSQUEDA PROFUNDA EN ADDONS)
             if (stremioAddons.length > 0) {
                 const loadingHtml = '<div id="stremio-search-loading" style="color:var(--primary); font-size:0.65rem; font-weight:800; margin: 20px 0 10px 5px; text-transform:uppercase; letter-spacing:1px; display:flex; align-items:center; gap:8px;"><span class="material-icons" style="font-size:1rem; animation: spin 1s linear infinite;">sync</span> Buscando en la nube...</div>';
                 resultsContainer.insertAdjacentHTML('beforeend', loadingHtml);
-                
+
                 for (const url of stremioAddons) {
                     try {
                         const manifestRes = await fetch(url);
                         const manifest = await manifestRes.json();
                         const baseUrl = url.replace('/manifest.json', '');
-                        
-                        // Buscamos en cada tipo de catálogo que soporte el addon (movie, series)
+
                         const types = [...new Set((manifest.catalogs || []).map(c => c.type))];
-                        
+
                         for (const type of types) {
                             if (type !== 'movie' && type !== 'series') continue;
-                            
-                            // Endpoint estándar de Stremio para búsqueda
+
                             const searchUrl = `${baseUrl}/catalog/${type}/top/search=${encodeURIComponent(q)}.json`;
                             const searchRes = await fetch(searchUrl);
                             if (!searchRes.ok) continue;
-                            
+
                             const searchData = await searchRes.json();
                             const metas = searchData.metas || [];
 
@@ -5365,14 +5180,13 @@ function renderCurrentView() {
 
         function closeChannelSelector() {
             document.getElementById('channelSelectorModal').style.display = 'none';
-            
-            // Guardar selección y orden personalizado (el proxy de localStorage sincroniza con Firebase)
+
             localStorage.setItem('userSelectedChannels', JSON.stringify([...userSelectedChannels]));
             localStorage.setItem('customChannelOrder', JSON.stringify(channelsList));
-            
+
             visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
             populateChannelDropdown();
-            
+
             if (currentMainView === 'channels') {
                 renderChannelsView();
             } else if (currentMainView === 'events') {
@@ -5386,7 +5200,7 @@ function renderCurrentView() {
         .ios-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 26px; height: 26px; background: #fff; border-radius: 50%; transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         input:checked + .ios-toggle { background: var(--color-primary); }
         input:checked + .ios-toggle::after { transform: translateX(20px); }
-        
+
         .modern-input { width: 100%; background: #121212; color: #fff; border: 1px solid #333; border-radius: 10px; padding: 12px 16px; font-size: 0.85rem; margin-bottom: 15px; box-sizing: border-box; outline: none; transition: border-color 0.2s; }
         .modern-input:focus { border-color: var(--color-primary); }
         .modern-btn { width: 100%; background: var(--color-primary); color: white; border: none; border-radius: 10px; font-weight: 700; padding: 14px; font-size: 0.9rem; cursor: pointer; transition: background 0.2s; }
@@ -5399,7 +5213,7 @@ function renderCurrentView() {
         </div>
 
         <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
-            
+
             <div class="settings-card" style="cursor: pointer;" onclick="openAddonManager()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
@@ -5414,8 +5228,8 @@ function renderCurrentView() {
             </div>
 
             <p style="color: #666; font-size: 0.85rem; margin: 25px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">Configuración del sistema</p>
-            
-            
+
+
 
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
@@ -5506,13 +5320,13 @@ function renderCurrentView() {
                     setTimeout(() => {
                         const chkDirecto = document.getElementById('directoToggle');
                         if(chkDirecto) chkDirecto.checked = onlyLiveEvents;
-                        
+
                         const chkNoImage = document.getElementById('noImageToggle');
                         if(chkNoImage) chkNoImage.checked = hideNoImageEvents;
-                        
+
                         const chkNoVideo = document.getElementById('noVideoToggle');
                         if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;
-                        
+
                         const chkP2P = document.getElementById('p2pToggle');
                         if(chkP2P) chkP2P.checked = isP2PEnabled;
                     }, 200);
@@ -5533,11 +5347,11 @@ function renderCurrentView() {
             </div>
         </div>
 
-        <!-- ══ SINCRONIZACIÓN EN LA NUBE (FIREBASE) ══ -->
+
         <p style="color: #666; font-size: 0.85rem; margin: 28px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">☁️ Sincronización en la nube</p>
         <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
 
-            <!-- ── Paso 1: Configurar Firebase ── -->
+
             <div class="settings-card" style="margin-bottom:12px;">
                 <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px;">
                     <div class="settings-icon-wrapper"><span class="material-icons" style="color:#ff9800; font-size:1.5rem;">settings_ethernet</span></div>
@@ -5547,7 +5361,7 @@ function renderCurrentView() {
                     </div>
                 </div>
 
-                <!-- Config guardada (modo compacto) -->
+
                 <div id="fb-config-saved" style="display:none;">
                     <div style="background:#0d1117; border-radius:12px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(88,166,255,0.2);">
                         <div>
@@ -5560,43 +5374,42 @@ function renderCurrentView() {
                     </div>
                 </div>
 
-                <!-- Formulario de credenciales (primera vez) -->
-                <div id="fb-config-form" style="display:none;">
-                    <div style="background: rgba(88, 166, 255, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed rgba(88, 166, 255, 0.3); margin-bottom: 15px;">
-                        <p style="font-size: 0.65rem; color: #58a6ff; font-weight: 800; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">🚀 Importación Rápida</p>
-                        <textarea id="fb-cfg-json-import" class="modern-input" style="margin-bottom: 8px; min-height: 80px; font-family: monospace; font-size: 0.75rem; background: #000;" placeholder='Pega aquí el objeto firebaseConfig = { ... }'></textarea>
-                        <button onclick="fbImportConfigJSON()" class="modern-btn" style="background: #58a6ff; color: #000; padding: 8px; font-size: 0.75rem; width: 100%;">AUTO-COMPLETAR CAMPOS</button>
+
+                <div id="fb-config-form" style="display:none; margin-top: 10px;">
+                    <details style="background: rgba(88, 166, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px dashed rgba(88, 166, 255, 0.3); margin-bottom: 12px; cursor: pointer;">
+                        <summary style="font-size: 0.7rem; color: #58a6ff; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; outline: none; display: flex; align-items: center; gap: 5px;">🚀 Importación Rápida <span style="font-size: 0.6rem; color: #888; font-weight: 500; text-transform: none;">(Toca para expandir)</span></summary>
+                        <div style="margin-top: 10px;">
+                            <textarea id="fb-cfg-json-import" class="modern-input" style="margin-bottom: 8px; min-height: 60px; font-family: monospace; font-size: 0.75rem; background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid rgba(255,255,255,0.05);" placeholder='{ "apiKey": "...", ... }'></textarea>
+                            <button onclick="fbImportConfigJSON()" class="modern-btn" style="background: #58a6ff; color: #000; padding: 8px; font-size: 0.75rem; width: 100%;">AUTO-COMPLETAR</button>
+                        </div>
+                    </details>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                        <input type="text"     id="fb-cfg-apiKey"            class="modern-input" style="margin-bottom:0; font-size:0.75rem; padding:10px;" placeholder="apiKey">
+                        <input type="text"     id="fb-cfg-projectId"         class="modern-input" style="margin-bottom:0; font-size:0.75rem; padding:10px;" placeholder="projectId">
+                        <input type="text"     id="fb-cfg-authDomain"        class="modern-input" style="margin-bottom:0; font-size:0.75rem; padding:10px;" placeholder="authDomain">
+                        <input type="text"     id="fb-cfg-storageBucket"     class="modern-input" style="margin-bottom:0; font-size:0.75rem; padding:10px;" placeholder="storageBucket">
+                        <input type="text"     id="fb-cfg-messagingSenderId" class="modern-input" style="margin-bottom:0; font-size:0.75rem; padding:10px;" placeholder="messagingSenderId">
+                        <input type="text"     id="fb-cfg-appId"             class="modern-input" style="margin-bottom:0; font-size:0.75rem; padding:10px;" placeholder="appId">
                     </div>
-                    <p style="font-size:0.65rem; color:#444; margin-bottom:12px; text-align:center; font-weight: 800;">O RELLENA MANUALMENTE</p>
-                    <input type="text"     id="fb-cfg-apiKey"            class="modern-input" placeholder="apiKey">
-                    <input type="text"     id="fb-cfg-authDomain"        class="modern-input" placeholder="authDomain">
-                    <input type="text"     id="fb-cfg-projectId"         class="modern-input" placeholder="projectId">
-                    <input type="text"     id="fb-cfg-storageBucket"     class="modern-input" placeholder="storageBucket">
-                    <input type="text"     id="fb-cfg-messagingSenderId" class="modern-input" placeholder="messagingSenderId">
-                    <input type="text"     id="fb-cfg-appId"             class="modern-input" placeholder="appId">
-                    <button onclick="fbSaveConfig()" class="modern-btn" style="background:#ff9800; margin-bottom:0;">
-                        <span class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:6px;">cloud_done</span>
+                    <button onclick="fbSaveConfig()" class="modern-btn" style="background:#ff9800; margin-bottom:0; padding: 10px; font-size: 0.85rem;">
+                        <span class="material-icons" style="font-size:1.1rem; vertical-align:middle; margin-right:6px;">cloud_done</span>
                         Guardar y Conectar
                     </button>
-                    <p style="font-size:0.68rem; color:#333; margin-top:10px; text-align:center;">
-                        Las credenciales se guardan solo en este dispositivo (localStorage).
-                    </p>
                 </div>
             </div>
 
-            <!-- ── Paso 2: Autenticación ── -->
-            <div id="fb-no-config-msg" style="display:none; text-align:center; padding:10px 0 4px 0;">
-                <p style="font-size:0.8rem; color:#444;">Configura el proyecto Firebase arriba para activar la sincronización.</p>
-            </div>
 
-            <!-- Sin sesión -->
+            <div id="fb-no-config-msg" style="display:none; text-align:center; padding:10px 0 4px 0;"></div>
+
+
             <div id="fb-no-auth" style="display:none;">
                 <div id="fb-anon-section" style="margin-bottom:8px;">
                     <button onclick="fbSignInAnon()" class="modern-btn" style="background:#333; color:#bbb; margin-bottom:0;">
                         ⚡ Continuar sin cuenta (sesión anónima)
                     </button>
                 </div>
-                <!-- Formulario login/registro — IDs únicos: fb-login-email, fb-login-pass -->
+
                 <div id="fb-login-section">
                     <div style="background:#161b22; border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05); margin-top:8px;">
                         <p style="font-size:0.7rem; color:#58a6ff; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">Cuenta permanente</p>
@@ -5616,7 +5429,7 @@ function renderCurrentView() {
                 </div>
             </div>
 
-            <!-- Sesión anónima activa: opción de vincular email — IDs únicos: fb-link-email, fb-link-pass -->
+
             <div id="fb-link-section" style="display:none;">
                 <div style="background:#161b22; border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05);">
                     <p style="font-size:0.7rem; color:#f1c40f; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Vincular cuenta permanente</p>
@@ -5630,7 +5443,7 @@ function renderCurrentView() {
                 </div>
             </div>
 
-            <!-- Usuario autenticado con email -->
+
             <div id="fb-linked-section" style="display:none; flex-direction:column; gap:8px;">
                 <button onclick="fbForceSync()" class="modern-btn" style="background:#1c6ef3; margin-bottom:0;">
                     <span class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:6px;">sync</span>
@@ -5641,13 +5454,11 @@ function renderCurrentView() {
                 </button>
             </div>
 
-            <p style="font-size:0.7rem; color:#333; margin-top:16px; text-align:center; line-height:1.5;">
-                Addons · Favoritos · Progreso · Configuración<br>sincronizados automáticamente entre dispositivos.
-            </p>
+
         </div>
     </div>
 
-    
+
     <div id="my-list-view" class="detail-overlay" style="display: none; flex-direction: column; background: var(--bg-deep); overflow-y: auto; padding: 0; align-items: stretch; justify-content: flex-start;">
         <div class="sport-header" style="position: sticky; top: 0; background: var(--bg-deep); z-index: 100;">
             <span class="material-icons" onclick="document.getElementById('my-list-view').style.display='none'" style="cursor:pointer; color: white;">arrow_back</span>
@@ -5770,8 +5581,8 @@ function renderCurrentView() {
             <span>CANALES</span>
         </div>    </nav>
 
-    
-    
+
+
     <div id="quickContextMenu" class="quick-menu">
         <div class="quick-menu-item" id="menu-play-opt">
             <i class="material-icons">play_arrow</i> Ver Directo
@@ -5786,7 +5597,7 @@ function renderCurrentView() {
 
     <div id="programDetailModal" class="detail-overlay" onclick="if(event.target === this) closeProgramDetails()">
         <div class="detail-content">
-            
+
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #121212; border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 30;">
                 <div id="detail-rating-floating" style="background: rgba(241, 196, 15, 0.1); padding: 4px 10px; border-radius: 8px; color: #f1c40f; font-weight: 800; font-size: 0.85rem; display: none; align-items: center; gap: 6px; border: 1px solid rgba(241, 196, 15, 0.3);"></div>
                 <div style="flex-grow: 1;"></div>
@@ -5796,7 +5607,7 @@ function renderCurrentView() {
             </div>            <div class="detail-bg" id="player-container" onclick="const isPlaying = document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block'; if(isPlaying) this.classList.toggle('show-controls');">
                 <video id="main-video-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
-                
+
                 <div class="detail-title"></div>
 
                 <div class="player-ui-overlay" id="playerControls" style="display: none;">
@@ -5832,7 +5643,7 @@ function renderCurrentView() {
                             <button class="player-action-item" onclick="window.toggleSubtitles(event)">
                                 <span class="material-icons">subtitles</span>
                             </button>
-                            
+
                             <button class="player-action-item" onclick="window.togglePlaybackSpeed(event)">
                                 <span class="material-icons">speed</span>
                             </button>
@@ -5851,19 +5662,19 @@ function renderCurrentView() {
                         <span class="detail-badge">En directo ahora</span>
                         <span class="detail-time"></span>
                     </div>
-                    
+
                     <div id="detail-metadata-fixed" style="color: #a29bfe; font-size: 0.85rem; font-weight: 600; line-height: 1.4; padding: 10px 12px; background: rgba(162, 155, 254, 0.08); border-radius: 10px; margin-top: 5px; border-left: 3px solid #a29bfe;"></div>
-                    
+
                     <div class="detail-meta" style="margin-top: 12px; display: flex; align-items: center; gap: 10px;">
                         <span id="detail-rating-badge" style="background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">TP</span>
                         <img class="detail-channel-logo" style="height: 24px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
                     </div>
                 </div>
-                
+
                 <div class="detail-scroll-content" id="epg-view-content" style="padding-top: 10px;">
                     <div class="detail-desc" style="font-size: 0.95rem; line-height: 1.6; color: #eee;"></div>
                 </div>
-                
+
                 <div id="vod-view-content" style="display: none; flex-grow: 1; overflow-y: auto; padding: 20px 24px;">
                     <h4 style="font-size:0.75rem; color:var(--primary); font-weight:800; margin-bottom: 15px; text-transform:uppercase; letter-spacing:1px;">Contenido Bajo Demanda</h4>
                     <div id="vod-epg-results"></div>
@@ -5893,13 +5704,13 @@ function renderCurrentView() {
             </div>
         </div>
     </div>
-    
+
     <div id="globalSearchModal" class="detail-overlay" style="align-items: flex-start; padding-top: 20px;">
         <div class="detail-content" style="max-width: 500px; height: 80vh;">
             <div style="padding: 20px; background: #121212; border-bottom: 1px solid #333;">
                 <div style="display: flex; align-items: center; gap: 10px; background: #000; padding: 5px 15px; border-radius: 12px; border: 1px solid #444;">
                     <span class="material-icons" style="color: var(--color-primary);">search</span>
-                    <input type="text" id="globalSearchInput" placeholder="Buscar películas, eventos, canales..." 
+                    <input type="text" id="globalSearchInput" placeholder="Buscar películas, eventos, canales..."
                         style="background: transparent; border: none; color: white; width: 100%; padding: 12px; outline: none; font-size: 1rem;"
                         oninput="performGlobalSearch(this.value)">
                     <span class="material-icons" style="cursor: pointer; color: #666;" onclick="closeGlobalSearch()">close</span>
@@ -5910,64 +5721,80 @@ function renderCurrentView() {
     </div>
     <div id="addonManagerModal" class="detail-overlay" style="display:none; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px);">
         <div class="detail-content" style="max-width: 450px; width: 92%; height: 90vh; background: #0d1117; border: 1px solid rgba(255,255,255,0.1); border-radius: 32px; display: flex; flex-direction: column; box-shadow: 0 30px 60px rgba(0,0,0,0.8);">
-            
+
             <div style="padding: 24px 24px 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.05);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                     <h2 style="margin: 0; color: #fff; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 12px;">
-                        <span class="material-icons-round" style="color: #58a6ff;">settings_input_component</span> Addons
+                        <span class="material-icons-round" style="color: #58a6ff;">auto_fix_high</span> Gestor Inteligente
                     </h2>
                     <button onclick="closeAddonManager()" style="background: #21262d; border: none; color: #8b949e; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                         <span class="material-icons-round">close</span>
                     </button>
                 </div>
-                
-                
-                <div style="background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); padding: 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <label style="font-size: 0.6rem; font-weight: 800; color: var(--primary); letter-spacing: 1px; text-transform: uppercase;">Configuración Maestra (Gist)</label>
-                        <span class="material-icons-round" style="font-size: 1rem; color: var(--primary);">cloud_sync</span>
-                    </div>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="masterGistInput" class="modern-input" style="margin-bottom: 0; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 10px; flex-grow:1;" placeholder="URL de tu Gist JSON...">
-                        <button onclick="importMasterConfig()" style="background: var(--primary); color: #000; border: none; padding: 0 15px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.7rem;">IMPORTAR</button>
-                    </div>
-                </div>
 
-                <div style="background: linear-gradient(135deg, rgba(88,166,255,0.1) 0%, rgba(88,166,255,0.02) 100%); padding: 16px; border-radius: 18px; border: 1px solid rgba(88,166,255,0.2);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <label style="font-size: 0.6rem; font-weight: 800; color: #58a6ff; letter-spacing: 1px; text-transform: uppercase;">Fuente de Guía (EPG)</label>
-                        <span class="material-icons-round" style="font-size: 1rem; color: #58a6ff;">xml</span>
+                <div style="background: linear-gradient(135deg, rgba(88,166,255,0.15) 0%, rgba(137,87,229,0.1) 100%); padding: 20px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <label style="font-size: 0.65rem; font-weight: 800; color: #58a6ff; letter-spacing: 1.2px; text-transform: uppercase;">Añadir Nueva Fuente</label>
+                        <span class="material-icons-round" style="font-size: 1.2rem; color: #58a6ff; opacity: 0.8;">bolt</span>
                     </div>
-                    <input type="text" id="epgSourceInput" class="modern-input" style="margin-bottom: 0; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; padding: 10px;" placeholder="URL XMLTV...">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="smartAddonInput" class="modern-input" style="margin-bottom: 0; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem; padding: 14px; flex-grow:1; border-radius: 14px;" placeholder="Pega URL de M3U, EPG, Stremio o Gist...">
+                        <button onclick="processSmartAddon()" style="background: #fff; color: #000; border: none; padding: 0 20px; border-radius: 14px; cursor: pointer; font-weight: 800; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; transition: transform 0.2s;">
+                            <span class="material-icons-round" style="font-size: 1.1rem;">add_link</span> AÑADIR
+                        </button>
+                    </div>
+                    <p style="font-size: 0.6rem; color: #666; margin-top: 10px; font-weight: 500; text-align: center;">Detección automática de EPG, Stremio, M3U y Configuración Maestra</p>
                 </div>
             </div>
 
-            
             <div style="flex-grow: 1; overflow-y: auto; padding: 20px; background: #0d1117;">
-                
-                <div style="margin-bottom: 24px;">
-                    <p style="font-size: 0.75rem; font-weight: 700; color: #8b949e; margin-bottom: 12px; margin-left: 4px;">Añadir Nueva Fuente</p>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="newAddonUrl" class="modern-input" style="margin: 0; flex-grow: 1; background: #161b22; border: 1px solid #30363d; font-size: 0.8rem;" placeholder="Lista M3U o JSON">
-                            <button onclick="addNewAddonRow()" style="background: #238636; color: #fff; border: none; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(35,134,54,0.2);">
-                                <span class="material-icons-round">add</span>
-                            </button>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="stremioAddonUrl" class="modern-input" style="margin: 0; flex-grow: 1; background: #161b22; border: 1px solid #30363d; font-size: 0.8rem;" placeholder="Stremio (manifest.json)">
-                            <button onclick="const u=document.getElementById('stremioAddonUrl').value; if(u){stremioAddons.push(u); localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons)); renderAddonCards(); document.getElementById('stremioAddonUrl').value='';}" style="background: #8957e5; color: #fff; border: none; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(137,87,229,0.2);">
-                                <span class="material-icons-round">movie</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <script>
+                    window.processSmartAddon = async function() {
+                        const input = document.getElementById('smartAddonInput');
+                        const url = input.value.trim();
+                        if (!url) return;
 
-                
+                        const btn = event.currentTarget;
+                        btn.disabled = true;
+
+                        try {
+                            if (url.includes('manifest.json')) {
+                                stremioAddons.push(url);
+                                localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons));
+                                showFbToast('Addon de Stremio añadido ✓', '#7b2cbf');
+                            }
+                            else if (url.toLowerCase().match(/\.xml$|\.xml\.gz$|epg/)) {
+                                localStorage.setItem('epgSourceUrl', url);
+                                showFbToast('Fuente EPG actualizada ✓', '#58a6ff');
+                            }
+                            else if (url.includes('gist.github.com') && !url.toLowerCase().includes('.m3u')) {
+                                if (confirm('¿Importar como Configuración Maestra? Esto reemplazará tus listas actuales.')) {
+                                    document.getElementById('masterGistInput').value = url;
+                                    await importMasterConfig();
+                                    return;
+                                }
+                            }
+                            else {
+                                streamSources.push(url);
+                                localStorage.setItem('streamSources', JSON.stringify(streamSources));
+                                showFbToast('Lista de canales añadida ✓', '#238636');
+                            }
+
+                            input.value = '';
+                            renderAddonCards();
+                        } catch (e) {
+                            alert('Error al procesar la URL');
+                        } finally {
+                            btn.disabled = false;
+                        }
+                    };
+                </script>
+
+
                 <div id="addonListContainer"></div>
             </div>
 
-            
+
             <div style="padding: 20px 24px 30px 24px; border-top: 1px solid rgba(255,255,255,0.05); background: #161b22; border-radius: 0 0 32px 32px;">
                 <button onclick="saveAllAddons()" class="modern-btn" style="background: #238636; color: #fff; font-weight: 700; border-radius: 14px; padding: 16px; width: 100%;">
                     RECARGAR APLICACIÓN
