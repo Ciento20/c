@@ -2304,7 +2304,7 @@
                     title = currentProg.title;
                     const diff = Math.round((stop - now) / 60000);
                     remainingMinutes = diff > 0 ? `${diff} min restantes` : "Finalizando";
-                }                const iconSrc = customMediaMap[channelId]?.logo || epgData.find(p => p.channel === channelId)?.channelIcon || '';                const favs = JSON.parse(localStorage.getItem('userFavs') || '[]');
+                }                const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || customMediaMap[channelId]?.logo || '';                const favs = JSON.parse(localStorage.getItem('userFavs') || '[]');
                 const isFav = favs.includes(channelId);
                 const row = document.createElement('div');
                 row.className = 'channel-row-modern';
@@ -2515,7 +2515,7 @@
                 const option = document.createElement('option');
                 option.value = channelId;
                 option.textContent = channelId;
-                dropdown.appendChild(option);                const iconSrc = customMediaMap[channelId]?.logo || epgData.find(p => p.channel === channelId)?.channelIcon || '';
+                dropdown.appendChild(option);                const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || customMediaMap[channelId]?.logo || '';
                 const tab = document.createElement('div');
                 tab.className = 'channel-tab';
                 tab.onclick = function() { selectChannelTab(this, channelId, channelId); };
@@ -2837,7 +2837,7 @@ function renderCurrentView() {
                 channelCell.style.color = '#FFFFFF';
                 channelCell.style.verticalAlign = 'middle';
 
-                const channelIconSrc = programs[0]?.channelIcon || '';
+                const channelIconSrc = programs[0]?.channelIcon || customMediaMap[channel]?.logo || '';
                 const channelName = channel;
 
                 if (channelIconSrc) {
@@ -3079,7 +3079,9 @@ function renderCurrentView() {
         });        function normalizeName(name) {
             if (!name) return '';
             let n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            n = n.replace(/\b(hd|sd|geo|espana|es|plus|\+|premium|uhd|directo|tv|24h|1080p|720p)\b/g, '');
+            // Limpieza agresiva de etiquetas comunes en listas de hashes (*, **, 1080p, etc)
+            n = n.replace(/\b(hd|sd|geo|espana|es|plus|\+|premium|uhd|directo|tv|24h|1080p|720p|v2)\b/g, '');
+            n = n.replace(/[*]+/g, ''); 
             n = n.replace(/[^a-z0-9]/g, '');
             return n.trim();
         }        async function loadAllStreamSources() {
@@ -3105,20 +3107,41 @@ function renderCurrentView() {
                             } else if(lines[i].trim() && !lines[i].startsWith('#')) {
                                 if(curN) items.push({n:curN, u:lines[i].trim(), l:curL, b:curB});
                             }
-                        }
-                    } else {
+                        }                    } else {
                         try {
                             const d = JSON.parse(text);
-                            const raw = d.groups ? d.groups.flatMap(g => g.stations) : (Array.isArray(d) ? d : []);
-                            items = raw.map(i => ({n: i.title || i.name || i.tvg_id, u: i.url || i.link || `acestream://${i.hash}`, l: i.logo || i.icon, b: i.banner}));
-                        } catch(e){}
+                            // Soporte para formato 'hashes', 'groups' o Array directo
+                            let raw = [];
+                            if (d.hashes) raw = d.hashes;
+                            else if (d.groups) raw = d.groups.flatMap(g => g.stations);
+                            else if (Array.isArray(d)) raw = d;
+
+                            items = raw.map(i => {
+                                let url = i.url || i.link || i.hash || i.acestream || i.cid;
+                                // Si es un hash puro de 40 caracteres, añadimos el protocolo
+                                if (url && /^[a-fA-F0-9]{40}$/.test(url.trim())) url = 'acestream://' + url.trim();
+                                
+                                // Para matching: usar tvg_id (nombre limpio del canal) si existe,
+                                // si no, intentar con title/name. El title original se preserva como rawName.
+                                const matchName = i.tvg_id || i.title || i.name;
+                                const rawTitle = i.title || i.name || i.tvg_id;
+
+                                return {
+                                    n: matchName,      // nombre usado para matching con EPG
+                                    u: url,
+                                    l: i.logo || i.icon,
+                                    b: i.banner,
+                                    raw: rawTitle      // nombre original con calidad (ej: "Eurosport 1 720p **")
+                                };
+                            }).filter(item => item.u); // Eliminar entradas sin link
+                        } catch(e){ console.error("Error parseando JSON:", e); }
                     }
 
                     const CHUNK_SIZE = 300;
                     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
                         const chunk = items.slice(i, i + CHUNK_SIZE);
                         chunk.forEach(item => {
-                            matchStreamToChannel(item.n, item.u, item.n, item.l, item.b);
+                            matchStreamToChannel(item.n, item.u, item.raw || item.n, item.l, item.b);
                         });
                         await new Promise(resolve => setTimeout(resolve, 0));
                     }
@@ -3141,8 +3164,10 @@ function renderCurrentView() {
             "F1": "DAZN F1",
             "F1 2": "DAZN F1",
             "F1 3": "DAZN F1",
-            "CAMPEONES": "M+ Liga de Campeones",
-            "LIGA DE CAMPEONES": "M+ Liga de Campeones",
+            "CAMPEONES": "M+ Liga de Campeones",            "LIGA DE CAMPEONES": "M+ Liga de Campeones",
+            "M+ LIGA DE CAMPEONES": "M+ Liga de Campeones",
+            "EUROSPORT 1": "Eurosport 1",
+            "EUROSPORT 2": "Eurosport 2",
             "CAMPEONES 2": "M+ Liga de Campeones 2",
             "LIGA DE CAMPEONES 2": "M+ Liga de Campeones 2",
             "LIGA DE CAMPEONES 3": "M+ Liga de Campeones 3",
@@ -4176,7 +4201,7 @@ function renderCurrentView() {
                 const customLogo = customMediaMap[channelId]?.logo;
                 const epgIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
 
-                const finalBg = customBanner || customLogo || epgIcon;
+                const finalBg = customBanner || epgIcon || customLogo;
                 modal.querySelector('.detail-bg').style.backgroundImage = finalBg ? `url('${finalBg}')` : 'none';
 
                 modal.querySelector('.detail-title').textContent = channelId;
@@ -4188,7 +4213,7 @@ function renderCurrentView() {
 
                 const channelLogoImg = modal.querySelector('.detail-channel-logo');
                 if (channelLogoImg) {
-                    const finalLogo = customLogo || epgIcon;
+                    const finalLogo = epgIcon || customLogo;
                     channelLogoImg.src = finalLogo;
                     channelLogoImg.style.display = finalLogo ? 'block' : 'none';
                 }
@@ -4865,7 +4890,7 @@ function renderCurrentView() {
                 let visualIdx = 1;
                 channelsList.forEach((channelId, index) => {
                     if (!userSelectedChannels.has(channelId)) return;
-                    if (searchTerm && !channelId.toLowerCase().includes(searchTerm)) return;                const iconSrc = customMediaMap[channelId]?.logo || epgData.find(p => p.channel === channelId)?.channelIcon || '';
+                    if (searchTerm && !channelId.toLowerCase().includes(searchTerm)) return;                const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || customMediaMap[channelId]?.logo || '';
                     const card = document.createElement('div');
                     card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 12px 16px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);`;
 
@@ -4888,7 +4913,7 @@ function renderCurrentView() {
                 grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(100px, 1fr))';
                 grid.style.gap = '12px';                channelsList.forEach(channelId => {
                     if (searchTerm && !channelId.toLowerCase().includes(searchTerm)) return;
-                    const isSelected = userSelectedChannels.has(channelId);                const iconSrc = customMediaMap[channelId]?.logo || epgData.find(p => p.channel === channelId)?.channelIcon || '';
+                    const isSelected = userSelectedChannels.has(channelId);                const iconSrc = epgData.find(p => p.channel === channelId)?.channelIcon || customMediaMap[channelId]?.logo || '';
                     const card = document.createElement('div');
                     card.style.cssText = `background: ${isSelected ? 'rgba(88, 166, 255, 0.08)' : '#1c1c1e'}; border: 2px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.03)'}; border-radius: 18px; padding: 16px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); text-align: center; gap: 10px; position: relative; overflow: hidden;`;
 
