@@ -472,23 +472,21 @@
             font-size: 1.6rem;
             color: var(--color-primary);
             margin-bottom: 16px;
-        }
-
-        #dateFilter {
+        }        #dateFilter {
             width: auto;
-            min-width: 110px;
-            max-width: 140px;
-            padding: 6px 8px;
-            font-size: 0.95em;
+            min-width: 90px;
+            max-width: 120px;
+            padding: 4px 6px;
+            font-size: 0.8em;
             box-sizing: border-box;
         }
 
         #hourFilter {
             width: auto;
-            min-width: 90px;
-            max-width: 120px;
-            padding: 6px 8px;
-            font-size: 0.85em;
+            min-width: 80px;
+            max-width: 100px;
+            padding: 4px 6px;
+            font-size: 0.8em;
             box-sizing: border-box;
         }
 
@@ -1215,8 +1213,7 @@
         .channel-tab:first-child { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-radius: 6px; min-width: 52px; box-shadow: -20px 0 0 var(--bg-surface), 10px 0 15px -10px rgba(0,0,0,0.7); margin-right: 6px; }
         .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -6px; width: 6px; height: 100%; background: var(--bg-surface); pointer-events: none; }
         .channel-tab img { max-width: 50px; max-height: 40px; object-fit: contain; }
-        .channel-tab.active { border-color: var(--color-primary) !important; }
-        .date-tab { color: #888; font-size: 1.1em; font-weight: 600; cursor: pointer; padding-bottom: 5px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex-shrink: 0; }        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+        .channel-tab.active { border-color: var(--color-primary) !important; }        .date-tab { color: #888; font-size: 0.85em; font-weight: 600; cursor: pointer; padding-bottom: 4px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex-shrink: 0; }        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
         #channel-tabs::-webkit-scrollbar, #date-tabs::-webkit-scrollbar, #hour-tabs::-webkit-scrollbar { display: none; }
 
 
@@ -1792,10 +1789,10 @@
 
         <div id="channel-tabs" style="display: flex; overflow-x: auto; gap: 12px; padding: 0 20px 15px 20px; scrollbar-width: none; border-bottom: 1px solid #2a2a2a;">
 
-        </div>        <div id="date-tabs" style="display: flex; overflow-x: auto; gap: 24px; padding: 12px 20px; scrollbar-width: none; background: var(--bg-deep); border-bottom: 1px solid var(--bg-ui);">
+        </div>        <div id="date-tabs" style="display: flex; overflow-x: auto; gap: 16px; padding: 8px 16px; scrollbar-width: none; background: var(--bg-deep); border-bottom: 1px solid var(--bg-ui);">
 
         </div>
-        <div id="hour-tabs" style="display: flex; overflow-x: auto; gap: 15px; padding: 12px 20px; scrollbar-width: none; background: var(--bg-surface); border-bottom: 1px solid var(--bg-ui);">
+        <div id="hour-tabs" style="display: flex; overflow-x: auto; gap: 10px; padding: 8px 16px; scrollbar-width: none; background: var(--bg-surface); border-bottom: 1px solid var(--bg-ui);">
 
         </div>
     </div>
@@ -2946,24 +2943,19 @@ function renderCurrentView() {
                     card.style.backgroundColor = '#0a0c10';
                     card.style.backgroundBlendMode = 'multiply';
                     card.style.opacity = '0.7';
-                }
-
-                card.innerHTML = `
-
-            <div style="position: absolute; top: 16px; left: 16px; right: 16px; z-index: 3; display: flex; justify-content: space-between; align-items: flex-start;">
+                }            card.innerHTML = `            <div style="position: absolute; top: 8px; left: 16px; right: 16px; z-index: 3; display: flex; justify-content: space-between; align-items: flex-start;">
                 <div style="flex: 1; padding-right: 80px;">
-                    <div class="title" style="font-size: 0.95rem; color: #fff; font-weight: 700; line-height: 1.2; text-shadow: 0 2px 4px rgba(0,0,0,0.8); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-                        ${processColoredText(item.title)}
+                    <div style="background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 4px 10px; border-radius: 8px; display: inline-block; max-width: 100%;">
+                        <div class="title" style="font-size: 0.9rem; color: #fff; font-weight: 800; line-height: 1.1; text-shadow: 0 2px 4px rgba(0,0,0,1); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+                            ${processColoredText(item.title)}
+                        </div>
                     </div>
                 </div>
                 ${item.channelIcon ? `
                 <div style="position: absolute; top: 0; right: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <img loading="lazy" src="${item.channelIcon}" style="height: 28px; width: auto; max-width: 80px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));">
                 </div>` : ''}
-            </div>
-
-
-            <div style="position: absolute; top: 16px; bottom: 16px; left: 16px; right: 16px; display: flex; gap: 16px; align-items: flex-end; z-index: 2;">
+            </div>            <div style="position: absolute; top: 16px; bottom: 16px; left: 16px; right: 16px; display: flex; gap: 16px; align-items: stretch; z-index: 2;">
                 <div style="width: 85px; height: 120px; align-self: center; border-radius: 12px; overflow: hidden; flex-shrink: 0; box-shadow: 0 5px 15px rgba(0,0,0,0.8); background: #000; border: 1px solid rgba(255,255,255,0.1);">
                     <img loading="lazy" src="${item.iconSrc || item.channelIcon}"
                          style="width: 100%; height: 100%; object-fit: ${item.iconSrc ? 'cover' : 'contain'}; padding: ${item.iconSrc ? '0' : '15px'};"
@@ -2973,9 +2965,7 @@ function renderCurrentView() {
                         const fullDesc = item.description || '';
                         const scoreMatch = fullDesc.match(/★\s?(\d+(\.\d+)?)/);
                         const yearMatch = fullDesc.match(/\b(19|20)\d{2}\b/);
-                        const ratingMatch = fullDesc.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);
-
-                        const yearHtml = yearMatch ? `<span style="color: #fff; opacity: 0.4;">${yearMatch[0]}</span>` : '';
+                        const ratingMatch = fullDesc.match(/(\d{1,2}\+|[\+\-]\d{1,2}|⑫|⑬|⑯|⑱|⑦|TP|\(\d+\))/);                        const yearHtml = yearMatch ? `<span style="color: #fff; opacity: 0.4;">${yearMatch[0]}</span>` : '';
 
                         let ratingHtml = '';
                         if (ratingMatch) {
@@ -2987,12 +2977,12 @@ function renderCurrentView() {
                             else if (/1[23]/.test(checkText) || /[⑫⑬]/.test(checkText)) bgColor = '#ffc107';
                             else if (checkText.includes('16') || checkText.includes('⑯')) bgColor = '#ff9800';
                             else if (checkText.includes('18') || checkText.includes('⑱')) bgColor = '#e53935';
-                            ratingHtml = `<span style="background: ${bgColor}; color: ${bgColor === '#ffc107' ? '#000' : '#fff'}; font-size: 0.55rem; font-weight: 900; padding: 1px 4px; border-radius: 3px; margin-left: 8px; border: 1px solid rgba(255,255,255,0.1); vertical-align: middle;">${rText}</span>`;
+                            ratingHtml = `<span style="background: ${bgColor}; color: ${bgColor === '#ffc107' ? '#000' : '#fff'}; font-size: 0.55rem; font-weight: 900; padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1); vertical-align: middle;">${rText}</span>`;
                         }
 
-                        const scoreHtml = scoreMatch ? `<span style="color: #f1c40f; margin-left: 8px;">${scoreMatch[0]}</span>` : '';
+                        const scoreHtml = scoreMatch ? `<span style="color: #f1c40f;">${scoreMatch[0]}</span>` : '';
 
-                        return (yearHtml || ratingHtml || scoreHtml) ? `<div style="font-size: 0.75rem; font-weight: 800; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center;">${yearHtml}${ratingHtml}${scoreHtml}</div>` : '';
+                        return (yearHtml || ratingHtml || scoreHtml) ? `<div style="font-size: 0.75rem; font-weight: 800; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;">${ratingHtml}${yearHtml}${scoreHtml}</div>` : '';
                     })()}
                     <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         ${(() => {
