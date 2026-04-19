@@ -68,14 +68,102 @@
             console.error('[FB] Error al inicializar:', e);
             return false;
         }
-    }
-
-    (function() {
+    }    (function() {
         const saved = _realLS.getItem('firebaseConfig');
         if (saved) {
             try { _fbInit(JSON.parse(saved)); } catch(e) {}
         }
     })();
+
+    /* --- FUNCIONES GLOBALES DEL REPRODUCTOR (FIX) --- */
+    window.togglePlaybackSpeed = (e) => {
+        if(e) e.stopPropagation();
+        const v = document.getElementById('main-video-player');
+        const container = document.getElementById('player-container');
+        if(!v || !container) return;
+        let menu = document.getElementById('customSpeedMenu');
+        if(!menu) {
+            menu = document.createElement('div');
+            menu.id = 'customSpeedMenu';
+            menu.className = 'quick-menu';
+            menu.style.cssText = 'position: absolute; bottom: 80px; right: 20px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: 250px; overflow-y: auto; display: none;';
+            container.appendChild(menu);
+        }
+        menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
+        [0.5, 0.75, 1, 1.25, 1.5, 2].forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'quick-menu-item';
+            const isActive = Math.abs(v.playbackRate - s) < 0.01;
+            item.innerHTML = `<i class="material-icons" style="color: ${isActive ? 'var(--primary)' : '#666'}">${isActive ? 'check_circle' : 'speed'}</i> ${s}x`;
+            item.onclick = (ev) => { ev.stopPropagation(); v.playbackRate = s; menu.style.display = 'none'; };
+            menu.appendChild(item);
+        });
+        menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+        const close = (ev) => { if(!menu.contains(ev.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
+        setTimeout(() => document.addEventListener('click', close), 10);
+    };
+
+    window.toggleVideoScaling = (e) => {
+        if(e) e.stopPropagation();
+        const v = document.getElementById('main-video-player');
+        if(!v) return;
+        const modes = ['contain', 'cover', 'fill'];
+        let current = modes.indexOf(v.style.objectFit || 'contain');
+        v.style.objectFit = modes[(current + 1) % modes.length];
+    };
+
+    window.castToDevice = async (e) => {
+        if(e) e.stopPropagation();
+        const v = document.getElementById('main-video-player');
+        if (!v) return;
+        v.controls = true;
+        try {
+            if (v.remote && typeof v.remote.prompt === 'function') { await v.remote.prompt(); }
+            else if (v.webkitShowPlaybackTargetPicker) { v.webkitShowPlaybackTargetPicker(); }
+        } catch (err) { console.log('Cast UI triggered'); }
+    };
+
+    window.toggleSubtitles = (e) => {
+        if(e) e.stopPropagation();
+        const v = document.getElementById('main-video-player');
+        const container = document.getElementById('player-container');
+        if(!v || !container) return;
+        const tracks = v.textTracks;
+        if(!tracks || tracks.length === 0) return alert('No hay subtítulos disponibles');
+        let menu = document.getElementById('customSubtitleMenu');
+        if(!menu) {
+            menu = document.createElement('div');
+            menu.id = 'customSubtitleMenu';
+            menu.className = 'quick-menu';
+            menu.style.cssText = 'position: absolute; bottom: 80px; right: 20px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: 250px; overflow-y: auto; display: none;';
+            container.appendChild(menu);
+        }
+        menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
+        const createItem = (label, icon, active, callback) => {
+            const item = document.createElement('div');
+            item.className = 'quick-menu-item';
+            item.innerHTML = `<i class="material-icons" style="color: ${active ? 'var(--primary)' : '#666'}">${icon}</i> ${label}`;
+            item.onclick = (ev) => { ev.stopPropagation(); callback(); };
+            return item;
+        };
+        menu.appendChild(createItem('Desactivar', 'subtitles_off', !Array.from(tracks).some(t => t.mode === 'showing'), () => {
+            for(let i=0; i<tracks.length; i++) tracks[i].mode = 'disabled';
+            if(window.hls) window.hls.subtitleTrack = -1;
+            menu.style.display = 'none';
+        }));
+        for(let i=0; i<tracks.length; i++) {
+            const track = tracks[i];
+            menu.appendChild(createItem(track.label || `Pista ${i+1}`, 'subtitles', track.mode === 'showing', () => {
+                for(let j=0; j<tracks.length; j++) tracks[j].mode = 'disabled';
+                track.mode = 'showing';
+                if(window.hls && i < window.hls.subtitleTracks.length) window.hls.subtitleTrack = i;
+                menu.style.display = 'none';
+            }));
+        }
+        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        const close = (ev) => { if(!menu.contains(ev.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
+        setTimeout(() => document.addEventListener('click', close), 10);
+    };
 
     async function _fbSetKey(key, value) {
         if (!window.fbUser || !window.fbDB) return;
@@ -413,8 +501,8 @@
             }
         })();
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Round" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Round" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
     <style>        :root {
 
             --bg-deep: #050505;
@@ -1476,9 +1564,25 @@
         .player-center-controls { display: flex; align-items: center; justify-content: center; gap: 40px; flex-grow: 1; }
 
         .player-btn-large {
-            background: none; border: none; color: white; cursor: pointer;
+            background: none; 
+            border: none; 
+            color: white; 
+            cursor: pointer;
             filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+            transition: background 0.3s, transform 0.2s;
         }
+        .player-btn-large:focus-visible {
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2);
+        }
+        .player-btn-large:active { transform: scale(0.9); }
         .player-btn-large span { font-size: 60px !important; }
 
         .player-bottom-bar {
@@ -1494,44 +1598,42 @@
             font-weight: 800;
             padding: 0 5px;
             font-variant-numeric: tabular-nums;
-        }
-
-        .player-scrubber {
+        }        .player-scrubber {
             flex-grow: 1;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.12);
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 10px;
             position: relative;
             cursor: pointer;
-            transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
-        }
-
-        .player-scrubber:hover {
-            height: 6px;
+            margin: 0 8px;
         }
 
         .player-scrubber-fill {
             position: absolute;
-            left: 0; top: 0; height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--accent));
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 10px;
+            background: var(--primary);
             border-radius: 10px;
-            box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
-            transition: background 0.3s ease;
+            box-shadow: 0 0 12px var(--primary);
+            pointer-events: none;
+            z-index: 1;
         }
 
         .player-scrubber-knob {
             position: absolute;
-            right: -7px;
-            width: 14px;
-            height: 14px;
+            top: 50%;
+            width: 18px;
+            height: 18px;
             background: #fff;
             border-radius: 50%;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(88, 166, 255, 0.2);
-            transform: scale(0);
-            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 10;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            pointer-events: none;
         }
 
         .player-scrubber:hover .player-scrubber-knob {
@@ -1556,9 +1658,16 @@
             font-size: 0.65rem !important;
             font-weight: 600 !important;
             width: auto !important;
-            padding: 4px !important;
+            padding: 8px !important;
             margin: 0 !important;
             text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+            border-radius: 20px;
+            outline: none;
+            transition: background 0.2s;
+        }
+        .player-action-item:focus-visible {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 0 2px var(--primary);
         }
 
         .player-action-item:hover { color: #fff; }
@@ -3518,13 +3627,17 @@ function renderCurrentView() {
                                 if (!lastFP) return 0;
                                 const score = (s) => (s.title + s.name).toLowerCase().split(/[\s|/.,_-]+/).filter(w => w.length > 2 && lastFP.toLowerCase().includes(w)).length;
                                 return score(b) - score(a);
-                            });
-
-                            selector.innerHTML = allStreams.map((st, i) => {
+                            });                            selector.innerHTML = allStreams.map((st, i) => {
                                 const raw = st.title || st.name || "";
-                                const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                                const qualityMatch = raw.match(/4K|2160p|1080p|720p|SD/i)?.[0] || 'HD';
+                                const quality = qualityMatch.toUpperCase();
+                                let qIcon = 'high_quality';
+                                if(quality === '4K' || quality === '2160P') qIcon = '4k';
+                                else if(quality === '1080P') qIcon = 'full_hd';
+                                else if(quality === '720P') qIcon = 'hd';
+                                else if(quality === 'SD') qIcon = 'sd';
                                 return `<div class="source-pill ${i === 0 ? 'active' : ''}" onclick="window.changeStremioSource(${i})">
-                                    <div class="source-pill-title"><span class="material-icons-round">play_arrow</span> ${quality}</div>
+                                    <div class="source-pill-title"><span class="material-symbols-outlined" style="font-size: 1.2rem; margin-right: 4px;">${qIcon}</span> ${qualityMatch}</div>
                                     <div class="source-pill-meta">${(raw.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'Multi')} • ${st.name || 'Addon'}</div>
                                 </div>`;
                             }).join('');
@@ -3568,10 +3681,31 @@ function renderCurrentView() {
                 });
                 extraMetaHtml += '</div>';
 
-                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;
-                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
+                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
+
+                    if (titleEl) {
+                        let contentHtml = '';
+                        if (fullMeta && fullMeta.type === 'series' && fullMeta.videos) {
+                            const ep = fullMeta.videos.find(v => v.id === streamId);
+                            if (ep) {
+                                contentHtml += `<div style="font-size: 0.95rem; font-weight: 900; color: #fff; letter-spacing: 0.5px; text-shadow: 0 2px 6px #000; margin-bottom: 4px;">Temporada ${ep.season} - Capítulo ${ep.episode}</div>`;
+                            }
+                            if (fullMeta.logo) {
+                                contentHtml += `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 25px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
+                            }
+                            titleEl.style.maxHeight = '80px';
+                            titleEl.innerHTML = `<div style="display:flex; flex-direction:column; align-items:flex-start;">${contentHtml}</div>`;
+                        } else {
+                            titleEl.style.maxHeight = '40px';
+                            if (fullMeta && fullMeta.logo) {
+                                titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
+                            } else if (fullMeta) {
+                                titleEl.textContent = fullMeta.name;
+                            }
+                        }
+                    }
 
                     playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
                     const addListBtn = document.getElementById('add-to-list-btn');
@@ -3600,32 +3734,27 @@ function renderCurrentView() {
 
             playBtn.onclick = null;
             playBtn.style.background = '#333';
-            playBtn.style.color = '#777';                    const streamPromises = stremioAddons.map(async (url) => {
-                        try {
-                            const addonBase = url.replace('/manifest.json', '');
-                            const streamRes = await raceFetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
-                            if (streamRes.ok) {
-                                const data = await streamRes.json();
-                                return data.streams || [];
-                            }
-                        } catch (err) { return []; }
-                        return [];
-                    });
-                    const results = await Promise.all(streamPromises);
-                    let allStreams = results.flat();
-                    window.currentlyFetchingId = null;
+            playBtn.style.color = '#777';                    let allStreams = [];
+                    let addonsResponded = 0;
+                    let hasAutoPlayed = false;
+                    window.currentlyFetchingId = streamId;
 
-                    if (allStreams.length > 0) {
+                    const renderStreamsProgressive = () => {
                         const lastFingerprint = localStorage.getItem('lastStremioFingerprint');
                         let bestIdx = 0;
+
+                        allStreams.sort((a, b) => {
+                            const addonA = (a.name || "Addon").toLowerCase();
+                            const addonB = (b.name || "Addon").toLowerCase();
+                            if (addonA !== addonB) return addonA.localeCompare(addonB);
+                            return 0;
+                        });
 
                         if (lastFingerprint) {
                             let maxScore = -1;
                             const targetWords = lastFingerprint.toLowerCase().split(/[\s|/.,_-]+/);
-
                             allStreams.forEach((st, i) => {
                                 if (autoPlayMatch && !st.url) return;
-
                                 const currentText = ((st.title || "") + " " + (st.name || "")).toLowerCase();
                                 let score = 0;
                                 targetWords.forEach(word => {
@@ -3636,45 +3765,88 @@ function renderCurrentView() {
                             });
                         }
 
-                        playBtn.style.background = 'var(--color-primary)';
-                        playBtn.style.color = '#000';
-                        playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
+                        if (allStreams.length > 0) {
+                            playBtn.style.background = 'var(--color-primary)';
+                            playBtn.style.color = '#000';
+                            playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reproducir`;
 
-                        const oldSelector = document.querySelector('.stremio-stream-selector');
-                        if (oldSelector) oldSelector.remove();            if (allStreams.length > 1) {
-                let selectorHtml = '<div class="source-selector stremio-stream-selector" style="width: 100%; margin-bottom: 10px;">';
-                allStreams.forEach((st, i) => {
-                    const raw = st.title || st.name || "";
-                    const quality = raw.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
-                    const lang = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
-                    const addonName = st.name || "Addon";                    let qIcon = 'hd';
-                    if(quality === '4K') qIcon = '4k';
-                    else if(quality === 'SD') qIcon = 'sd';
+                            const oldSelector = document.querySelector('.stremio-stream-selector');
+                            if (oldSelector) oldSelector.remove();
+                            
+                            let selectorHtml = '<div class="source-selector stremio-stream-selector" style="width: 100%; margin-bottom: 10px;">';
+                            allStreams.forEach((st, i) => {                                const nameQ = (st.name || "").match(/4K|2160p|1080p|720p|SD/i)?.[0];
+                                const titleQ = (st.title || "").match(/4K|2160p|1080p|720p|SD/i)?.[0];
+                                const quality = (nameQ || titleQ || 'HD').toUpperCase();
+                                const raw = (st.title || "") + " " + (st.name || "");
+                                
+                                // Mapeo de banderas
+                                const langMatch = raw.match(/ES|EN|LAT|VOSE|Castellano|Multi/i)?.[0] || 'Multi';
+                                const langMap = { 'ES': '🇪🇸', 'CASTELLANO': '🇪🇸', 'EN': '🇬🇧', 'MULTI': '🌐', 'LAT': '🌎', 'VOSE': '💬' };
+                                const langIcon = langMap[langMatch.toUpperCase()] || '🌐';
+                                
+                                const addonName = (st.name || "Addon").replace(/4K|2160p|1080p|720p|SD/i, '').replace(/\s+/g, ' ').trim();
+                                
+                                let qIcon = 'high_quality';
+                                if(quality === '4K' || quality === '2160P') qIcon = '4k';
+                                else if(quality === '1080P') qIcon = 'full_hd';
+                                else if(quality === '720P') qIcon = 'hd';
+                                else if(quality === 'SD') qIcon = 'sd';
 
-                    const displayTitle = `<div class="source-pill-title"><span class="material-icons-round" style="font-size: 1.6rem;">${qIcon}</span></div>`;
-                    const displayMeta = `<div class="source-pill-meta">${lang} • ${addonName}</div>`;
+                                // Integración del icono de idioma al lado del de calidad
+                                const displayTitle = `<div class="source-pill-title" style="display:flex; align-items:center; gap:8px;"><span class="material-symbols-outlined" style="font-size: 1.8rem;">${qIcon}</span> <span style="font-size: 1.2rem; line-height: 1;">${langIcon}</span></div>`;
+                                const displayMeta = `<div class="source-pill-meta">${addonName}</div>`;
 
-                    selectorHtml += `<div class="source-pill ${i === bestIdx ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}">${displayTitle}${displayMeta}</div>`;
-                });
-                selectorHtml += '</div>';
-                playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
-            }
-
-                        window.currentStremioStreamIdx = bestIdx;
-                        window.changeStremioSource = (idx) => {
-                            window.currentStremioStreamIdx = idx;
-                            const selected = allStreams[idx];
-                            localStorage.setItem('lastStremioFingerprint', (selected.title || "") + " " + (selected.name || ""));
-
-                            document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
-                                p.classList.toggle('active', i === idx);
+                                selectorHtml += `<div class="source-pill ${i === bestIdx ? 'active' : ''}" onclick="window.changeStremioSource(${i})" title="${raw.replace(/"/g, '&quot;')}">${displayTitle}${displayMeta}</div>`;
                             });
-                        };
+                            selectorHtml += '</div>';
+                            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
 
-                        if (autoPlayMatch) {
-                            window.changeStremioSource(bestIdx);
-                            setTimeout(() => playBtn.click(), 200);
-                        }                        playBtn.onclick = async () => {
+                            window.currentStremioStreamIdx = bestIdx;
+                            window.changeStremioSource = (idx) => {
+                                window.currentStremioStreamIdx = idx;
+                                const selected = allStreams[idx];
+                                localStorage.setItem('lastStremioFingerprint', (selected.title || "") + " " + (selected.name || ""));
+                                document.querySelectorAll('.stremio-stream-selector .source-pill').forEach((p, i) => {
+                                    p.classList.toggle('active', i === idx);
+                                });
+                            };
+
+                            if (autoPlayMatch && !hasAutoPlayed) {
+                                hasAutoPlayed = true;
+                                window.changeStremioSource(bestIdx);
+                                setTimeout(() => playBtn.click(), 200);
+                            }
+                        } else if (addonsResponded === stremioAddons.length) {
+                            const oldSelector = document.querySelector('.stremio-stream-selector');
+                            if (oldSelector) oldSelector.remove();
+                            playBtn.style.background = '#333';
+                            playBtn.style.color = '#777';
+                            playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
+                        }
+                    };
+
+                    stremioAddons.forEach(async (url) => {
+                        try {
+                            const addonBase = url.replace('/manifest.json', '');
+                            const streamRes = await raceFetch(`${addonBase}/stream/${fullMeta.type}/${streamId}.json`);
+                            if (streamRes.ok) {
+                                const data = await streamRes.json();
+                                if (data.streams && data.streams.length > 0) {
+                                    allStreams.push(...data.streams);
+                                }
+                            }
+                        } catch (err) {}
+                        finally {
+                            addonsResponded++;
+                            if (allStreams.length === 0 && addonsResponded < stremioAddons.length) {
+                                playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite; vertical-align:middle;">sync</span> Buscando fuentes (${addonsResponded}/${stremioAddons.length})...`;
+                            } else {
+                                renderStreamsProgressive();
+                            }
+                        }
+                    });
+
+                    {                        playBtn.onclick = async () => {
                             const continueData = JSON.parse(localStorage.getItem('continueWatching') || '[]');
                             const itemToSave = {
                                 id: fullMeta.id,
@@ -3974,12 +4146,6 @@ function renderCurrentView() {
                                 meta.autoPlay = false;
                             }, 400);
                         }
-                    } else {
-                        const oldSelector = document.querySelector('.stremio-stream-selector');
-                        if (oldSelector) oldSelector.remove();
-                        playBtn.style.background = '#333';
-                        playBtn.style.color = '#777';
-                        playBtn.innerHTML = `<span class="material-icons">block</span> No hay streams`;
                     }
                 };                if (fullMeta.type === 'series' && fullMeta.videos && fullMeta.videos.length > 0) {
                     const seasons = [...new Set(fullMeta.videos.map(v => v.season))].sort((a, b) => a - b);
@@ -4218,14 +4384,15 @@ function renderCurrentView() {
                 selectorHtml = '<div class="source-selector" style="width: 100%; margin-bottom: 15px;">';
                 sources.forEach((sourceObj, i) => {
                     const url = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
-                    const rawInfo = typeof sourceObj === 'string' ? `ENLACE ${i+1}` : sourceObj.info;
-
-                    const quality = rawInfo.match(/4K|1080p|720p|SD/i)?.[0] || 'HD';
+                    const rawInfo = typeof sourceObj === 'string' ? `ENLACE ${i+1}` : sourceObj.info;                    const qualityMatch = rawInfo.match(/4K|2160p|1080p|720p|SD/i)?.[0] || 'HD';
+                    const quality = qualityMatch.toUpperCase();
                     const lang = rawInfo.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'ES';
                     const provider = rawInfo.split('|').length > 1 ? rawInfo.split('|').pop().trim() : `Señal ${i+1}`;
 
-                    const isAce = url.startsWith('acestream://');                    let qIcon = 'hd';
-                    if(quality === '4K') qIcon = '4k';
+                    const isAce = url.startsWith('acestream://');                    let qIcon = 'high_quality';
+                    if(quality === '4K' || quality === '2160P') qIcon = '4k';
+                    else if(quality === '1080P') qIcon = 'full_hd';
+                    else if(quality === '720P') qIcon = 'hd';
                     else if(quality === 'SD') qIcon = 'sd';
 
                     selectorHtml += `
@@ -4233,8 +4400,8 @@ function renderCurrentView() {
                              style="${isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15);' : ''}"
                              onclick="window.changeSource(${i}, '${channelId}')">
                             <div class="source-pill-title" style="display:flex; align-items:center; gap:4px;">
-                                ${isAce ? '<span class="material-icons-round" style="font-size: 1rem; color:#9d4edd;">bolt</span>' : ''}
-                                <span class="material-icons-round" style="font-size: 1.6rem;">${qIcon}</span>
+                                ${isAce ? '<span class="material-symbols-outlined" style="font-size: 1rem; color:#9d4edd;">bolt</span>' : ''}
+                                <span class="material-symbols-outlined" style="font-size: 1.6rem;">${qIcon}</span>
                             </div>
                             <div class="source-pill-meta">${lang} • ${provider}</div>
                         </div>`;
