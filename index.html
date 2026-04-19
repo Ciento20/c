@@ -9,15 +9,27 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script>
-
-    const SYNC_KEYS = [
+    <script>    const SYNC_KEYS = [
         'streamSources','stremioAddons','epgSourceUrl',
         'userSelectedChannels','customChannelOrder',
         'userFavs','userMyList',
         'continueWatching','videoProgress','watchedEps',
-        'onlyLiveEvents','isP2PEnabled','hideNoImageEvents','hideNoVideoChannels'
+        'onlyLiveEvents','isP2PEnabled','hideNoImageEvents','hideNoVideoChannels',
+        'customPrimaryColor'
     ];
+
+    (function initThemeColor() {
+        const savedColor = window.localStorage.getItem('customPrimaryColor');
+        if (savedColor) {
+            const hexToRgb = (hex) => {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? parseInt(result[1], 16) + ', ' + parseInt(result[2], 16) + ', ' + parseInt(result[3], 16) : '88, 166, 255';
+            };
+            document.documentElement.style.setProperty('--primary', savedColor);
+            document.documentElement.style.setProperty('--accent', savedColor);
+            document.documentElement.style.setProperty('--primary-rgb', hexToRgb(savedColor));
+        }
+    })();
 
     window.fbUser = null;
     window.fbAuth = null;
@@ -506,11 +518,10 @@
     <style>        :root {
 
             --bg-deep: #050505;
-            --bg-surface: #090909;
-            --primary-rgb: 88, 166, 255;
+            --bg-surface: #090909;            --primary-rgb: 88, 166, 255;
             --bg-ui: #1c1c1e;
             --primary: #58a6ff;
-            --accent: #79c0ff;
+            --accent: #58a6ff; /* Unificado al color primario */
             --text-main: #f0f6fc;
             --text-muted: #8b949e;
             --glass: rgba(22, 27, 34, 0.8);
@@ -615,10 +626,10 @@
             color: #000;
             cursor: pointer;
             transition: background-color 0.3s;
-        }
-
-        button:hover {
+        }        button:hover {
             background-color: var(--color-primary-hover);
+            filter: brightness(1.3); /* Efecto de brillo para simular el tono de acento */
+            box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.5); /* Resplandor con opacidad controlada */
         }
 
         button:disabled {
@@ -678,8 +689,9 @@
             pointer-events: none;
         }        .program-card:hover {
             transform: translateY(-4px) scale(1.02);
-
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--primary), 0 0 20px rgba(var(--primary-rgb), 0.4);
+            /* Brillo y glow intensificados sobre el mismo tono azul */
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--primary), 0 0 30px rgba(var(--primary-rgb), 0.7);
+            filter: brightness(1.15);
             z-index: 10;
         }                .channel-row-modern {
             background: var(--bg-surface);
@@ -742,12 +754,12 @@
             background: #333;
             border-radius: 3px;
             overflow: hidden;
-        }
-
-        .bar-fill-modern {
+        }        .bar-fill-modern {
             height: 100%;
             background: var(--color-primary);
-            box-shadow: 0 0 8px rgba(8, 129, 170, 0.4);
+            /* Ajuste de brillo y opacidad en el resplandor de la interfaz */
+            box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.6);
+            opacity: 0.9;
             border-radius: 3px;
         }
 
@@ -2726,10 +2738,9 @@
                 if (/^T\d+/i.test(contentTrim)) {
                     finalColor = 'var(--primary)';
                     lastWasSeason = true;
-                }
-                else if (lastWasSeason) {
-                    finalColor = '#0d47a1';
-                    extraStyle = '';
+                }                else if (lastWasSeason) {
+                    finalColor = 'var(--primary)';
+                    extraStyle = ' filter: brightness(0.65);';
                     lastWasSeason = false;
                 }
                 else {
@@ -3101,11 +3112,10 @@ function renderCurrentView() {
 
                             const cleanCat = category.replace(/\|/g, '').replace(/<[^>]*>?/gm, '').trim();
                             let mainCat = cleanCat || 'Evento';
-                            let subCat = '';
-                            if (cleanCat.includes(',')) {
+                            let subCat = '';                            if (cleanCat.includes(',')) {
                                 const parts = cleanCat.split(',');
                                 mainCat = parts[0].trim();
-                                subCat = `<span style="color: #3b82f6; font-weight: 700; margin-left: 4px;">${parts.slice(1).join(',').trim()}</span>`;
+                                subCat = `<span style="color: var(--primary); filter: brightness(0.65); font-weight: 700; margin-left: 4px;">${parts.slice(1).join(',').trim()}</span>`;
                             }
 
                             return `<span style="color: var(--primary);">${mainCat}</span>${subCat}`;
@@ -3490,7 +3500,7 @@ function renderCurrentView() {
                     fullMeta = fastMeta;
                     if (titleDisplay && fullMeta.videos) {
                         const currentVideo = fullMeta.videos.find(v => v.id === meta.lastStreamId);
-                        if (currentVideo) titleDisplay.textContent = `T${currentVideo.season} E${currentVideo.episode}`;
+                        if (currentVideo) titleDisplay.textContent = `Temporada ${currentVideo.season} Capítulo ${currentVideo.episode}`;
                     }
                 } catch(e) {}
             }
@@ -4107,7 +4117,7 @@ function renderCurrentView() {
                                 if (fullMeta.type === 'series' && fullMeta.videos) {
                                     const currentVideo = fullMeta.videos.find(v => v.id === streamId);
                                     if (currentVideo) {
-                                        titleDisplay.textContent = `T${currentVideo.season} E${currentVideo.episode}`;
+                                        titleDisplay.textContent = `Temporada ${currentVideo.season} Capítulo ${currentVideo.episode}`;
                                     } else {
                                         titleDisplay.textContent = fullMeta.name;
                                     }
@@ -4267,7 +4277,7 @@ function renderCurrentView() {
                     }
 
                     document.getElementById('seasonTabs').innerHTML = seasons.map(s => `
-                        <div class="season-pill ${s === initialSeason ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">T${s}</div>
+                        <div class="season-pill ${s === initialSeason ? 'active' : ''}" data-season="${s}" onclick="window.updateSeason(${s})">Temporada ${s}</div>
                     `).join('');
 
                     window.updateSeason(initialSeason, targetEpId);
@@ -5198,10 +5208,8 @@ function renderCurrentView() {
 
             const createCard = (url, type, index, listArray, storageKey) => {
                 const card = document.createElement('div');
-                card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; animation: modalFadeIn 0.3s ease;`;
-
-                let icon = 'link';
-                let color = '#58a6ff';
+                card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; animation: modalFadeIn 0.3s ease;`;                let icon = 'link';
+                let color = 'var(--primary)';
                 if (type === 'STREMIO') { icon = 'movie'; color = '#7b2cbf'; }
                 if (url.toLowerCase().includes('.m3u')) { icon = 'playlist_play'; color = '#00e5ff'; }
 
@@ -5467,11 +5475,22 @@ function renderCurrentView() {
                     </div>
                     <span class="material-icons" style="color: #00e5ff; font-size: 1.2rem;">arrow_forward_ios</span>
                 </div>
+            </div>            <p style="color: #666; font-size: 0.85rem; margin: 25px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">Configuración del sistema</p>
+
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary); font-size: 1.4rem;">palette</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Color Principal</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Cambia el color de acento de la app</div>
+                        </div>
+                    </div>
+                    <div>
+                        <input type="color" id="primaryColorPicker" onchange="changePrimaryColor(this.value)" style="background: transparent; border: none; width: 40px; height: 40px; cursor: pointer; padding: 0; border-radius: 8px;">
+                    </div>
+                </div>
             </div>
-
-            <p style="color: #666; font-size: 0.85rem; margin: 25px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">Configuración del sistema</p>
-
-
 
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
@@ -5535,9 +5554,19 @@ function renderCurrentView() {
                         <div class="ios-toggle"></div>
                     </label>
                 </div>
-            </div>
+            </div>            <script>
+                function hexToRgb(hex) {
+                    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                    return result ? parseInt(result[1], 16) + ', ' + parseInt(result[2], 16) + ', ' + parseInt(result[3], 16) : '88, 166, 255';
+                }
 
-            <script>
+                function changePrimaryColor(color) {
+                    document.documentElement.style.setProperty('--primary', color);
+                    document.documentElement.style.setProperty('--accent', color);
+                    document.documentElement.style.setProperty('--primary-rgb', hexToRgb(color));
+                    localStorage.setItem('customPrimaryColor', color);
+                }
+
                 function toggleDirectoFilter(isToggled) {
                     onlyLiveEvents = isToggled;
                     localStorage.setItem('onlyLiveEvents', isToggled);
@@ -5556,10 +5585,11 @@ function renderCurrentView() {
                 function toggleP2P(isToggled) {
                     isP2PEnabled = isToggled;
                     localStorage.setItem('isP2PEnabled', isToggled);
-                }
-
-                document.addEventListener('DOMContentLoaded', () => {
+                }                document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
+                        const colorPicker = document.getElementById('primaryColorPicker');
+                        if(colorPicker) colorPicker.value = localStorage.getItem('customPrimaryColor') || '#58a6ff';
+
                         const chkDirecto = document.getElementById('directoToggle');
                         if(chkDirecto) chkDirecto.checked = onlyLiveEvents;
 
