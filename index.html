@@ -2076,8 +2076,8 @@
                                 <span class="material-icons" style="font-size:18px;">more_vert</span>
                             </div>
                             ${percent > 0 ? `
-                            <div style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.2); z-index:5;">
-                                <div style="width:${percent}%; height:100%; background:var(--primary); box-shadow: 0 0 10px var(--primary);"></div>
+                            <div style="position:absolute; bottom:12px; left:10px; width:calc(100% - 20px); height:4px; background:rgba(255,255,255,0.2); border-radius:2px; overflow:hidden; z-index:5;">
+                                <div style="width:${percent}%; height:100%; background: var(--color-primary); box-shadow: 0 0 8px var(--color-primary);"></div>
                             </div>` : ''}
                             <div class="poster-info" style="z-index:2;"></div>`;
                         continueContainer.appendChild(card);
@@ -2222,14 +2222,21 @@
             if(cinemaBanner) cinemaBanner.innerHTML = '';
             if(cinemaDots) cinemaDots.innerHTML = '';
 
-            const now = new Date();
-
+            const now = new Date();            const seenCinemaTitles = new Set();
             const cinemaProgs = epgData
                 .filter(p => {
                     if (!userSelectedChannels.has(p.channel)) return false;
                     const fullDesc = (p.description || '').toLowerCase();
                     const categoryPart = fullDesc.split('·')[0].trim();
-                    return categoryPart.includes('cine') || categoryPart.includes('película');
+                    const isCine = categoryPart.includes('cine') || categoryPart.includes('película');
+                    
+                    if (isCine) {
+                        const normalizedTitle = p.title.toLowerCase().trim();
+                        if (seenCinemaTitles.has(normalizedTitle)) return false;
+                        seenCinemaTitles.add(normalizedTitle);
+                        return true;
+                    }
+                    return false;
                 })
                 .map(p => {
                     const scoreMatch = (p.description || '').match(/★\s?(\d+(\.\d+)?)/);
@@ -2329,10 +2336,7 @@
                 card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date, true);
 
                 const bgImage = prog.iconSrc2 || prog.iconSrc;
-                if (bgImage) card.style.backgroundImage = `url('${bgImage}')`;
-
-                card.innerHTML = `
-                    <div style="position: absolute; inset: 0; background: linear-gradient(to top, #000000 0%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.4) 100%); z-index: 1; pointer-events: none;"></div>
+                if (bgImage) card.style.backgroundImage = `url('${bgImage}')`;                card.innerHTML = `
                     <div style="position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px;">
                         <div style="font-size: 0.95rem; color: #ffffff; font-weight: 700; line-height: 1.3; margin-bottom: 8px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">${processColoredText(prog.title)}</div>
 
@@ -5780,42 +5784,69 @@ function renderCurrentView() {
             <div id="live-sports-carousel" style="display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-top: 15px; padding-bottom: 15px; margin: -15px -16px 0 -16px; padding-left: 16px; padding-right: 16px;"></div>
         </div>        <div id="categories-section" style="padding: 24px 16px 10px 16px; display: none;">
             <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: white; letter-spacing: 0.2px;">Por Deporte</h3>
-            <div id="categories-container" style="display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Fútbol')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #4caf50;">sports_soccer</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Fútbol</span>
+            <div id="categories-container" style="display: flex; gap: 16px; overflow-x: auto; scrollbar-width: none; padding: 15px 0;">
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Fútbol')">
+                    <div style="width: 70px; height: 70px; background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #4caf50; filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.4));">sports_soccer</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Fútbol</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Baloncesto')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #ff9800;">sports_basketball</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Basket</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Baloncesto')">
+                    <div style="width: 70px; height: 70px; background: rgba(255, 152, 0, 0.05); border: 1px solid rgba(255, 152, 0, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #ff9800; filter: drop-shadow(0 0 8px rgba(255, 152, 0, 0.4));">sports_basketball</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Basket</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Tenis')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #cddc39;">sports_tennis</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Tenis</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Tenis')">
+                    <div style="width: 70px; height: 70px; background: rgba(205, 220, 57, 0.05); border: 1px solid rgba(205, 220, 57, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #cddc39; filter: drop-shadow(0 0 8px rgba(205, 220, 57, 0.4));">sports_tennis</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Tenis</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Motor')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #f44336;">sports_motorsports</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Motor</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Motor')">
+                    <div style="width: 70px; height: 70px; background: rgba(244, 67, 54, 0.05); border: 1px solid rgba(244, 67, 54, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #f44336; filter: drop-shadow(0 0 8px rgba(244, 67, 54, 0.4));">sports_motorsports</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Motor</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Ciclismo')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #03a9f4;">directions_bike</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Ciclismo</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Ciclismo')">
+                    <div style="width: 70px; height: 70px; background: rgba(3, 169, 244, 0.05); border: 1px solid rgba(3, 169, 244, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #03a9f4; filter: drop-shadow(0 0 8px rgba(3, 169, 244, 0.4));">directions_bike</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Ciclismo</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Golf')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #8bc34a;">sports_golf</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Golf</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Golf')">
+                    <div style="width: 70px; height: 70px; background: rgba(139, 195, 74, 0.05); border: 1px solid rgba(139, 195, 74, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #8bc34a; filter: drop-shadow(0 0 8px rgba(139, 195, 74, 0.4));">sports_golf</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Golf</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Boxeo')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #9e9e9e;">sports_mma</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Boxeo</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Boxeo')">
+                    <div style="width: 70px; height: 70px; background: rgba(158, 158, 158, 0.05); border: 1px solid rgba(158, 158, 158, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #9e9e9e; filter: drop-shadow(0 0 8px rgba(158, 158, 158, 0.4));">sports_mma</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Boxeo</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Balonmano')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #e91e63;">sports_handball</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Balonmano</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Balonmano')">
+                    <div style="width: 70px; height: 70px; background: rgba(233, 30, 99, 0.05); border: 1px solid rgba(233, 30, 99, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #e91e63; filter: drop-shadow(0 0 8px rgba(233, 30, 99, 0.4));">sports_handball</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Balonmano</span>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;" onclick="openSportCategory('Voleibol')">
-                    <div style="width: 65px; height: 65px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span class="material-icons" style="font-size: 2rem; color: #ffeb3b;">sports_volleyball</span></div>
-                    <span style="font-size: 0.75rem; color: #999;">Voleibol</span>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; min-width: 80px;" onclick="openSportCategory('Voleibol')">
+                    <div style="width: 70px; height: 70px; background: rgba(255, 235, 59, 0.05); border: 1px solid rgba(255, 235, 59, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <span class="material-icons" style="font-size: 2.2rem; color: #ffeb3b; filter: drop-shadow(0 0 8px rgba(255, 235, 59, 0.4));">sports_volleyball</span>
+                    </div>
+                    <span style="font-size: 0.65rem; color: #8b949e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Voleibol</span>
                 </div>
             </div>
         </div>
