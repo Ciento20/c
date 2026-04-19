@@ -86,10 +86,10 @@
             menu = document.createElement('div');
             menu.id = 'customSpeedMenu';
             menu.className = 'quick-menu';
-            menu.style.cssText = 'position: absolute; bottom: 80px; right: 20px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: 250px; overflow-y: auto; display: none;';
+            menu.style.cssText = 'position: absolute; bottom: 50px; right: 10px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: calc(100% - 60px); overflow-y: auto; display: none;';
             container.appendChild(menu);
         }
-        menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
+        menu.innerHTML = '<div style="padding: 8px 12px; font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
         [0.5, 0.75, 1, 1.25, 1.5, 2].forEach(s => {
             const item = document.createElement('div');
             item.className = 'quick-menu-item';
@@ -135,10 +135,10 @@
             menu = document.createElement('div');
             menu.id = 'customSubtitleMenu';
             menu.className = 'quick-menu';
-            menu.style.cssText = 'position: absolute; bottom: 80px; right: 20px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: 250px; overflow-y: auto; display: none;';
+            menu.style.cssText = 'position: absolute; bottom: 50px; right: 10px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: calc(100% - 60px); overflow-y: auto; display: none;';
             container.appendChild(menu);
         }
-        menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
+        menu.innerHTML = '<div style="padding: 8px 12px; font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
         const createItem = (label, icon, active, callback) => {
             const item = document.createElement('div');
             item.className = 'quick-menu-item';
@@ -1395,27 +1395,24 @@
             left: 10px;
             right: 10px;
             z-index: 2;
-        }
-
-
-        .quick-menu {
+        }        .quick-menu {
             position: fixed;
             background: #1a1a1a;
             border: 1px solid #333;
-            border-radius: 12px;
-            padding: 8px 0;
+            border-radius: 8px;
+            padding: 4px 0;
             z-index: 10000;
             display: none;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            min-width: 160px;
+            min-width: 140px;
         }
         .quick-menu-item {
-            padding: 12px 16px;
+            padding: 8px 12px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             color: white;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             cursor: pointer;
             transition: background 0.2s;
         }
@@ -3453,7 +3450,7 @@ function renderCurrentView() {
             series.forEach(item => seriesContainer.appendChild(createCard(item)));
 
             modal.style.display = 'flex';
-        }        window.playStremioDirect = (meta) => {
+        }        window.playStremioDirect = async (meta) => {
             const video = document.getElementById('main-video-player');
 
             meta.autoPlay = false;
@@ -3466,6 +3463,15 @@ function renderCurrentView() {
             video.classList.add('stremio-mode');
             document.getElementById('playerControls').style.display = 'flex';
 
+            video.onplay = () => {
+                const btn = document.getElementById('centerPlayBtn');
+                if(btn) btn.innerHTML = '<span class="material-icons">pause_circle</span>';
+            };
+            video.onpause = () => {
+                const btn = document.getElementById('centerPlayBtn');
+                if(btn) btn.innerHTML = '<span class="material-icons">play_circle</span>';
+            };
+
             const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
             if (savedProg[meta.lastStreamId] && savedProg[meta.lastStreamId].time) {
                 video.currentTime = savedProg[meta.lastStreamId].time;
@@ -3473,6 +3479,19 @@ function renderCurrentView() {
 
             video.play();
             if (window.toggleAppFullscreen) window.toggleAppFullscreen();
+
+            let fullMeta = meta;
+            if (meta.type === 'series') {
+                try {
+                    const fastMeta = await Promise.any(stremioAddons.map(async (url) => {
+                        const res = await raceFetch(`${url.replace('/manifest.json', '')}/meta/${meta.type}/${meta.id}.json?language=es-ES`);
+                        const d = await res.json();
+                        if (d.meta) return d.meta;
+                        throw new Error('Sin meta');
+                    }));
+                    fullMeta = fastMeta;
+                } catch(e) {}
+            }
 
             video.ontimeupdate = () => {
                 const cur = video.currentTime; const dur = video.duration;
@@ -3484,9 +3503,37 @@ function renderCurrentView() {
                     document.getElementById('totalTimeText').textContent = new Date(dur * 1000).toISOString().substr(14, 5);
                 }
                 if (cur > 5 && dur) {
+                    const remaining = dur - cur;
+                    
+                    if (fullMeta.type === 'series' && remaining <= 90 && fullMeta.videos) {
+                        const currentIndex = fullMeta.videos.findIndex(v => v.id === meta.lastStreamId);
+                        const nextEp = fullMeta.videos[currentIndex + 1];
+                        if (nextEp && !document.getElementById('next-ep-overlay')) {
+                            const overlay = document.createElement('div');
+                            overlay.id = 'next-ep-overlay';
+                            overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
+                            overlay.innerHTML = `
+                                <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
+                                <div style="text-align:left;">
+                                    <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
+                                    <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
+                                </div>
+                                <button onclick="this.parentElement.remove(); window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
+                            `;
+                            video.parentElement.appendChild(overlay);
+                        }
+                    }
+
                     const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
-                    if ((dur - cur) < 180 || (cur / dur) > 0.95) delete progress[meta.lastStreamId];
-                    else progress[meta.lastStreamId] = { time: cur, percent: (cur / dur) * 100 };
+                    if (remaining < 180 || (cur / dur) > 0.95) {
+                        delete progress[meta.lastStreamId];
+                        if (fullMeta.type === 'series') {
+                            const w = JSON.parse(localStorage.getItem('watchedEps') || '[]');
+                            if (!w.includes(meta.lastStreamId)) { w.push(meta.lastStreamId); localStorage.setItem('watchedEps', JSON.stringify(w)); }
+                        }
+                    } else {
+                        progress[meta.lastStreamId] = { time: cur, percent: (cur / dur) * 100 };
+                    }
                     localStorage.setItem('videoProgress', JSON.stringify(progress));
                 }
             };
@@ -3681,31 +3728,10 @@ function renderCurrentView() {
                 });
                 extraMetaHtml += '</div>';
 
-                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
+                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;
+                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
-
-                    if (titleEl) {
-                        let contentHtml = '';
-                        if (fullMeta && fullMeta.type === 'series' && fullMeta.videos) {
-                            const ep = fullMeta.videos.find(v => v.id === streamId);
-                            if (ep) {
-                                contentHtml += `<div style="font-size: 0.95rem; font-weight: 900; color: #fff; letter-spacing: 0.5px; text-shadow: 0 2px 6px #000; margin-bottom: 4px;">Temporada ${ep.season} - Capítulo ${ep.episode}</div>`;
-                            }
-                            if (fullMeta.logo) {
-                                contentHtml += `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 25px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
-                            }
-                            titleEl.style.maxHeight = '80px';
-                            titleEl.innerHTML = `<div style="display:flex; flex-direction:column; align-items:flex-start;">${contentHtml}</div>`;
-                        } else {
-                            titleEl.style.maxHeight = '40px';
-                            if (fullMeta && fullMeta.logo) {
-                                titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
-                            } else if (fullMeta) {
-                                titleEl.textContent = fullMeta.name;
-                            }
-                        }
-                    }
 
                     playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
                     const addListBtn = document.getElementById('add-to-list-btn');
@@ -3975,10 +4001,10 @@ function renderCurrentView() {
         menu = document.createElement('div');
         menu.id = 'customSpeedMenu';
         menu.className = 'quick-menu';
-        menu.style.cssText = 'position: absolute; bottom: 80px; right: 20px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: 250px; overflow-y: auto; display: none;';
+        menu.style.cssText = 'position: absolute; bottom: 50px; right: 10px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: calc(100% - 60px); overflow-y: auto; display: none;';
         container.appendChild(menu);
     }
-    menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
+    menu.innerHTML = '<div style="padding: 8px 12px; font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
     [0.5, 0.75, 1, 1.25, 1.5, 2].forEach(s => {
         const item = document.createElement('div');
         item.className = 'quick-menu-item';
@@ -4016,18 +4042,17 @@ function renderCurrentView() {
                                     if(!menu) {
                                         menu = document.createElement('div');
                                         menu.id = 'customSubtitleMenu';
-                                        menu.className = 'quick-menu';
-                                        menu.style.position = 'absolute';
-                                        menu.style.bottom = '80px';
-                                        menu.style.right = '20px';
-                                        menu.style.maxHeight = '250px';
+                                        menu.className = 'quick-menu';                                        menu.style.position = 'absolute';
+                                        menu.style.bottom = '50px';
+                                        menu.style.right = '10px';
+                                        menu.style.maxHeight = 'calc(100% - 60px)';
                                         menu.style.overflowY = 'auto';
                                         menu.style.zIndex = '10000';
                                         menu.style.boxShadow = '0 10px 30px rgba(0,0,0,0.9)';
                                         container.appendChild(menu);
                                     }
 
-                                    menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
+                                    menu.innerHTML = '<div style="padding: 8px 12px; font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
 
                                     const createItem = (label, icon, active, callback) => {
                                         const item = document.createElement('div');
@@ -4073,8 +4098,20 @@ function renderCurrentView() {
                                     } catch (err) {
                                         console.log('Cast UI triggered via native fallback');
                                     }
-                                };
-                                video.src = stream.url;
+                                };                            video.src = stream.url;
+
+                                // Personalización del título: Temporada y Episodio para series
+                                const titleDisplay = document.getElementById('playerTitleDisplay');
+                                if (fullMeta.type === 'series' && fullMeta.videos) {
+                                    const currentVideo = fullMeta.videos.find(v => v.id === streamId);
+                                    if (currentVideo) {
+                                        titleDisplay.textContent = `T${currentVideo.season} E${currentVideo.episode}`;
+                                    } else {
+                                        titleDisplay.textContent = fullMeta.name;
+                                    }
+                                } else {
+                                    titleDisplay.textContent = fullMeta.name;
+                                }
 
                                 const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
                                 if (savedProg[streamId] && savedProg[streamId].time) {
@@ -4478,10 +4515,10 @@ function renderCurrentView() {
         menu = document.createElement('div');
         menu.id = 'customSpeedMenu';
         menu.className = 'quick-menu';
-        menu.style.cssText = 'position: absolute; bottom: 80px; right: 20px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: 250px; overflow-y: auto; display: none;';
+        menu.style.cssText = 'position: absolute; bottom: 50px; right: 10px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: calc(100% - 60px); overflow-y: auto; display: none;';
         container.appendChild(menu);
     }
-    menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
+    menu.innerHTML = '<div style="padding: 8px 12px; font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Velocidad</div>';
     [0.5, 0.75, 1, 1.25, 1.5, 2].forEach(s => {
         const item = document.createElement('div');
         item.className = 'quick-menu-item';
@@ -4543,18 +4580,17 @@ function renderCurrentView() {
                                 if(!menu) {
                                     menu = document.createElement('div');
                                     menu.id = 'customSubtitleMenu';
-                                    menu.className = 'quick-menu';
-                                    menu.style.position = 'absolute';
-                                    menu.style.bottom = '80px';
-                                    menu.style.right = '20px';
-                                    menu.style.maxHeight = '250px';
-                                    menu.style.overflowY = 'auto';
-                                    menu.style.zIndex = '10000';
-                                    menu.style.boxShadow = '0 10px 30px rgba(0,0,0,0.9)';
+                                    menu.className = 'quick-menu';                                        menu.style.position = 'absolute';
+                                        menu.style.bottom = '50px';
+                                        menu.style.right = '10px';
+                                        menu.style.maxHeight = 'calc(100% - 60px)';
+                                        menu.style.overflowY = 'auto';
+                                        menu.style.zIndex = '10000';
+                                        menu.style.boxShadow = '0 10px 30px rgba(0,0,0,0.9)';
                                     container.appendChild(menu);
                                 }
 
-                                menu.innerHTML = '<div style="padding: 12px 16px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
+                                menu.innerHTML = '<div style="padding: 8px 12px; font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; position: sticky; top: 0; background: #1a1a1a; z-index: 2;">Subtítulos</div>';
 
                                 const createItem = (label, icon, active, callback) => {
                                     const item = document.createElement('div');
@@ -4905,9 +4941,34 @@ function renderCurrentView() {
                 btn.style.background = 'rgba(88, 166, 255, 0.15)';
                 btn.style.color = 'var(--primary)';
             }
-        }
+        }        async function closeProgramDetails() {
+            const modal = document.getElementById('programDetailModal');
+            const video = document.getElementById('main-video-player');
+            const iframe = document.getElementById('main-web-player');
 
-        function closeProgramDetails() {
+            // Intentar activar Picture-in-Picture nativo si el video está reproduciéndose
+            if (video.style.display === 'block' && !video.paused && video.readyState > 2) {
+                try {
+                    if (document.pictureInPictureEnabled && !video.disablePictureInPicture) {
+                        await video.requestPictureInPicture();
+                        
+                        // Al entrar en PiP nativo, ocultamos el modal pero NO paramos el video
+                        modal.style.display = 'none';
+                        
+                        // Escuchar cuando el usuario cierre el PiP nativo para limpiar el video
+                        video.addEventListener('leavepictureinpicture', () => {
+                            video.pause();
+                            video.src = "";
+                        }, { once: true });
+                        
+                        return; // Salir de la función para que el video siga sonando
+                    }
+                } catch (error) {
+                    console.warn("PiP nativo no disponible:", error);
+                }
+            }
+
+            // Lógica de cierre normal (Si no hay video o falla el PiP)
             const epgView = document.getElementById('epg-view-content');
             const epgHeader = document.querySelector('.detail-header-fixed');
             const vodView = document.getElementById('vod-view-content');
@@ -4921,12 +4982,9 @@ function renderCurrentView() {
                 vodBtn.innerHTML = '<span class="material-icons">movie</span> VOD';
             }
 
-            const modal = document.getElementById('programDetailModal');
-            const video = document.getElementById('main-video-player');
-            const iframe = document.getElementById('main-web-player');
             const starFloating = document.getElementById('detail-rating-floating');
-
             if (starFloating) starFloating.style.display = 'none';
+            
             modal.querySelectorAll('.stremio-series-selectors').forEach(el => el.remove());
 
             video.pause();
@@ -5787,7 +5845,7 @@ function renderCurrentView() {
                     <span class="material-icons">close</span>
                 </button>
             </div>            <div class="detail-bg" id="player-container" onclick="const isPlaying = document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block'; if(isPlaying) this.classList.toggle('show-controls');">
-                <video id="main-video-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
+                <video id="main-video-player" playsinline webkit-playsinline style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
 
                 <div class="detail-title"></div>
