@@ -1732,17 +1732,12 @@
             flex-shrink: 0;
             background: #121212;
             border-top: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .detail-title {
-            position: absolute;
-            top: 15px;
-            left: 24px;
-            right: 70px;
+        }        .detail-title {
+            position: relative;
             z-index: 6;
             font-size: 0.9rem;
             font-weight: 800;
-            max-height: 40px;
+            max-height: 45px;
             display: flex;
             align-items: flex-start;
             justify-content: flex-start;
@@ -1751,6 +1746,7 @@
             overflow: hidden;
             opacity: 0;
             transition: opacity 0.3s ease;
+            margin-top: 4px;
         }
 
         #player-container.show-controls .detail-title {
@@ -3452,6 +3448,8 @@ function renderCurrentView() {
             modal.style.display = 'flex';
         }        window.playStremioDirect = async (meta) => {
             const video = document.getElementById('main-video-player');
+            const titleDisplay = document.getElementById('playerTitleDisplay');
+            if (titleDisplay) titleDisplay.textContent = meta.name;
 
             meta.autoPlay = false;
             openStremioDetails(meta, meta.baseUrl);
@@ -3490,6 +3488,10 @@ function renderCurrentView() {
                         throw new Error('Sin meta');
                     }));
                     fullMeta = fastMeta;
+                    if (titleDisplay && fullMeta.videos) {
+                        const currentVideo = fullMeta.videos.find(v => v.id === meta.lastStreamId);
+                        if (currentVideo) titleDisplay.textContent = `T${currentVideo.season} E${currentVideo.episode}`;
+                    }
                 } catch(e) {}
             }
 
@@ -5846,13 +5848,12 @@ function renderCurrentView() {
                 </button>
             </div>            <div class="detail-bg" id="player-container" onclick="const isPlaying = document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block'; if(isPlaying) this.classList.toggle('show-controls');">
                 <video id="main-video-player" playsinline webkit-playsinline style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
-                <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>
-
-                <div class="detail-title"></div>
-
-                <div class="player-ui-overlay" id="playerControls" style="display: none;">
-                    <div class="player-top-bar">
-                        <span id="playerTitleDisplay" style="font-weight:700; font-size:0.9rem; text-shadow: 0 2px 4px #000;"></span>
+                <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>                <div class="player-ui-overlay" id="playerControls" style="display: none;">
+                    <div class="player-top-bar" style="align-items: flex-start;">
+                        <div style="display: flex; flex-direction: column; gap: 0px; align-items: flex-start;">
+                            <span id="playerTitleDisplay" style="font-weight:800; font-size:0.7rem; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 4px #000; margin-bottom: 2px;"></span>
+                            <div class="detail-title"></div>
+                        </div>
                         <button class="player-action-item" onclick="event.stopPropagation(); window.toggleAppFullscreen()">
                             <span class="material-icons">screen_rotation</span>
                         </button>
