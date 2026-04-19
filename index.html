@@ -256,7 +256,73 @@
         });
         await batch.commit();
         console.log('[FB] Datos subidos a la nube ✓');
-    }
+    }    window.expandStremioCatalog = function(key) {
+        const data = window.catalogStorage[key];
+        if (!data) return;
+
+        const view = document.getElementById('catalog-explorer-view');
+        const grid = document.getElementById('explorer-grid');
+        const loader = document.getElementById('explorer-loader');
+        const title = document.getElementById('explorer-title');
+
+        title.innerHTML = `${data.name} <span style="font-size: 0.7rem; opacity: 0.5; font-weight: 400;">(${data.addonName})</span>`;
+        grid.innerHTML = '';
+        view.style.display = 'flex';
+
+        let skip = 0;
+        let loading = false;
+        let hasMore = true;
+
+        async function loadNextPage() {
+            if (loading || !hasMore) return;
+            loading = true;
+            loader.style.display = 'block';
+
+            try {
+                const url = `${data.baseUrl}/catalog/${data.type}/${data.catalogId}.json?skip=${skip}&language=es-ES`;
+                const res = await raceFetch(url);
+                const json = await res.json();
+
+                if (json.metas && json.metas.length > 0) {
+                    json.metas.forEach(meta => {
+                        const div = document.createElement('div');
+                        div.className = 'item';
+                        div.style.cssText = 'cursor: pointer; animation: fadeIn 0.5s ease forwards;';
+                        div.onclick = () => openStremioDetails(meta, data.baseUrl);
+                        div.innerHTML = `
+                            <div class="poster-card" style="background-image: url('${meta.poster}'); aspect-ratio: 2/3; background-size: cover; border-radius: 12px; position: relative; background-color: #111; border: 1px solid rgba(255,255,255,0.05);">
+                                ${meta.imdbRating ? '<div style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.85); color: #f1c40f; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; backdrop-filter: blur(4px);">★ ' + meta.imdbRating + '</div>' : ''}
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <div style="font-weight: 700; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;">${meta.name}</div>
+                                <div style="font-size: 0.65rem; color: #8b949e; margin-top: 4px;">${meta.year || meta.releaseInfo || ''}</div>
+                            </div>`;
+                        grid.appendChild(div);
+                    });
+                    skip += json.metas.length;
+                    if (json.metas.length < 10) hasMore = false;
+                } else { hasMore = false; }
+            } catch (e) { hasMore = false; }
+            finally {
+                loading = false;
+                loader.style.display = 'none';
+                if (!hasMore) loader.innerHTML = '<span style="opacity:0.3; font-size:0.6rem;">FIN DEL CATÁLOGO</span>';
+            }
+        }
+
+        const scrollContainer = document.getElementById('explorer-scroll-body');
+        scrollContainer.onscroll = () => {
+            if (scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 800) {
+                loadNextPage();
+            }
+        };
+
+        loadNextPage();
+    };
+
+    window.closeCatalogExplorer = function() {
+        document.getElementById('catalog-explorer-view').style.display = 'none';
+    };
 
     window.fbSignInAnon = async () => {
         if (!_fbReady) return alert('Firebase no configurado. Introduce tus credenciales primero.');
@@ -2012,6 +2078,7 @@
             }
         }        function switchMainView(mode) {
             currentMainView = mode;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             const dataList = document.getElementById('data-list');
             const homeView = document.getElementById('home-view');
@@ -2116,9 +2183,7 @@
 
                 const shownInTopCategories = new Set();                const sortedCatalogs = allCatalogs
                     .map(cat => ({ ...cat, priority: getPriority(cat.catalogName) }))
-                    .sort((a, b) => a.priority - b.priority);
-
-                let catIndex = 0;
+                    .sort((a, b) => a.priority - b.priority);                let catIndex = 0;
                 function renderNextCatalog() {
                     if (catIndex >= sortedCatalogs.length) return;
                     const cat = sortedCatalogs[catIndex++];
@@ -2138,6 +2203,10 @@
                     });
 
                     if (filteredMetas.length === 0) { renderNextCatalog(); return; }
+
+                    let skip = cat.metas.length;
+                    let loading = false;
+                    let hasMore = true;
 
                     const section = document.createElement('div');
                     section.style.marginBottom = "25px";
@@ -2161,9 +2230,7 @@
                         'featured': 'auto_awesome',
                         'destacado': 'auto_awesome',
                         'popular': 'trending_up'
-                    };
-
-                    for (const key in categoryIcons) {
+                    };                    for (const key in categoryIcons) {
                         if (pKey.includes(key)) {
                             platformDisplay = `<span class="material-icons-round" style="font-size: 1.6rem; color: var(--primary); vertical-align: middle;">${categoryIcons[key]}</span>`;
                             break;
@@ -2177,17 +2244,35 @@
                         }
                     }
 
-                    const displayTitle = typeLabel && !platform.toLowerCase().includes(typeLabel.toLowerCase()) ? `${platformDisplay} <span style="font-size: 0.7rem; opacity: 0.5; margin-left: 5px;">${typeLabel}</span>` : platformDisplay;
+                    // Mantenemos la lógica de los iconos intacta y ajustamos el contenedor del título para que el texto aparezca al lado
+                    const labelText = typeLabel ? typeLabel.toUpperCase() : platform.toUpperCase();
+                    const displayTitle = `<div style="display: flex; align-items: center; gap: 8px;">${platformDisplay} <span style="font-size: 0.72rem; color: #8b949e; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">${labelText}</span></div>`;
 
-                    section.innerHTML = `<h4 style="display: flex; align-items: center; font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${displayTitle}</h4>`;
-                    const row = document.createElement('div');
+                    // Guardamos metadatos para la expansión infinita
+                    if (!window.catalogStorage) window.catalogStorage = {};
+                    const sectionKey = `cat_${cat.addonName}_${cat.catalogName}_${cat.type}`.replace(/\W/g, '_');
+                    window.catalogStorage[sectionKey] = { 
+                        name: cat.catalogName, 
+                        addonName: cat.addonName,
+                        catalogId: cat.id,
+                        type: cat.type,
+                        baseUrl: cat.baseUrl 
+                    };                    section.innerHTML = `<h4 style="display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; margin: 0 0 12px 0; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ${displayTitle}
+                        <button onclick="window.expandStremioCatalog('${sectionKey}')" style="background: rgba(var(--primary-rgb), 0.12); color: var(--primary); border: 1px solid rgba(var(--primary-rgb), 0.25); padding: 0 12px; height: 32px; border-radius: 16px; font-size: 0.65rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap; width: auto !important; margin: 0 !important; text-transform: uppercase; letter-spacing: 0.5px;">
+                            VER TODO <span class="material-icons" style="font-size: 1rem;">chevron_right</span>
+                        </button>
+                    </h4>`;                    const row = document.createElement('div');
                     row.className = 'poster-carousel';
                     row.style.margin = "0 -16px";
-                    row.style.padding = "0 16px";                    filteredMetas.forEach(meta => {
-                        if (cat.priority < 10) shownInTopCategories.add(meta.id);
-                        const card = document.createElement('div');
-                        card.className = 'poster-card';
-                        card.onclick = () => openStremioDetails(meta, cat.baseUrl);
+                    row.style.padding = "0 16px";
+
+                    const appendCards = (metas) => {
+                        metas.forEach(meta => {
+                            if (cat.priority < 10) shownInTopCategories.add(meta.id);
+                            const card = document.createElement('div');
+                            card.className = 'poster-card';
+                            card.onclick = () => openStremioDetails(meta, cat.baseUrl);
 
                         const genre = Array.isArray(meta.genres) ? meta.genres[0] : '';
                         const year = meta.releaseInfo || meta.year || '';
@@ -2206,9 +2291,32 @@
                                     </div>
                                     ${director ? `<div style="font-size:0.5rem; color:#ddd; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow: 0 1px 3px rgba(0,0,0,1);">${director}</div>` : ''}
                                 </div>
-                            </div>`;
-                        row.appendChild(card);
-                    });
+                            </div>`;                            row.appendChild(card);
+                        });
+                    };
+
+                    appendCards(filteredMetas);
+
+                    row.onscroll = async () => {
+                        if (!loading && hasMore && (row.scrollLeft + row.clientWidth >= row.scrollWidth - 600)) {
+                            loading = true;
+                            try {
+                                const url = `${cat.baseUrl}/catalog/${cat.type}/${cat.catalogId}.json?skip=${skip}&language=es-ES`;
+                                const res = await raceFetch(url);
+                                const data = await res.json();
+                                if (data.metas && data.metas.length > 0) {
+                                    appendCards(data.metas);
+                                    skip += data.metas.length;
+                                } else {
+                                    hasMore = false;
+                                }
+                            } catch (e) { 
+                                hasMore = false; 
+                            }
+                            loading = false;
+                        }
+                    };
+
                     section.appendChild(row);
                     stremioContainer.appendChild(section);
 
@@ -2668,6 +2776,7 @@
         function selectHourTab(element, hourVal) {
             document.querySelectorAll('#hour-tabs .date-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             document.getElementById('hourFilter').value = hourVal;
             renderTable(true);
         }
@@ -2675,6 +2784,7 @@
         function selectChannelTab(element, channelId, displayName) {
             document.querySelectorAll('.channel-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             document.getElementById('currentChannelLabel').textContent = displayName;
 
             document.getElementById('channelFilter').value = channelId;
@@ -2717,6 +2827,7 @@
         function selectDateTab(element, dateStr) {
             document.querySelectorAll('.date-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
             document.getElementById('dateFilter').value = dateStr;
             renderTable(true);
@@ -5749,8 +5860,7 @@ function renderCurrentView() {
                 <div id="my-list-series" class="poster-carousel"></div>
             </div>
         </div>
-    </div>
-    <div id="sport-category-view">
+    </div>    <div id="sport-category-view">
         <div class="sport-header">
             <span class="material-icons" onclick="closeSportCategory()" style="cursor:pointer; color: white;">arrow_back</span>
             <span id="active-sport-title" style="font-size: 1.2rem; font-weight: 600; color: white;">Fútbol</span>
@@ -5762,6 +5872,17 @@ function renderCurrentView() {
 
         <div class="sport-section-title">Destacados</div>
         <div id="highlights-carousel" class="poster-carousel"></div>
+    </div>
+
+    <div id="catalog-explorer-view" style="position: fixed; inset: 0; background: var(--bg-deep); z-index: 4500; display: none; flex-direction: column;">
+        <div class="sport-header">
+            <span class="material-icons" onclick="closeCatalogExplorer()" style="cursor:pointer; color: white;">arrow_back</span>
+            <span id="explorer-title" style="font-size: 1.1rem; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 1px;">Explorador</span>
+        </div>
+        <div id="explorer-scroll-body" style="flex: 1; overflow-y: auto; padding: 20px 16px 100px 16px;">
+            <div id="explorer-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 20px;"></div>
+            <div id="explorer-loader" style="text-align: center; padding: 40px; color: var(--primary); font-weight: 800; font-size: 0.7rem; letter-spacing: 2px;">CARGANDO...</div>
+        </div>
     </div>    <div id="home-view" style="display: none; padding-bottom: 40px; position: relative;">
         <div style="padding: 10px 16px 20px 16px; margin-top: -14px; display: flex; justify-content: space-between; align-items: center; position: relative;">
             <button onclick="switchMainView('settings')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--color-primary); transition: all 0.2s ease; z-index: 2;">
