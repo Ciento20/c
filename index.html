@@ -3594,10 +3594,12 @@ function renderCurrentView() {
             const savedProg = JSON.parse(localStorage.getItem('videoProgress') || '{}');
             if (savedProg[meta.lastStreamId] && savedProg[meta.lastStreamId].time) {
                 video.currentTime = savedProg[meta.lastStreamId].time;
-            }
-
-            video.play();
+            }            video.play();
             if (window.toggleAppFullscreen) window.toggleAppFullscreen();
+
+            // Limpiar overlay residual al iniciar nueva reproducción
+            const oldOverlay = document.getElementById('next-ep-overlay');
+            if (oldOverlay) oldOverlay.remove();
 
             let fullMeta = meta;
             if (meta.type === 'series') {
@@ -3625,13 +3627,15 @@ function renderCurrentView() {
                     document.getElementById('currentTimeText').textContent = new Date(cur * 1000).toISOString().substr(14, 5);
                     document.getElementById('totalTimeText').textContent = new Date(dur * 1000).toISOString().substr(14, 5);
                 }
-                if (cur > 5 && dur) {
-                    const remaining = dur - cur;
-                    
-                    if (fullMeta.type === 'series' && remaining <= 90 && fullMeta.videos) {
+                if (cur > 5 && dur) {                    const remaining = dur - cur;
+                    const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
+                    const threshold = seriesOffsets[fullMeta.id] || 90;
+                    const existingOverlay = document.getElementById('next-ep-overlay');
+
+                    if (fullMeta.type === 'series' && remaining <= threshold && fullMeta.videos) {
                         const currentIndex = fullMeta.videos.findIndex(v => v.id === meta.lastStreamId);
                         const nextEp = fullMeta.videos[currentIndex + 1];
-                        if (nextEp && !document.getElementById('next-ep-overlay')) {
+                        if (nextEp && !existingOverlay) {
                             const overlay = document.createElement('div');
                             overlay.id = 'next-ep-overlay';
                             overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
@@ -3641,10 +3645,13 @@ function renderCurrentView() {
                                     <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
                                     <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
                                 </div>
-                                <button onclick="this.parentElement.remove(); window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
+                                <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
                             `;
                             video.parentElement.appendChild(overlay);
                         }
+                    } else if (existingOverlay) {
+                        // Eliminar automáticamente si se retrocede el tiempo o cambia el contexto
+                        existingOverlay.remove();
                     }
 
                     const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
@@ -3766,10 +3773,13 @@ function renderCurrentView() {
                 }
 
                 const finalDesc = fullMeta.description_es || fullMeta.description || initialDesc;
-                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';
-                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
+                let extraMetaHtml = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); padding-top:15px;">';                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
+                    
+                    // Limpiar overlay al cambiar de capítulo o stream
+                    const oldOverlay = document.getElementById('next-ep-overlay');
+                    if (oldOverlay) oldOverlay.remove();
 
                     let allStreams = [];
                     let addonsResponded = 0;
@@ -3851,10 +3861,13 @@ function renderCurrentView() {
                 });
                 extraMetaHtml += '</div>';
 
-                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;
-                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
+                modal.querySelector('.detail-desc').innerHTML = `<div style="font-size: 0.95rem; line-height: 1.6; color: #ccc; margin-bottom:20px;"><span style="color:var(--primary); font-size:0.6rem; font-weight:800; text-transform:uppercase; display:block; margin-bottom:8px;">Sinopsis</span>${finalDesc}</div>${extraMetaHtml}`;                window.fetchStreamsForId = async function(streamId, autoPlayMatch = false) {
                     const video = document.getElementById('main-video-player');
                     if (autoPlayMatch && video) { video.pause(); video.removeAttribute('src'); video.load(); }
+                    
+                    // Limpiar overlay al cambiar de capítulo o stream
+                    const oldOverlay = document.getElementById('next-ep-overlay');
+                    if (oldOverlay) oldOverlay.remove();
 
                     playBtn.innerHTML = `<span class="material-icons">hourglass_empty</span> Buscando fuentes...`;
                     const addListBtn = document.getElementById('add-to-list-btn');
@@ -4251,24 +4264,30 @@ function renderCurrentView() {
 
                                     if (video.currentTime > 5 && video.duration) {
                                         const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
-                                        const percentage = (video.currentTime / video.duration) * 100;
-                                        const remaining = video.duration - video.currentTime;
+                                        const percentage = (video.currentTime / video.duration) * 100;                                        const remaining = video.duration - video.currentTime;
+                                        const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
+                                        const threshold = seriesOffsets[fullMeta.id] || 90;
+                                        const existingOverlay = document.getElementById('next-ep-overlay');
 
-                                        if (fullMeta.type === 'series' && remaining <= 90) {
+                                        if (fullMeta.type === 'series' && remaining <= threshold) {
                                             const currentIndex = fullMeta.videos.findIndex(v => v.id === streamId);
-                                            const nextEp = fullMeta.videos[currentIndex + 1];                                            if (nextEp && !document.getElementById('next-ep-overlay')) {
+                                            const nextEp = fullMeta.videos[currentIndex + 1];
+                                            if (nextEp && !existingOverlay) {
                                                 const overlay = document.createElement('div');
                                                 overlay.id = 'next-ep-overlay';
-                                                overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';                                                overlay.innerHTML = `
+                                                overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
+                                                overlay.innerHTML = `
                                                     <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
                                                     <div style="text-align:left;">
                                                         <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
                                                         <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
                                                     </div>
-                                                    <button onclick="this.parentElement.remove(); window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
+                                                    <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
                                                 `;
                                                 video.parentElement.appendChild(overlay);
                                             }
+                                        } else if (existingOverlay) {
+                                            existingOverlay.remove();
                                         }
 
                                         if (remaining < 180 || percentage > 95) {
