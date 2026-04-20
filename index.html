@@ -1744,9 +1744,11 @@
         }
 
         .player-action-item:hover { color: #fff; }
-        .player-action-item span { font-size: 20px !important; }
-        video.stremio-mode::-webkit-media-controls { display: none !important; }
+        .player-action-item span { font-size: 20px !important; }        video.stremio-mode::-webkit-media-controls { display: none !important; }
         #main-video-player.stremio-mode { pointer-events: none; }
+        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        #next-ep-overlay.is-visible { opacity: 1; pointer-events: auto; }
+        #player-container:not(.show-controls) #next-ep-overlay { opacity: 0 !important; pointer-events: none !important; }
 
         .detail-bg::after {
             content: '';
@@ -3630,14 +3632,14 @@ function renderCurrentView() {
                 if (cur > 5 && dur) {                    const remaining = dur - cur;
                     const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
                     const threshold = seriesOffsets[fullMeta.id] || 90;
-                    const existingOverlay = document.getElementById('next-ep-overlay');
-
-                    if (fullMeta.type === 'series' && remaining <= threshold && fullMeta.videos) {
+                    const existingOverlay = document.getElementById('next-ep-overlay');                    if (fullMeta.type === 'series' && remaining <= threshold && fullMeta.videos) {
                         const currentIndex = fullMeta.videos.findIndex(v => v.id === meta.lastStreamId);
                         const nextEp = fullMeta.videos[currentIndex + 1];
-                        if (nextEp && !existingOverlay) {
+                        if (nextEp && !existingOverlay && !video.dataset.nextTriggered) {
+                            video.dataset.nextTriggered = 'true';
                             const overlay = document.createElement('div');
                             overlay.id = 'next-ep-overlay';
+                            overlay.className = 'is-visible';
                             overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
                             overlay.innerHTML = `
                                 <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
@@ -3648,10 +3650,12 @@ function renderCurrentView() {
                                 <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
                             `;
                             video.parentElement.appendChild(overlay);
+                            video.parentElement.classList.add('show-controls');
+                            setTimeout(() => { if(overlay) overlay.classList.remove('is-visible'); }, 5000);
                         }
-                    } else if (existingOverlay) {
-                        // Eliminar automáticamente si se retrocede el tiempo o cambia el contexto
-                        existingOverlay.remove();
+                    } else if (remaining > threshold + 10) {
+                        video.dataset.nextTriggered = '';
+                        if (existingOverlay) existingOverlay.remove();
                     }
 
                     const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
@@ -4075,8 +4079,32 @@ function renderCurrentView() {
                                 const video = document.getElementById('main-video-player');
 
                                 video.pause();
+                                if (window.hls) { window.hls.destroy(); window.hls = null; }
                                 video.removeAttribute('src');
                                 video.load();
+
+                                // Configuración de búsqueda instantánea
+                                const fastSeekConfig = {
+                                    enableWorker: true,
+                                    maxBufferLength: 15,
+                                    maxMaxBufferLength: 25,
+                                    maxBufferSize: 40 * 1000 * 1000,
+                                    backBufferLength: 0,
+                                    enableLowLatencyMode: true,
+                                    // Al buscar, prioriza los nuevos fragmentos y descarta los antiguos inmediatamente
+                                    fragLoadingMaxRetry: 2,
+                                    manifestLoadingMaxRetry: 2,
+                                    nudgeMaxRetry: 5
+                                };
+
+                                const isHls = stream.url.toLowerCase().includes('.m3u8');
+                                if (isHls && Hls.isSupported()) {
+                                    window.hls = new Hls(fastSeekConfig);
+                                    window.hls.loadSource(stream.url);
+                                    window.hls.attachMedia(video);
+                                } else {
+                                    video.src = stream.url;
+                                }
                                 Array.from(video.querySelectorAll('track')).forEach(t => t.remove());
                                 stremioAddons.forEach(async (addonUrl) => {
                                     try {
@@ -4267,14 +4295,14 @@ function renderCurrentView() {
                                         const percentage = (video.currentTime / video.duration) * 100;                                        const remaining = video.duration - video.currentTime;
                                         const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
                                         const threshold = seriesOffsets[fullMeta.id] || 90;
-                                        const existingOverlay = document.getElementById('next-ep-overlay');
-
-                                        if (fullMeta.type === 'series' && remaining <= threshold) {
+                                        const existingOverlay = document.getElementById('next-ep-overlay');                                        if (fullMeta.type === 'series' && remaining <= threshold) {
                                             const currentIndex = fullMeta.videos.findIndex(v => v.id === streamId);
                                             const nextEp = fullMeta.videos[currentIndex + 1];
-                                            if (nextEp && !existingOverlay) {
+                                            if (nextEp && !existingOverlay && !video.dataset.nextTriggered) {
+                                                video.dataset.nextTriggered = 'true';
                                                 const overlay = document.createElement('div');
                                                 overlay.id = 'next-ep-overlay';
+                                                overlay.className = 'is-visible';
                                                 overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
                                                 overlay.innerHTML = `
                                                     <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
@@ -4285,9 +4313,12 @@ function renderCurrentView() {
                                                     <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
                                                 `;
                                                 video.parentElement.appendChild(overlay);
+                                                video.parentElement.classList.add('show-controls');
+                                                setTimeout(() => { if(overlay) overlay.classList.remove('is-visible'); }, 5000);
                                             }
-                                        } else if (existingOverlay) {
-                                            existingOverlay.remove();
+                                        } else if (remaining > threshold + 10) {
+                                            video.dataset.nextTriggered = '';
+                                            if (existingOverlay) existingOverlay.remove();
                                         }
 
                                         if (remaining < 180 || percentage > 95) {
@@ -4704,10 +4735,21 @@ function renderCurrentView() {
                         iframe.style.display = 'none';
                         video.style.display = 'block';
                         fsBtn.style.display = 'flex';
-                        fsBtn.style.opacity = '0';
-                        if (Hls.isSupported()) {
+                        fsBtn.style.opacity = '0';                        if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
-                            window.hls = new Hls();
+                            
+                            const fastSeekConfig = {
+                                enableWorker: true,
+                                maxBufferLength: 15,
+                                maxMaxBufferLength: 25,
+                                maxBufferSize: 40 * 1000 * 1000,
+                                backBufferLength: 0,
+                                enableLowLatencyMode: true,
+                                fragLoadingMaxRetry: 2,
+                                manifestLoadingMaxRetry: 2
+                            };
+
+                            window.hls = new Hls(fastSeekConfig);
                             window.hls.loadSource(streamUrl);
                             window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
