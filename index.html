@@ -1747,10 +1747,8 @@
 
         .player-action-item:hover { color: #fff; }
         .player-action-item span { font-size: 20px !important; }        video.stremio-mode::-webkit-media-controls { display: none !important; }
-        #main-video-player.stremio-mode { pointer-events: none; }
-        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
-        #next-ep-overlay.is-visible { opacity: 1; pointer-events: auto; }
-        #player-container:not(.show-controls) #next-ep-overlay { opacity: 0 !important; pointer-events: none !important; }
+        #main-video-player.stremio-mode { pointer-events: none; }        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
+        #next-ep-overlay.is-visible { opacity: 1 !important; pointer-events: auto !important; }
 
         .detail-bg::after {
             content: '';
@@ -3579,11 +3577,28 @@ function renderCurrentView() {
             meta.autoPlay = false;
             openStremioDetails(meta, meta.baseUrl);
 
-            document.getElementById('player-container').classList.add('show-controls');
-
-            video.src = meta.cachedStream.url;
+            document.getElementById('player-container').classList.add('show-controls');            const isHls = meta.cachedStream.url.toLowerCase().includes('.m3u8');
+            if (isHls && Hls.isSupported()) {
+                if (window.hls) window.hls.destroy();
+                window.hls = new Hls({
+                    enableWorker: true,
+                    maxBufferLength: 15,
+                    maxMaxBufferLength: 25,
+                    maxBufferSize: 40 * 1000 * 1000,
+                    backBufferLength: 0,
+                    enableLowLatencyMode: true,
+                    fragLoadingMaxRetry: 2,
+                    manifestLoadingMaxRetry: 2,
+                    nudgeMaxRetry: 5
+                });
+                window.hls.loadSource(meta.cachedStream.url);
+                window.hls.attachMedia(video);
+            } else {
+                video.src = meta.cachedStream.url;
+            }
             video.style.display = 'block';
             video.classList.add('stremio-mode');
+            video.dataset.nextTriggered = '';
             document.getElementById('playerControls').style.display = 'flex';
 
             video.onplay = () => {
@@ -3640,7 +3655,7 @@ function renderCurrentView() {
                 if (cur > 5 && dur) {                    const remaining = dur - cur;
                     const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
                     const threshold = seriesOffsets[fullMeta.id] || 90;
-                    const existingOverlay = document.getElementById('next-ep-overlay');                    if (fullMeta.type === 'series' && remaining <= threshold && fullMeta.videos) {
+                    const existingOverlay = document.getElementById('next-ep-overlay');                    if (fullMeta.type === 'series' && dur > 0 && remaining <= threshold && fullMeta.videos) {
                         const currentIndex = fullMeta.videos.findIndex(v => v.id === meta.lastStreamId);
                         const nextEp = fullMeta.videos[currentIndex + 1];
                         if (nextEp && !existingOverlay && !video.dataset.nextTriggered) {
@@ -3648,18 +3663,16 @@ function renderCurrentView() {
                             const overlay = document.createElement('div');
                             overlay.id = 'next-ep-overlay';
                             overlay.className = 'is-visible';
-                            overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
+                            overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
                             overlay.innerHTML = `
-                                <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
+                                <button onclick="event.stopPropagation(); this.parentElement.remove();" style="position:absolute; top:-8px; left:-8px; background:#333; border:1px solid #555; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.5); z-index:10;"><span class="material-icons" style="font-size:14px;">close</span></button>
+                                    <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
                                 <div style="text-align:left;">
                                     <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
                                     <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
                                 </div>
-                                <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
-                            `;
+                                <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>                            `;
                             video.parentElement.appendChild(overlay);
-                            video.parentElement.classList.add('show-controls');
-                            setTimeout(() => { if(overlay) overlay.classList.remove('is-visible'); }, 5000);
                         }
                     } else if (remaining > threshold + 10) {
                         video.dataset.nextTriggered = '';
@@ -4089,25 +4102,21 @@ function renderCurrentView() {
                                 video.pause();
                                 if (window.hls) { window.hls.destroy(); window.hls = null; }
                                 video.removeAttribute('src');
-                                video.load();
-
-                                // Configuración de búsqueda instantánea
-                                const fastSeekConfig = {
-                                    enableWorker: true,
-                                    maxBufferLength: 15,
-                                    maxMaxBufferLength: 25,
-                                    maxBufferSize: 40 * 1000 * 1000,
-                                    backBufferLength: 0,
-                                    enableLowLatencyMode: true,
-                                    // Al buscar, prioriza los nuevos fragmentos y descarta los antiguos inmediatamente
-                                    fragLoadingMaxRetry: 2,
-                                    manifestLoadingMaxRetry: 2,
-                                    nudgeMaxRetry: 5
-                                };
-
+                                video.load();                                // Motor HLS Optimizado para Stremio (CodeSwap Pro)
                                 const isHls = stream.url.toLowerCase().includes('.m3u8');
                                 if (isHls && Hls.isSupported()) {
-                                    window.hls = new Hls(fastSeekConfig);
+                                    if (window.hls) window.hls.destroy();
+                                    window.hls = new Hls({
+                                        enableWorker: true,
+                                        maxBufferLength: 15,
+                                        maxMaxBufferLength: 25,
+                                        maxBufferSize: 40 * 1000 * 1000,
+                                        backBufferLength: 0, // Cancelación de descarga activa: limpia buffer al saltar
+                                        enableLowLatencyMode: true, // Low Latency Mode para respuesta rápida
+                                        fragLoadingMaxRetry: 2,
+                                        manifestLoadingMaxRetry: 2,
+                                        nudgeMaxRetry: 5
+                                    });
                                     window.hls.loadSource(stream.url);
                                     window.hls.attachMedia(video);
                                 } else {
@@ -4149,8 +4158,8 @@ function renderCurrentView() {
                                             }
                                         }
                                     } catch (err) { }
-                                });                                video.style.display = 'block';
-                                video.classList.add('stremio-mode');
+                                });                                video.style.display = 'block';                                video.classList.add('stremio-mode');
+                                video.dataset.nextTriggered = '';
                                 video.controls = false;
                                 document.getElementById('playerControls').style.display = 'flex';
 
@@ -4316,19 +4325,17 @@ function renderCurrentView() {
                                                 const overlay = document.createElement('div');
                                                 overlay.id = 'next-ep-overlay';
                                                 overlay.className = 'is-visible';
-                                                overlay.style.cssText = 'position:absolute; bottom:60px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
+                                                overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
                                                 overlay.innerHTML = `
-                                                    <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
+                                                    <button onclick="event.stopPropagation(); this.parentElement.remove();" style="position:absolute; top:-8px; left:-8px; background:#333; border:1px solid #555; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.5); z-index:10;"><span class="material-icons" style="font-size:14px;">close</span></button>
+                                    <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
                                                     <div style="text-align:left;">
                                                         <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
                                                         <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
                                                     </div>
-                                                    <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>
-                                                `;
-                                                video.parentElement.appendChild(overlay);
-                                                video.parentElement.classList.add('show-controls');
-                                                setTimeout(() => { if(overlay) overlay.classList.remove('is-visible'); }, 5000);
-                                            }
+                                                    <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>                            `;
+                            video.parentElement.appendChild(overlay);
+                        }
                                         } else if (remaining > threshold + 10) {
                                             video.dataset.nextTriggered = '';
                                             if (existingOverlay) existingOverlay.remove();
