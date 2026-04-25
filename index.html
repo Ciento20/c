@@ -2646,15 +2646,16 @@
                     channelsList.push(channelId);
                     userSelectedChannels.add(channelId);
                 }
-            }
-            const savedChannels = localStorage.getItem('userSelectedChannels');
+            }            const savedChannels = localStorage.getItem('userSelectedChannels');
             const savedOrder = localStorage.getItem('customChannelOrder');
 
             if (savedOrder) {
                 const parsedOrder = JSON.parse(savedOrder);
-                const filteredOrder = parsedOrder.filter(id => channelsList.includes(id));
+                // Al mantener parsedOrder sin filtrar por los canales del EPG actual,
+                // conservamos el historial de canales que solo provienen de listas M3U.
+                // Esto preserva tanto su posición personalizada como su estado (oculto/visible).
                 const missingChannels = channelsList.filter(id => !parsedOrder.includes(id));
-                channelsList = [...filteredOrder, ...missingChannels];
+                channelsList = [...parsedOrder, ...missingChannels];
             }
             if (savedChannels) {
                 userSelectedChannels = new Set(JSON.parse(savedChannels));
@@ -5848,10 +5849,7 @@ function renderCurrentView() {
 
 
         <p style="color: #666; font-size: 0.85rem; margin: 28px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">☁️ Sincronización en la nube</p>
-        <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
-
-
-            <div class="settings-card" style="margin-bottom:12px;">
+        <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">            <div class="settings-card" style="margin-bottom:12px; display:block;">
                 <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px;">
                     <div class="settings-icon-wrapper"><span class="material-icons" style="color:#ff9800; font-size:1.5rem;">settings_ethernet</span></div>
                     <div>
