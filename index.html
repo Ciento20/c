@@ -126,23 +126,20 @@
         if(e) e.stopPropagation();
         const v = document.getElementById('main-video-player');
         if (!v) return;
-        
-        // Forzamos visibilidad de controles nativos temporalmente para asegurar el trigger en móviles
         v.controls = true;
-        
         try {
             if (v.remote && typeof v.remote.prompt === 'function') {
                 await v.remote.prompt();
-            } else if (window.WebKitPlaybackTargetAvailabilityEvent) {
-                v.webkitShowPlaybackTargetPicker();
             } else if (v.webkitShowPlaybackTargetPicker) {
                 v.webkitShowPlaybackTargetPicker();
-            } else {
-                // Si falla lo anterior, el usuario puede usar el botón nativo que aparecerá en los controles
-                console.log('Utilizando fallback de controles nativos');
+            } else if (window.WebKitPlaybackTargetAvailabilityEvent) {
+                // Fallback para iOS/Safari antiguo
+                v.webkitShowPlaybackTargetPicker();
             }
         } catch (err) {
-            console.error('Error al lanzar Cast:', err);
+            console.log('Error al iniciar Cast:', err);
+            // Si falla el prompt, al menos dejamos los controles visibles para usar el icono nativo
+            v.controls = true;
         }
     };
 
@@ -4799,8 +4796,13 @@ function renderCurrentView() {
                     }
 
                     const isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');                    if (isVideo) {
+                        const fsBtn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
                         iframe.style.display = 'none';
-                        video.style.display = 'block';                        if (Hls.isSupported()) {
+                        video.style.display = 'block';
+                        if (fsBtn) {
+                            fsBtn.style.display = 'flex';
+                            fsBtn.style.opacity = '0';
+                        }                        if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
                             
                             const fastSeekConfig = {
