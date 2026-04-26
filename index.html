@@ -5463,12 +5463,24 @@ function renderCurrentView() {
             document.getElementById('globalSearchModal').style.display = 'none';
             document.getElementById('globalSearchInput').value = '';
             document.getElementById('globalSearchResults').innerHTML = '';
-        }
+        }        function openAddonManager() {
+            // SIMULACIÓN DE REFRESCO: Forzamos la actualización de las variables globales releyendo el disco
+            // Esto imita lo que ocurre al 'añadir' un addon, obligando a la interfaz a mostrar los datos actuales.
+            try {
+                const sSources = localStorage.getItem('streamSources');
+                const sAddons = localStorage.getItem('stremioAddons');
+                streamSources = sSources ? JSON.parse(sSources) : [];
+                stremioAddons = sAddons ? JSON.parse(sAddons) : [];
+            } catch(e) {
+                console.error("Error en refresco forzado:", e);
+            }
 
-        function openAddonManager() {
             const modal = document.getElementById('addonManagerModal');
-            modal.style.display = 'flex';
-            document.getElementById('epgSourceInput').value = localStorage.getItem('epgSourceUrl') || '';
+            if (modal) modal.style.display = 'flex';
+
+            const epgInput = document.getElementById('epgSourceInput');
+            if (epgInput) epgInput.value = localStorage.getItem('epgSourceUrl') || '';
+            
             renderAddonCards();
         }
 
@@ -5742,65 +5754,37 @@ function renderCurrentView() {
 
         <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.04);">
 
+            
+            <p style="color: #666; font-size: 0.65rem; margin: 10px 0 10px 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">Fuentes y Canales</p>
+
             <div class="settings-card" style="cursor: pointer;" onclick="openAddonManager()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: #00e5ff; font-size: 1.5rem;">cloud_download</span></div>
                         <div>
                             <div style="font-weight: 700; color: white; font-size: 1.05rem;">Gestor de Addons</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Administrar fuentes de EPG y listas de canales</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Administrar EPG y listas M3U</div>
                         </div>
                     </div>
-                    <span class="material-icons" style="color: #00e5ff; font-size: 1.2rem;">arrow_forward_ios</span>
-                </div>
-            </div>            <p style="color: #666; font-size: 0.85rem; margin: 25px 0 10px 10px; font-weight: 600; letter-spacing: 0.3px;">Configuración del sistema</p>
-
-            <div class="settings-card">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary); font-size: 1.4rem;">palette</span></div>
-                        <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Color Principal</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Cambia el color de acento de la app</div>
-                        </div>
-                    </div>
-                    <div>
-                        <input type="color" id="primaryColorPicker" onchange="changePrimaryColor(this.value)" style="background: transparent; border: none; width: 40px; height: 40px; cursor: pointer; padding: 0; border-radius: 8px;">
-                    </div>
+                    <span class="material-icons" style="color: #444; font-size: 1.1rem;">arrow_forward_ios</span>
                 </div>
             </div>
 
-            <div class="settings-card">
+            <div class="settings-card" style="cursor: pointer;" onclick="openChannelSelector()">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #ff4757; font-size: 1.4rem;">podcasts</span></div>
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary); font-size: 1.4rem;">tune</span></div>
                         <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Solo DIRECTO</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Estricto: Solo mayúsculas</div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Filtrado de Canales</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Activar, ocultar y ordenar parrilla</div>
                         </div>
                     </div>
-                    <label style="margin: 0;">
-                        <input type="checkbox" id="directoToggle" onchange="toggleDirectoFilter(this.checked)" style="display: none;">
-                        <div class="ios-toggle"></div>
-                    </label>
+                    <span class="material-icons" style="color: #444; font-size: 1.1rem;">arrow_forward_ios</span>
                 </div>
             </div>
 
-            <div class="settings-card">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #f1c40f; font-size: 1.4rem;">image_not_supported</span></div>
-                        <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Ocultar sin imagen</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Mostrar solo eventos con posters</div>
-                        </div>
-                    </div>
-                    <label style="margin: 0;">
-                        <input type="checkbox" id="noImageToggle" onchange="toggleNoImageFilter(this.checked)" style="display: none;">
-                        <div class="ios-toggle"></div>
-                    </label>
-                </div>
-            </div>
+            
+            <p style="color: #666; font-size: 0.65rem; margin: 25px 0 10px 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">Reproducción y Streaming</p>
 
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
@@ -5808,7 +5792,7 @@ function renderCurrentView() {
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: #7b2cbf; font-size: 1.4rem;">bolt</span></div>
                         <div>
                             <div style="font-weight: 700; color: white; font-size: 1.05rem;">Streaming P2P (Stremio)</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Abrir en App externa para evitar buffering</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Abrir en App externa para acelerar carga</div>
                         </div>
                     </div>
                     <label style="margin: 0;">
@@ -5821,10 +5805,26 @@ function renderCurrentView() {
             <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #ff4757; font-size: 1.4rem;">podcasts</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Solo DIRECTO</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Filtrar eventos en vivo estrictamente</div>
+                        </div>
+                    </div>
+                    <label style="margin: 0;">
+                        <input type="checkbox" id="directoToggle" onchange="toggleDirectoFilter(this.checked)" style="display: none;">
+                        <div class="ios-toggle"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: #00e5ff; font-size: 1.4rem;">videocam_off</span></div>
                         <div>
                             <div style="font-weight: 700; color: white; font-size: 1.05rem;">Ocultar sin señal</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Solo canales con stream vinculado</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Solo canales con enlace activo</div>
                         </div>
                     </div>
                     <label style="margin: 0;">
@@ -5832,7 +5832,43 @@ function renderCurrentView() {
                         <div class="ios-toggle"></div>
                     </label>
                 </div>
-            </div>            <script>
+            </div>
+
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #f1c40f; font-size: 1.4rem;">image_not_supported</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Ocultar sin imagen</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Mostrar solo eventos con cartel</div>
+                        </div>
+                    </div>
+                    <label style="margin: 0;">
+                        <input type="checkbox" id="noImageToggle" onchange="toggleNoImageFilter(this.checked)" style="display: none;">
+                        <div class="ios-toggle"></div>
+                    </label>
+                </div>
+            </div>
+
+            
+            <p style="color: #666; font-size: 0.65rem; margin: 25px 0 10px 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">Interfaz y Diseño</p>
+
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary); font-size: 1.4rem;">palette</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Color de Acento</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Personaliza el tono de la interfaz</div>
+                        </div>
+                    </div>
+                    <div>
+                        <input type="color" id="primaryColorPicker" onchange="changePrimaryColor(this.value)" style="background: transparent; border: none; width: 40px; height: 40px; cursor: pointer; padding: 0; border-radius: 8px;">
+                    </div>
+                </div>
+            </div>
+
+            <script>
                 function hexToRgb(hex) {
                     var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
                     return result ? parseInt(result[1], 16) + ', ' + parseInt(result[2], 16) + ', ' + parseInt(result[3], 16) : '88, 166, 255';
@@ -5882,19 +5918,6 @@ function renderCurrentView() {
                     }, 200);
                 });
             </script>
-
-            <div class="settings-card" style="cursor: pointer; margin-bottom: 0;" onclick="openChannelSelector()">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--color-primary); font-size: 1.4rem;">settings</span></div>
-                        <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Filtrado de Canales</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Activar/Ocultar y aplicar plantillas</div>
-                        </div>
-                    </div>
-                    <span class="material-icons" style="color: #00e5ff; font-size: 1.2rem;">arrow_forward_ios</span>
-                </div>
-            </div>
         </div>
 
 
