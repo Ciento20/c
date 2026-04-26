@@ -122,17 +122,28 @@
         const modes = ['contain', 'cover', 'fill'];
         let current = modes.indexOf(v.style.objectFit || 'contain');
         v.style.objectFit = modes[(current + 1) % modes.length];
-    };
-
-    window.castToDevice = async (e) => {
+    };    window.castToDevice = async (e) => {
         if(e) e.stopPropagation();
         const v = document.getElementById('main-video-player');
         if (!v) return;
+        
+        // Forzamos visibilidad de controles nativos temporalmente para asegurar el trigger en móviles
         v.controls = true;
+        
         try {
-            if (v.remote && typeof v.remote.prompt === 'function') { await v.remote.prompt(); }
-            else if (v.webkitShowPlaybackTargetPicker) { v.webkitShowPlaybackTargetPicker(); }
-        } catch (err) { console.log('Cast UI triggered'); }
+            if (v.remote && typeof v.remote.prompt === 'function') {
+                await v.remote.prompt();
+            } else if (window.WebKitPlaybackTargetAvailabilityEvent) {
+                v.webkitShowPlaybackTargetPicker();
+            } else if (v.webkitShowPlaybackTargetPicker) {
+                v.webkitShowPlaybackTargetPicker();
+            } else {
+                // Si falla lo anterior, el usuario puede usar el botón nativo que aparecerá en los controles
+                console.log('Utilizando fallback de controles nativos');
+            }
+        } catch (err) {
+            console.error('Error al lanzar Cast:', err);
+        }
     };
 
     window.toggleSubtitles = (e) => {
@@ -4789,9 +4800,7 @@ function renderCurrentView() {
 
                     const isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');                    if (isVideo) {
                         iframe.style.display = 'none';
-                        video.style.display = 'block';
-                        fsBtn.style.display = 'flex';
-                        fsBtn.style.opacity = '0';                        if (Hls.isSupported()) {
+                        video.style.display = 'block';                        if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
                             
                             const fastSeekConfig = {
