@@ -2478,12 +2478,14 @@
                 let totalVisibleCategories = 0;
 
                 categoryItems.forEach(item => {
-                    const categoryName = item.getAttribute('onclick').match(/'([^']+)'/)[1];
-
-                    const hasEvents = epgData.some(p => {
+                    const categoryName = item.getAttribute('onclick').match(/'([^']+)'/)[1];                    const hasEvents = epgData.some(p => {
                         if (!userSelectedChannels.has(p.channel)) return false;
                         const categoryPart = (p.description || '').split('·')[0].toLowerCase();
-                        return categoryPart.includes(categoryName.toLowerCase());
+                        const search = categoryName.toLowerCase();
+                        // Lógica de filtrado refinada para evitar colisiones entre Motociclismo y Ciclismo
+                        if (search === 'ciclismo') return categoryPart.includes('ciclismo') && !categoryPart.includes('motociclismo');
+                        if (search === 'motor') return /motor|fórmula|motociclismo|f1/i.test(categoryPart);
+                        return categoryPart.includes(search);
                     });
 
                     if (hasEvents) {
@@ -5030,48 +5032,86 @@ function renderCurrentView() {
                 document.removeEventListener('click', closeMenu);
             };
             setTimeout(() => document.addEventListener('click', closeMenu), 10);
-        }
-
-        function openSportCategory(sportName) {
+        }        function openSportCategory(sportName) {
             const view = document.getElementById('sport-category-view');
             document.getElementById('active-sport-title').textContent = sportName;
+            const now = new Date();
 
-            const containers = [
-                document.getElementById('upcoming-matches-carousel'),
-                document.getElementById('highlights-carousel')
-            ];
-            containers.forEach(c => c.innerHTML = '');
+            const liveContainer = document.getElementById('sport-live-carousel');
+            const todayContainer = document.getElementById('sport-today-carousel');
+            const highlightsContainer = document.getElementById('highlights-carousel');
+            
+            [liveContainer, todayContainer, highlightsContainer].forEach(c => c.innerHTML = '');
 
-            const filteredEvents = epgData.filter(p => {
+            const allEvents = epgData.filter(p => {
+                if (!userSelectedChannels.has(p.channel)) return false;
                 const fullDesc = (p.description || '').toLowerCase();
-                const categoryPart = fullDesc.split('·')[0].trim();
-                return categoryPart.includes(sportName.toLowerCase());
-            }).slice(0, 15);
+                const categoryPart = fullDesc.split('·')[0].toLowerCase().trim();
+                const search = sportName.toLowerCase();
+                if (search === 'ciclismo') return categoryPart.includes('ciclismo') && !categoryPart.includes('motociclismo');
+                if (search === 'motor') return /motor|fórmula|motociclismo|f1/i.test(categoryPart);
+                return categoryPart.includes(search);
+            });            const createPremiumCard = (prog, isLive = false) => {
+                const card = document.createElement('div');
+                card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date, true);
 
-            filteredEvents.forEach((prog, index) => {
-                const makeCard = () => {
-                    const card = document.createElement('div');
+                if (isLive) {
+                    card.className = 'sport-card-premium';
+                    const bg = prog.iconSrc2 || prog.iconSrc || prog.channelIcon;
+                    card.style.backgroundImage = `url('${bg}')`;
+                    
+                    const [d, m, y] = prog.date.split('/');
+                    const start = new Date(y, m - 1, d, prog.start.split(':')[0], prog.start.split(':')[1]);
+                    const stop = new Date(y, m - 1, d, prog.stop.split(':')[0], prog.stop.split(':')[1]);
+                    const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));
+                    
+                    card.innerHTML = `
+                        <div class="sport-card-overlay">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:auto;">
+                                <img src="${prog.channelIcon}" style="height:18px; width:auto; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
+                                <span style="background:#ff4757; color:white; font-size:0.55rem; font-weight:900; padding:2px 6px; border-radius:4px; letter-spacing:0.5px;">VIVO</span>
+                            </div>
+                            <div style="font-size:0.85rem; font-weight:700; color:white; text-shadow:0 2px 4px rgba(0,0,0,0.8); line-height:1.2; display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical; overflow:hidden;">
+                                ${processColoredText(prog.title)}
+                            </div>
+                            <div style="width:100%; height:3px; background:rgba(255,255,255,0.2); border-radius:2px; margin-top:8px; overflow:hidden;"><div style="width:${progress}%; height:100%; background:var(--primary); box-shadow: 0 0 8px var(--primary);"></div></div>
+                        </div>`;
+                } else {
                     card.className = 'poster-card';
-                    const bg = prog.iconSrc2 || prog.iconSrc || '';
-                    if (bg) card.style.backgroundImage = `url('${bg}')`;
-                    card.onclick = () => openProgramDetails(prog.channel, prog.start, prog.date);
-                    card.innerHTML = `<div class="poster-info"></div>`;
-                    return card;
-                };
-                if (index < 7) containers[0].appendChild(makeCard());
-                else containers[1].appendChild(makeCard());
+                    const bg = prog.iconSrc || prog.iconSrc2 || prog.channelIcon;
+                    card.style.backgroundImage = `url('${bg}')`;
+                    card.innerHTML = `
+                        <div style="position:absolute; top:8px; left:8px; z-index:10; background:rgba(0,0,0,0.85); padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; color:white; backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.1);">${prog.start}</div>
+                        <div class="poster-info" style="z-index:2; height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:8px; box-sizing:border-box; background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, transparent 60%);">
+                            <div style="font-size:0.7rem; font-weight:800; color:#fff; text-shadow: 0 1px 4px #000; line-height:1.2; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; margin-bottom:4px;">${processColoredText(prog.title)}</div>
+                            <img src="${prog.channelIcon}" style="height:12px; width:auto; max-width:40px; object-fit:contain; align-self:flex-start; filter: drop-shadow(0 1px 2px #000);">
+                        </div>`;
+                }
+                return card;
+            };
+
+            const liveEvents = allEvents.filter(p => {
+                const [d, m, y] = p.date.split('/');
+                const start = new Date(y, m - 1, d, p.start.split(':')[0], p.start.split(':')[1]);
+                const stop = new Date(y, m - 1, d, p.stop.split(':')[0], p.stop.split(':')[1]);
+                return now >= start && now <= stop;
             });
 
-            if (containers[0]) {
-                const hasUpcoming = filteredEvents.length > 0;
-                containers[0].style.display = hasUpcoming ? 'flex' : 'none';
-                if(containers[0].previousElementSibling) containers[0].previousElementSibling.style.display = hasUpcoming ? 'block' : 'none';
-            }
-            if (containers[1]) {
-                const hasHighlights = filteredEvents.length > 7;
-                containers[1].style.display = hasHighlights ? 'flex' : 'none';
-                if(containers[1].previousElementSibling) containers[1].previousElementSibling.style.display = hasHighlights ? 'block' : 'none';
-            }
+            const todayEvents = allEvents.filter(p => {
+                const [d, m, y] = p.date.split('/');
+                const start = new Date(y, m - 1, d, p.start.split(':')[0], p.start.split(':')[1]);
+                return start > now && d == now.getDate();
+            }).sort((a,b) => a.start.localeCompare(b.start));
+
+            const highlightEvents = allEvents.filter(p => p.iconSrc2 && !liveEvents.includes(p) && !todayEvents.includes(p)).slice(0, 10);
+
+            liveEvents.forEach(e => liveContainer.appendChild(createPremiumCard(e, true)));
+            todayEvents.forEach(e => todayContainer.appendChild(createPremiumCard(e, false)));
+            highlightEvents.forEach(e => highlightsContainer.appendChild(createPremiumCard(e, false)));
+
+            document.getElementById('sport-live-section').style.display = liveEvents.length > 0 ? 'block' : 'none';
+            document.getElementById('sport-today-section').style.display = todayEvents.length > 0 ? 'block' : 'none';
+            document.getElementById('sport-highlights-section').style.display = highlightEvents.length > 0 ? 'block' : 'none';
 
             view.style.display = 'flex';
         }
@@ -5988,14 +6028,44 @@ function renderCurrentView() {
     </div>    <div id="sport-category-view">
         <div class="sport-header">
             <span class="material-icons" onclick="closeSportCategory()" style="cursor:pointer; color: white;">arrow_back</span>
-            <span id="active-sport-title" style="font-size: 1.2rem; font-weight: 600; color: white;">Fútbol</span>
+            <div style="display:flex; flex-direction:column;">
+                <span id="active-sport-title" style="font-size: 1.2rem; font-weight: 700; color: white; letter-spacing: -0.5px;">Fútbol</span>
+                <span style="font-size: 0.65rem; color: var(--primary); font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Categoría Premium</span>
+            </div>
         </div>
 
-        <div class="sport-section-title">Próximos eventos</div>
-        <div id="upcoming-matches-carousel" class="poster-carousel"></div>
+        <div id="sport-live-section">
+            <div class="sport-section-title" style="display:flex; align-items:center; gap:8px;">
+                <span class="material-icons" style="color:#ff4757; font-size:1.2rem; animation: pulse 2s infinite;">sensors</span> EN DIRECTO AHORA
+            </div>
+            <div id="sport-live-carousel" class="poster-carousel"></div>
+        </div>
 
-        <div class="sport-section-title">Destacados</div>
-        <div id="highlights-carousel" class="poster-carousel"></div>
+        <div id="sport-today-section">
+            <div class="sport-section-title">PROGRAMACIÓN PARA HOY</div>
+            <div id="sport-today-carousel" class="poster-carousel"></div>
+        </div>
+
+        <div id="sport-highlights-section">
+            <div class="sport-section-title">DESTACADOS Y ESPECIALES</div>
+            <div id="highlights-carousel" class="poster-carousel"></div>
+        </div>
+
+        <style>
+            @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+            .sport-card-premium { 
+                min-width: 240px; width: 240px; aspect-ratio: 16/9; 
+                background-size: cover; background-position: center; 
+                border-radius: 16px; position: relative; flex-shrink: 0;
+                border: 1px solid rgba(255,255,255,0.08); overflow: hidden;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            }
+            .sport-card-overlay {
+                position: absolute; inset: 0; padding: 12px;
+                background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+                display: flex; flex-direction: column; justify-content: flex-end;
+            }
+        </style>
     </div>
 
     <div id="catalog-explorer-view" style="position: fixed; inset: 0; background: var(--bg-deep); z-index: 4500; display: none; flex-direction: column;">
