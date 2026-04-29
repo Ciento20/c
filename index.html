@@ -1817,7 +1817,7 @@
         .detail-header-fixed {
             padding: 20px 24px 10px 24px;
             flex-shrink: 0;
-            background: #121212;
+            background: #000;
         }
 
         .detail-scroll-content {
@@ -1840,7 +1840,7 @@
         .detail-footer-fixed {
             padding: 15px 24px 30px 24px;
             flex-shrink: 0;
-            background: #121212;
+            background: #000;
             border-top: 1px solid rgba(255,255,255,0.05);
         }        .detail-title {
             position: relative;
@@ -3798,6 +3798,14 @@ function renderCurrentView() {
             modal.querySelector('.detail-time').textContent = '';
             modal.querySelector('.detail-remaining').textContent = '';
 
+            const epgBlock = document.getElementById('epg-status-block');
+            const vodBlock = document.getElementById('vod-title-block');
+            if(epgBlock) epgBlock.style.display = 'none';
+            if(vodBlock) {
+                vodBlock.style.display = 'block';
+                vodBlock.innerHTML = meta.logo ? `<img src="${meta.logo}" style="max-height: 45px; width: auto; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));">` : `<h2 style="margin:0; font-weight:800;">${meta.name}</h2>`;
+            }
+
             const ratingBadge = document.getElementById('detail-rating-badge');
             if (ratingBadge) {
                 const certification = meta.certification || '';
@@ -4558,6 +4566,11 @@ function renderCurrentView() {
         }
 
         function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+            const epgBlock = document.getElementById('epg-status-block');
+            const vodBlock = document.getElementById('vod-title-block');
+            if(epgBlock) epgBlock.style.display = 'flex';
+            if(vodBlock) vodBlock.style.display = 'none';
+
             const now = new Date();
             document.getElementById('playerControls').style.display = 'none';
             document.getElementById('player-container').classList.remove('show-controls');
@@ -6522,10 +6535,11 @@ function renderCurrentView() {
                 </div>
             </div>            <div class="detail-body">
                 <div class="detail-header-fixed">
-                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div id="epg-status-block" style="display: flex; align-items: center; margin-bottom: 10px;">
                         <span class="detail-badge">En directo ahora</span>
                         <span class="detail-time"></span>
                     </div>
+                    <div id="vod-title-block" style="display: none; margin-bottom: 15px;"></div>
 
                     <div id="detail-metadata-fixed" style="color: #a29bfe; font-size: 0.85rem; font-weight: 600; line-height: 1.4; padding: 10px 12px; background: rgba(162, 155, 254, 0.08); border-radius: 10px; margin-top: 5px; border-left: 3px solid #a29bfe;"></div>
 
