@@ -732,7 +732,7 @@
             flex-direction: column;
             gap: var(--card-gap);
             margin-top: 0px;
-            padding-bottom: 20px;
+            padding: 8px 0 20px 0;
         }
         .empty-state {
             position: fixed;
@@ -757,30 +757,34 @@
             display: flex;
             flex-direction: column;
             color: #fff;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            overflow: visible;
+            /* Borde limpio sin sombras pesadas */
+            border: 1px solid rgba(255, 255, 255, 0.1);
             width: calc(100% - 32px);
             max-width: 500px;
-            margin: 12px auto;
+            margin: 0 auto;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s ease;
         }
 
-        .program-card::before {
+        /* Clip the background image and ::before overlay inside the border-radius */
+        .program-card > * {
+            border-radius: inherit;
+        }        .program-card::before {
             content: '';
             position: absolute;
             inset: 0;
-
-            background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.8) 50%, rgba(5,5,5,1) 100%);
+            border-radius: inherit;
+            /* Degradado suave para legibilidad sin efecto vignette agresivo */
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, transparent 100%) !important;
             z-index: 1;
             pointer-events: none;
         }        .program-card:hover {
             transform: translateY(-4px) scale(1.02);
-            /* Brillo y glow intensificados sobre el mismo tono azul */
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--primary), 0 0 30px rgba(var(--primary-rgb), 0.7);
+            /* Hover basado en borde de color activo en lugar de sombras */
+            border-color: var(--primary);
             filter: brightness(1.15);
             z-index: 10;
         }                .channel-row-modern {
@@ -1281,7 +1285,7 @@
             }
             .program-card {
                 padding: 12px;
-                border-radius: 10px;
+                border-radius: 16px;
                 aspect-ratio: 16 / 9 !important;
                 min-height: auto !important;
             }
@@ -1467,11 +1471,9 @@
             display: flex;
             overflow-x: auto;
             gap: 12px;
-            padding: 0 20px 15px 20px;
+            padding: 6px 20px 18px 20px;
             scrollbar-width: none;
-        }
-
-        .poster-card {
+        }        .poster-card {
             min-width: 150px;
             width: 150px;
             aspect-ratio: 2 / 3;
@@ -1480,15 +1482,16 @@
             border-radius: 14px;
             position: relative;
             flex-shrink: 0;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            /* Efecto Ambilight Negro Profundo */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.7);
             overflow: hidden;
-        }
-
-        .poster-card::after {
+        }        .poster-card::after {
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, transparent 60%);
+            /* Cristal Líquido Negro en Píxeles Exteriores */
+            box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.9), inset 0 0 15px rgba(0, 0, 0, 0.6);
+            background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 40%, transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 40%) !important;
         }
 
         .poster-info {
@@ -2194,14 +2197,17 @@
             const stremioContainer = document.getElementById('stremio-catalogs-container');
             const stremioSection = document.getElementById('stremio-section');
             if (stremioContainer) {
-                stremioContainer.innerHTML = '';
-                if (stremioSection) stremioSection.style.display = stremioAddons.length > 0 ? 'block' : 'none';
-                const idsInLists = new Set([
-                    ...(JSON.parse(localStorage.getItem('continueWatching') || '[]')).map(i => i.id),
-                    ...(JSON.parse(localStorage.getItem('userMyList') || '[]')).map(i => i.id)
-                ]);
-                const catalogPromises = stremioAddons.map(url => fetchStremioCatalog(url));
-                const results = await Promise.allSettled(catalogPromises);
+                stremioContainer.innerHTML = '';                if (stremioSection) stremioSection.style.display = stremioAddons.length > 0 ? 'block' : 'none';                // Desacoplar la carga de catálogos en un bloque asíncrono para
+                // no bloquear el renderizado del EPG y evitar el colapso visual
+                (async () => {
+                    const idsInLists = new Set([
+                        ...(JSON.parse(localStorage.getItem('continueWatching') || '[]')).map(i => i.id),
+                        ...(JSON.parse(localStorage.getItem('userMyList') || '[]')).map(i => i.id)
+                    ]);
+                    const disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
+                    const activeAddons = stremioAddons.filter(url => !disabled.includes(url));
+                    const catalogPromises = activeAddons.map(url => fetchStremioCatalog(url));
+                    const results = await Promise.allSettled(catalogPromises);
 
                 const allCatalogs = [];
                 results.forEach(result => {
@@ -2352,14 +2358,13 @@
                             }
                             loading = false;
                         }
-                    };
-
-                    section.appendChild(row);
+                    };                    section.appendChild(row);
                     stremioContainer.appendChild(section);
 
                     requestAnimationFrame(() => setTimeout(renderNextCatalog, 80));
                 }
                 renderNextCatalog();
+                })(); // Cierre del bloque asíncrono de Stremio
             }
             const cinemaDots = document.getElementById('cinema-banner-dots');
 
@@ -3358,7 +3363,10 @@ function renderCurrentView() {
             channelStreams = {};
             console.log("Cargando listas optimizadas...");
 
-            for (const url of streamSources) {
+            const disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
+            const activeSources = streamSources.filter(url => !disabled.includes(url));
+
+            for (const url of activeSources) {
                 try {
                     const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
                     const response = await fetch(cleanUrl);
@@ -3778,9 +3786,8 @@ function renderCurrentView() {
 
             modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
             const titleEl = modal.querySelector('.detail-title');
-            titleEl.innerHTML = '';
-            if (meta.logo) {
-                titleEl.innerHTML = `<img src="${meta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));" onload="this.style.opacity=1">`;
+            titleEl.innerHTML = '';            if (meta.logo) {
+                titleEl.innerHTML = `<img src="${meta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
             } else {
                 titleEl.textContent = meta.name;
             }
@@ -3810,10 +3817,10 @@ function renderCurrentView() {
                         throw new Error('Sin meta');
                     }));
                     fullMeta = fastMeta;
-                } catch(e) {  }
-
-                if (fullMeta.logo && !titleEl.querySelector('img')) {
-                    titleEl.innerHTML = `<img src="${fullMeta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
+                } catch(e) {  }                if (fullMeta.logo) {
+                    const logoHTML = `<img src="${fullMeta.logo}" style="max-height: 45px; width: auto; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));">`;
+                    if (!titleEl.querySelector('img')) titleEl.innerHTML = logoHTML;
+                    if (vodBlock) vodBlock.innerHTML = logoHTML;
                 }
 
                 const finalDesc = fullMeta.description_es || fullMeta.description || initialDesc;
@@ -4732,7 +4739,15 @@ function renderCurrentView() {
                 if (isLive) {
                     card.className = 'sport-card-premium';
                     const bg = prog.iconSrc2 || prog.iconSrc || prog.channelIcon;
-                    card.style.backgroundImage = `url('${bg}')`;
+                    // Si tiene imagen de programa (iconSrc2) usar cover, si solo tiene logo del canal usar contain
+                    if (prog.iconSrc2) {
+                        card.style.backgroundImage = `url('${bg}')`;
+                        card.style.backgroundSize = 'cover';
+                    } else {
+                        card.style.backgroundImage = `url('${bg}')`;
+                        card.style.backgroundSize = 'contain';
+                        card.style.backgroundColor = '#0d0d0d';
+                    }
                     
                     const [d, m, y] = prog.date.split('/');
                     const start = new Date(y, m - 1, d, prog.start.split(':')[0], prog.start.split(':')[1]);
@@ -4756,7 +4771,7 @@ function renderCurrentView() {
                     card.style.backgroundImage = `url('${bg}')`;
                     card.innerHTML = `
                         <div style="position:absolute; top:8px; left:8px; z-index:10; background:rgba(0,0,0,0.85); padding:2px 6px; border-radius:4px; font-size:0.6rem; font-weight:800; color:white; backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.1);">${prog.start}</div>
-                        <div class="poster-info" style="z-index:2; height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:8px; box-sizing:border-box; background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, transparent 60%);">
+                        <div class="poster-info" style="z-index:2; height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:8px; box-sizing:border-box; background: none !important;">
                             <div style="font-size:0.7rem; font-weight:800; color:#fff; text-shadow: 0 1px 4px #000; line-height:1.2; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; margin-bottom:4px;">${processColoredText(prog.title)}</div>
                             <img src="${prog.channelIcon}" style="height:12px; width:auto; max-width:40px; object-fit:contain; align-self:flex-start; filter: drop-shadow(0 1px 2px #000);">
                         </div>`;
@@ -5205,22 +5220,30 @@ function renderCurrentView() {
                 div.style.cssText = 'font-size: 0.65rem; font-weight: 800; color: #444; margin: 15px 0 8px 5px; text-transform: uppercase; letter-spacing: 1px;';
                 div.textContent = title;
                 return div;
-            };
-
-            const createCard = (url, type, index, listArray, storageKey) => {
+            };            const createCard = (url, type, index, listArray, storageKey) => {
                 const card = document.createElement('div');
-                card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; animation: modalFadeIn 0.3s ease;`;                let icon = 'link';
+                const isDisabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]').includes(url);
+                
+                card.style.cssText = `background: #1c1c1e; border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; animation: modalFadeIn 0.3s ease; opacity: ${isDisabled ? '0.4' : '1'}; filter: ${isDisabled ? 'grayscale(0.8)' : 'none'};`;
+
+                let icon = 'link';
                 let color = 'var(--primary)';
                 if (type === 'STREMIO') { icon = 'movie'; color = '#7b2cbf'; }
                 if (url.toLowerCase().includes('.m3u')) { icon = 'playlist_play'; color = '#00e5ff'; }
 
                 card.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                         <label style="margin: 0; transform: scale(0.7); cursor: pointer;">
+                            <input type="checkbox" ${isDisabled ? '' : 'checked'} onchange="toggleAddonStatus('${url}')" style="display: none;">
+                            <div class="ios-toggle"></div>
+                        </label>
+                    </div>
                     <div style="width: 36px; height: 36px; background: ${color}20; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: ${color}; flex-shrink: 0;">
                         <span class="material-icons-round" style="font-size: 1.1rem;">${icon}</span>
                     </div>
                     <div style="flex-grow: 1; min-width: 0; cursor: pointer;" onclick="editAddon(${index}, '${storageKey}')">
                         <div style="font-size: 0.75rem; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${url}</div>
-                        <div style="font-size: 0.55rem; color: #555; font-weight: 700;">Click para editar</div>
+                        <div style="font-size: 0.55rem; color: #555; font-weight: 700;">${isDisabled ? 'DESACTIVADO' : 'Click para editar'}</div>
                     </div>
                     <div style="display: flex; gap: 4px;">
                         <button onclick="copyToClipboard('${url}')" style="background: none; border: none; color: #888; cursor: pointer; padding: 6px;">
@@ -5232,7 +5255,18 @@ function renderCurrentView() {
                     </div>
                 `;
                 return card;
-            };
+            };            const epgUrl = localStorage.getItem('epgSourceUrl');
+            if (epgUrl) {
+                container.appendChild(createSectionTitle('Fuente EPG'));
+                const card = createCard(epgUrl, 'EPG', 0, [], 'epgSourceUrl');
+                card.querySelector('button[onclick*="removeAddonGeneric"]').onclick = () => {
+                    if (confirm("¿Eliminar la fuente EPG?")) {
+                        localStorage.removeItem('epgSourceUrl');
+                        renderAddonCards();
+                    }
+                };
+                container.appendChild(card);
+            }
 
             if (streamSources.length > 0) {
                 container.appendChild(createSectionTitle('Listas de Canales (M3U/JSON)'));
@@ -5259,23 +5293,43 @@ function renderCurrentView() {
                 else stremioAddons = list;
                 renderAddonCards();
             }
-        };
-
-        window.removeAddonGeneric = (index, key) => {
+        };        window.removeAddonGeneric = (index, key) => {
             if (confirm("¿Eliminar esta fuente?")) {
                 let list = JSON.parse(localStorage.getItem(key) || '[]');
+                const url = list[index];
                 list.splice(index, 1);
                 localStorage.setItem(key, JSON.stringify(list));
+                
+                let disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
+                disabled = disabled.filter(u => u !== url);
+                localStorage.setItem('disabledAddons', JSON.stringify(disabled));
+
                 if (key === 'streamSources') streamSources = list;
                 else stremioAddons = list;
                 renderAddonCards();
             }
+        };
+
+        window.toggleAddonStatus = (url) => {
+            let disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
+            if (disabled.includes(url)) {
+                disabled = disabled.filter(u => u !== url);
+            } else {
+                disabled.push(url);
+            }
+            localStorage.setItem('disabledAddons', JSON.stringify(disabled));
+            window._needsReload = true;
+            renderAddonCards();
         };        window.copyToClipboard = (text) => {
             navigator.clipboard.writeText(text).then(() => alert("URL copiada al portapapeles"));
         };
 
         function closeAddonManager() {
             document.getElementById('addonManagerModal').style.display = 'none';
+            if (window._needsReload) {
+                window._needsReload = false;
+                location.reload();
+            }
         }
 
         async function importMasterConfig() {
@@ -5955,14 +6009,16 @@ function renderCurrentView() {
             @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
             .sport-card-premium { 
                 min-width: 240px; width: 240px; aspect-ratio: 16/9; 
-                background-size: cover; background-position: center; 
+                background-size: cover; background-position: center; background-repeat: no-repeat;
+                background-color: #0d0d0d;
                 border-radius: 16px; position: relative; flex-shrink: 0;
                 border: 1px solid rgba(255,255,255,0.08); overflow: hidden;
-                box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            }
-            .sport-card-overlay {
+                box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+            }            .sport-card-overlay {
                 position: absolute; inset: 0; padding: 12px;
-                background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+                /* Efecto Cristal Líquido y Ambilight Negro */
+                box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.7);
+                background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 40%, transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 40%) !important;
                 display: flex; flex-direction: column; justify-content: flex-end;
             }
         </style>
@@ -6273,10 +6329,12 @@ function renderCurrentView() {
                                 stremioAddons.push(url);
                                 localStorage.setItem('stremioAddons', JSON.stringify(stremioAddons));
                                 showFbToast('Addon de Stremio añadido ✓', 'var(--primary)');
+                                window._needsReload = true;
                             }
                             else if (url.toLowerCase().match(/\.xml$|\.xml\.gz$|epg/)) {
                                 localStorage.setItem('epgSourceUrl', url);
                                 showFbToast('Fuente EPG actualizada ✓', 'var(--primary)');
+                                window._needsReload = true;
                             }
                             else if (url.includes('gist.github.com') && !url.toLowerCase().includes('.m3u')) {
                                 if (confirm('¿Importar como Configuración Maestra? Esto reemplazará tus listas actuales.')) {
@@ -6289,6 +6347,7 @@ function renderCurrentView() {
                                 streamSources.push(url);
                                 localStorage.setItem('streamSources', JSON.stringify(streamSources));
                                 showFbToast('Lista de canales añadida ✓', 'var(--primary)');
+                                window._needsReload = true;
                             }
 
                             input.value = '';
