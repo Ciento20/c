@@ -1268,14 +1268,13 @@
         body.light-mode #loader p {
             color: var(--color-text-muted-light) !important;
 
-        }
-
-                #grid-container {
+        }        #grid-container {
             width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             padding-bottom: 40px;
             margin-top: 10px;
+            position: relative;
         }
 
         @media (max-width: 768px) {
@@ -2818,14 +2817,12 @@
                 tab.onclick = function() { selectHourTab(this, String(h)); };
                 hourTabs.appendChild(tab);
             }
-        }
-
-        function selectHourTab(element, hourVal) {
+        }        function selectHourTab(element, hourVal) {
             document.querySelectorAll('#hour-tabs .date-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
             element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             document.getElementById('hourFilter').value = hourVal;
-            renderTable(true);
+            renderCurrentView();
         }
 
         function selectChannelTab(element, channelId, displayName) {
@@ -2869,15 +2866,13 @@
                 tab.onclick = function() { selectDateTab(this, formattedDate); };
                 dateTabs.appendChild(tab);
             }
-        }
-
-        function selectDateTab(element, dateStr) {
+        }        function selectDateTab(element, dateStr) {
             document.querySelectorAll('.date-tab').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
             element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
             document.getElementById('dateFilter').value = dateStr;
-            renderTable(true);
+            renderCurrentView();
         }        function getRatingColor(rText) {
             let checkText = (rText || '').toUpperCase();
             let bgColor = '#333';
@@ -3100,10 +3095,7 @@ function renderCurrentView() {
             const table = document.createElement('table');
             table.style.width = '100%';
             table.style.borderCollapse = 'collapse';
-            table.style.tableLayout = 'fixed';
-
-            const hoursRow = document.createElement('tr');
-            hoursRow.innerHTML = `<th style="width: 120px; white-space: nowrap;">Canal</th>`;
+            table.style.tableLayout = 'fixed';            const hoursRow = document.createElement('tr');            hoursRow.innerHTML = `<th style="width: 70px; white-space: nowrap;"></th>`;
             for (let h = 0; h < 24; h++) {
                 hoursRow.innerHTML += `<th style="width: 150px; font-size: 0.8em;">${String(h).padStart(2, '0')}:00</th>`;
             }
@@ -3128,25 +3120,24 @@ function renderCurrentView() {
                 channelCell.style.verticalAlign = 'middle';
 
                 const channelIconSrc = programs[0]?.channelIcon || customMediaMap[channel]?.logo || '';
-                const channelName = channel;
-
-                if (channelIconSrc) {
+                const channelName = channel;                if (channelIconSrc) {
                     const img = document.createElement('img');
                     img.src = channelIconSrc;
                     img.alt = channelName;
-                    img.style.height = '32px';
-                    img.style.width = 'auto';
-                    img.style.maxWidth = '60px';
+                    img.style.height = '40px';
+                    img.style.width = '40px';
+                    img.style.objectFit = 'contain';
                     img.style.display = 'block';
-                    img.style.margin = '0 auto 2px auto';
+                    img.style.margin = '0 auto';
                     channelCell.appendChild(img);
-                }
-
+                }                // Etiqueta de texto de canal eliminada para vista limpia
+                /* 
                 const nameDiv = document.createElement('div');
                 nameDiv.textContent = channelName;
                 nameDiv.style.fontSize = '0.75em';
                 nameDiv.style.textAlign = 'center';
-                channelCell.appendChild(nameDiv);
+                channelCell.appendChild(nameDiv); 
+                */
 
                 row.appendChild(channelCell);
 
@@ -3207,12 +3198,41 @@ function renderCurrentView() {
                         empty.innerHTML = '&nbsp;';
                         row.appendChild(empty);
                     }
-                }
+                }                table.appendChild(row);
+            }            container.appendChild(table);            // Línea de tiempo sincronizada con la fecha actual y color del tema
+            const filterDate = document.getElementById('dateFilter').value;
+            const todayDate = getCurrentDateFormatted();
 
-                table.appendChild(row);
+            if (filterDate === todayDate) {
+                const nowTime = new Date();
+                const h = nowTime.getHours();
+                const m = nowTime.getMinutes();
+                // Ajuste: 71px iniciales (columna logo) + (hora * 151px para incluir bordes de celdas)
+                const timelinePos = 71 + (h * 151) + (m * (151/60));
+                const timeLine = document.createElement('div');
+                timeLine.id = 'grid-timeline';
+                // Se reduce el z-index a 8 para que quede por debajo de la columna fija (z-index 9) y cabecera (z-index 11)
+                timeLine.style.cssText = `position: absolute; top: 0; bottom: 40px; left: ${timelinePos}px; width: 2px; background: var(--primary); z-index: 8; box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.6); pointer-events: none;`;
+                
+                const knob = document.createElement('div');
+                knob.style.cssText = 'position: absolute; top: 0; left: -4px; width: 10px; height: 10px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 8px var(--primary);';
+                timeLine.appendChild(knob);
+                
+                container.appendChild(timeLine);
             }
 
-            container.appendChild(table);
+            // Auto-scroll a la hora filtrada en modo cuadrícula
+            const filterHour = document.getElementById('hourFilter').value;
+            if (filterHour !== '') {                setTimeout(() => {
+                    const targetCol = table.querySelector(`th:nth-child(${parseInt(filterHour) + 2})`);
+                    if (targetCol) {
+                        container.scrollTo({
+                            left: targetCol.offsetLeft - 70,
+                            behavior: 'smooth'
+                        });
+                    }
+                }, 150);
+            }
         }        function renderChunk(data) {
             const dataList = document.getElementById('data-list');
             data.forEach(item => {
@@ -4024,15 +4044,38 @@ function renderCurrentView() {
                                 setTimeout(removeBlackout, 4000);
 
                                 await new Promise(r => setTimeout(r, 1400));
-                            }
+                            }                            const stream = allStreams[window.currentStremioStreamIdx || 0];
+                            const proxyUrl = localStorage.getItem('torrentProxy');
 
-                            const stream = allStreams[window.currentStremioStreamIdx || 0];
-
-                            if (isP2PEnabled) {
+                            if (isP2PEnabled && !proxyUrl) {
                                 const stremioLink = `stremio://detail/${fullMeta.type}/${fullMeta.id}/${streamId}`;
                                 window.location.href = stremioLink;
                                 return;
-                            }                            if (stream.url) {
+                            }
+
+                            let finalUrl = stream.url;
+
+                            // Lógica de Proxy para Torrents/Magnets
+                            if (!finalUrl && stream.infoHash && proxyUrl) {
+                                playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite;">sync</span> Resolviendo Torrent...`;
+                                try {
+                                    const magnet = `magnet:?xt=urn:btih:${stream.infoHash}`;
+                                    const res = await fetch(`${proxyUrl.replace(/\/$/, '')}/resolve?magnet=${encodeURIComponent(magnet)}`);
+                                    const data = await res.json();
+                                    if (data.url) {
+                                        finalUrl = data.url;
+                                    } else {
+                                        throw new Error('No se obtuvo URL del proxy');
+                                    }
+                                } catch (e) {
+                                    console.error("Error Proxy:", e);
+                                    alert("El servidor Proxy/Debrid no pudo procesar este torrent.");
+                                    playBtn.innerHTML = `<span class="material-icons">play_circle</span> Reintentar`;
+                                    return;
+                                }
+                            }
+
+                            if (finalUrl) {
                                 const video = document.getElementById('main-video-player');
 
                                 video.pause();
@@ -4189,9 +4232,7 @@ function renderCurrentView() {
                                         await screen.orientation.lock('landscape').catch(() => {});
                                     }
                                 } catch (e) { console.error('Error en pantalla completa/rotación:', e); }
-                            }
-
-                            } else if (stream.infoHash) {
+                            }                            } else if (stream.infoHash && !proxyUrl) {
                                 window.location.href = `magnet:?xt=urn:btih:${stream.infoHash}`;
                             }
                         };
@@ -5682,9 +5723,7 @@ function renderCurrentView() {
                         <option value="it">Italiano</option>
                     </select>
                 </div>
-            </div>
-
-            <div class="settings-card">
+            </div>            <div class="settings-card">
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div class="settings-icon-wrapper"><span class="material-icons" style="color: #7b2cbf; font-size: 1.4rem;">bolt</span></div>
@@ -5698,6 +5737,17 @@ function renderCurrentView() {
                         <div class="ios-toggle"></div>
                     </label>
                 </div>
+            </div>
+
+            <div class="settings-card" style="display: block;">
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+                    <div class="settings-icon-wrapper"><span class="material-icons" style="color: #9d4edd; font-size: 1.4rem;">anchor</span></div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 700; color: white; font-size: 1.05rem;">Torrent Proxy / Debrid</div>
+                        <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">URL para convertir Magnets a vídeo directo</div>
+                    </div>
+                </div>
+                <input type="text" id="torrentProxyInput" onchange="localStorage.setItem('torrentProxy', this.value)" class="modern-input" style="margin-bottom: 0;" placeholder="https://tu-servidor-proxy.com/api">
             </div>
 
             <div class="settings-card">
@@ -5842,10 +5892,11 @@ function renderCurrentView() {
                         if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;
 
                         const chkP2P = document.getElementById('p2pToggle');
-                        if(chkP2P) chkP2P.checked = isP2PEnabled;
-
-                        const langPicker = document.getElementById('cinemetaLangPicker');
+                        if(chkP2P) chkP2P.checked = isP2PEnabled;                        const langPicker = document.getElementById('cinemetaLangPicker');
                         if(langPicker) langPicker.value = localStorage.getItem('cinemetaLang') || 'es';
+
+                        const proxyInput = document.getElementById('torrentProxyInput');
+                        if(proxyInput) proxyInput.value = localStorage.getItem('torrentProxy') || '';
                     }, 200);
                 });
             </script>
