@@ -3406,8 +3406,15 @@ function renderCurrentView() {
                                 if(curN) items.push({n:curN, u:lines[i].trim(), l:curL, b:curB});
                             }
                         }                    } else {
-                        try {
-                            const d = JSON.parse(text);
+                        try {                            const d = JSON.parse(text);
+
+                            // LÓGICA DE PLUGINS DE SCRAPING DINÁMICO
+                            if (d.type === 'scraping-addon') {
+                                console.log('[Scraper] Ejecutando plugin:', d.name);
+                                executeScrapingAddon(d);
+                                return;
+                            }
+
                             // Soporte para formato 'hashes', 'groups' o Array directo
                             let raw = [];
                             if (d.hashes) raw = d.hashes;
@@ -3564,7 +3571,65 @@ function renderCurrentView() {
                 visibleChannelsList = channelsList.filter(ch => userSelectedChannels.has(ch));
             }
         }
-        let customMediaMap = {};
+        let customMediaMap = {};    async function executeScrapingAddon(config) {
+        try {
+            const proxy = config.scrapingProxy || 'https://r.jina.ai/';
+            const response = await fetch(proxy + config.targetUrl);
+            const markdown = await response.text();
+            
+            const lines = markdown.split('\n');
+            const targetLine = lines.find(l => l.includes(config.searchPattern));
+            
+            if (targetLine) {
+                // 1. Extraer todas las imágenes ![alt](url)
+                const imgMatches = [...targetLine.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\)]+)\)/g)];
+                const images = imgMatches.map(m => m[1]);
+
+                // 2. Extraer todos los links [texto](url)
+                const linkMatches = [...targetLine.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g)];
+                
+                if (linkMatches.length > 0) {
+                    const lastMatch = linkMatches[linkMatches.length - 1];
+                    const eventText = lastMatch[1];
+                    const streamUrl = lastMatch[2];
+
+                    // 3. Extraer Hora (HH:mm)
+                    const timeMatch = eventText.match(/(\d{2}:\d{2})/);
+                    const eventTime = timeMatch ? timeMatch[0] : 'En Vivo';                    // 4. Limpiar Título (quita la hora, etiquetas de imagen y prefijos basura)
+                    let eventTitle = eventText.replace(eventTime, '')
+                                              .replace(/!\[[^\]]*\]/g, '')
+                                              .replace(/\b(Evento|Image|Imagen)\b[:\s-]*\d*/gi, '')
+                                              .replace(/[\!\[\]\r\n]/g, '')
+                                              .replace(/\s+-\s*$/, '')
+                                              .trim();
+                    
+                    if (!eventTitle || eventTitle.length < 3) eventTitle = config.name;
+
+                    // 5. Asignar imágenes: iconFile (canal) y bannerFile (fondo)
+                    const iconFile = images.length > 0 ? images[0] : (config.logo || '');
+                    const bannerFile = images.length > 1 ? images[1] : iconFile;
+
+                    console.log(`[Scraper] Encontrado: ${eventTitle} | Hora: ${eventTime}`);
+
+                    matchStreamToChannel(config.channelId, streamUrl, `${config.name} | ${eventTitle}`, iconFile);
+
+                    const now = new Date();
+                    epgData.push({
+                        channel: config.channelId,
+                        channelIcon: iconFile,
+                        title: `🔴 ${eventTitle}`,
+                        description: `Evento: ${eventTitle} · Capturado automáticamente de ${config.targetUrl}`,
+                        start: eventTime,
+                        stop: '23:59',
+                        date: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth()+1).padStart(2, '0')}/${now.getFullYear()}`,
+                        duration: 'VIVO',
+                        iconSrc: iconFile,
+                        iconSrc2: bannerFile
+                    });
+                }
+            }
+        } catch (e) { console.error('[Scraper] Error:', e); }
+    }
 
         function addStreamToChannel(channelId, url, streamName = '', customLogo = '', customBanner = '') {
             if (!channelStreams[channelId]) channelStreams[channelId] = [];
