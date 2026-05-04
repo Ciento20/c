@@ -4643,10 +4643,11 @@ function renderCurrentView() {
                         setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
+                    }                    const sourceObj = sources[currentSourceIdx];
+                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
+                    if (streamUrl.includes('/ace/getstream?id=')) {
+                        streamUrl = streamUrl.replace('/ace/getstream?id=', '/ace/manifest.m3u8?id=');
                     }
-
-                    const sourceObj = sources[currentSourceIdx];
-                    const streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
