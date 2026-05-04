@@ -4646,13 +4646,12 @@ function renderCurrentView() {
                     }                    const sourceObj = sources[currentSourceIdx];                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');
-                    const container = document.getElementById('player-container');
-
-                    // Normalización de AceServe (Hash o URL Local)
+                    const container = document.getElementById('player-container');                    // Normalización de AceServe (Hash o URL Local)
                     let isAce = streamUrl.startsWith('acestream://') || streamUrl.includes('127.0.0.1:6878');
                     let finalStreamUrl = streamUrl;
 
                     if (isAce) {
+                        // Extraemos el hash de forma robusta como en la demo
                         const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0].split('id=').pop().trim();
                         finalStreamUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
                     }
@@ -4667,21 +4666,25 @@ function renderCurrentView() {
                     if (isAce) {
                         iframe.style.display = 'none';
                         video.style.display = 'block';
-                        console.log('[AceServe] Iniciando reproducción nativa:', finalStreamUrl);
+                        console.log('[AceServe] Sincronizando con lógica de demo:', finalStreamUrl);
 
                         if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
-                            window.hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                            // Usamos la configuración estándar de la demo para evitar el bucle de carga en local
+                            window.hls = new Hls(); 
                             window.hls.loadSource(finalStreamUrl);
                             window.hls.attachMedia(video);
                             window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                video.play();
-                                window.toggleAppFullscreen();
+                                video.play().catch(e => console.error('[AceServe] Error al iniciar reproducción:', e));
+                                // Pequeño delay de 500ms para asegurar la estabilidad del buffer antes de rotar
+                                setTimeout(() => window.toggleAppFullscreen(), 500);
                             });
                             window.hls.on(Hls.Events.ERROR, (event, data) => {
-                                if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                                    console.warn('[AceServe] Error de red. ¿Ace Serve está abierto?');
-                                    if (!streamUrl.includes('127.0.0.1')) window.location.href = streamUrl;
+                                if (data.fatal) {
+                                    console.warn('[AceServe] Error HLS Fatal:', data);
+                                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                        if (!streamUrl.includes('127.0.0.1')) window.location.href = streamUrl;
+                                    }
                                 }
                             });
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
