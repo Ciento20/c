@@ -13,7 +13,8 @@
         'streamSources','stremioAddons','epgSourceUrl',
         'userSelectedChannels','customChannelOrder',
         'userFavs','userMyList',
-        'continueWatching','videoProgress','watchedEps',        'onlyLiveEvents','isP2PEnabled','isAceNativeEnabled','hideNoImageEvents','hideNoVideoChannels',
+        'continueWatching','videoProgress','watchedEps',
+        'onlyLiveEvents','isP2PEnabled','hideNoImageEvents','hideNoVideoChannels',
         'customPrimaryColor'
     ];
 
@@ -2074,9 +2075,9 @@
             ));
         }let streamSources = JSON.parse(localStorage.getItem('streamSources') || '[]');
         let stremioAddons = JSON.parse(localStorage.getItem('stremioAddons') || '[]');
-        let currentMainView = 'home';        let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
+        let currentMainView = 'home';
+        let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
         let isP2PEnabled = localStorage.getItem('isP2PEnabled') === 'true';
-        let isAceNativeEnabled = localStorage.getItem('isAceNativeEnabled') === 'true';
         let hideNoImageEvents = localStorage.getItem('hideNoImageEvents') === 'true';
         let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';
 
@@ -4601,14 +4602,6 @@ function renderCurrentView() {
                     playBtn.click();
                 }
             };            if (sources.length > 0) {                playBtn.onclick = async () => {
-                    const sourceObj = sources[currentSourceIdx];
-                    const streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
-
-                    if (streamUrl.toLowerCase().startsWith('acestream:') && !isAceNativeEnabled) {
-                        window.location.href = streamUrl;
-                        return;
-                    }
-
                     const logoImg = modal.querySelector('.detail-channel-logo');
                     if (logoImg && logoImg.style.display !== 'none' && logoImg.src) {
                         const backdrop = document.createElement('div');
@@ -4650,47 +4643,62 @@ function renderCurrentView() {
                         setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
-                    }                    const video = document.getElementById('main-video-player');
+                    }
+
+                    const sourceObj = sources[currentSourceIdx];
+                    const streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
+                    const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
             document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
-                    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }                    if (streamUrl.toLowerCase().startsWith('acestream:')) {
-                        const hash = streamUrl.split(':').pop().replace('//', '').split(/[?&]/)[0].trim();
+                    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }                    if (streamUrl.startsWith('acestream://')) {
+                        const hash = streamUrl.replace('acestream://', '').trim();
+                        // Endpoint nativo de Ace Serve
                         const localManifest = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
                         
+                        const video = document.getElementById('main-video-player');
+                        const iframe = document.getElementById('main-web-player');
                         if (iframe) iframe.style.display = 'none';
                         video.style.display = 'block';
                         video.classList.remove('stremio-mode');
 
+                        console.log('[AceServe] Cargando flujo nativo:', hash);
+
                         if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
-                            window.hls = new Hls();
+                            window.hls = new Hls({ enableWorker: true, lowLatencyMode: true });
                             window.hls.loadSource(localManifest);
                             window.hls.attachMedia(video);
                             window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 if (window.toggleAppFullscreen) toggleAppFullscreen();
                             });
+                            // Fallback si Ace Serve no responde (motor apagado)
                             window.hls.on(Hls.Events.ERROR, (event, data) => {
-                                if (data.fatal) {
-                                    console.error('[AceServe] Error en reproductor nativo:', data);
+                                if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                    console.warn('[AceServe] Motor no detectado. Usando protocolo externo.');
+                                    window.location.href = streamUrl;
                                 }
                             });
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        } else {
                             video.src = localManifest;
-                            video.play();
+                            video.play().catch(() => window.location.href = streamUrl);
                         }
                         return;
+                    }                    let finalStreamUrl = streamUrl;
+                    if (finalStreamUrl.includes('127.0.0.1:6878/ace/getstream?id=')) {
+                        finalStreamUrl = finalStreamUrl.replace('/ace/getstream?id=', '/ace/manifest.m3u8?id=');
                     }
-
-                    const isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');                    if (isVideo) {
+                    const isVideo = finalStreamUrl.toLowerCase().includes('.m3u8') || finalStreamUrl.toLowerCase().includes('.mp4') || finalStreamUrl.toLowerCase().includes('.ts') || finalStreamUrl.includes('127.0.0.1:6878');
+                    
+                    if (isVideo) {
                         const fsBtn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
                         iframe.style.display = 'none';
                         video.style.display = 'block';
                         if (fsBtn) {
                             fsBtn.style.display = 'flex';
                             fsBtn.style.opacity = '0';
-                        }                        if (Hls.isSupported()) {
+                        }                        if (Hls.isSupported() && finalStreamUrl.toLowerCase().includes('.m3u8')) {
                             if (window.hls) window.hls.destroy();
                             
                             const fastSeekConfig = {
@@ -4705,18 +4713,21 @@ function renderCurrentView() {
                             };
 
                             window.hls = new Hls(fastSeekConfig);
-                            window.hls.loadSource(streamUrl);
+                            window.hls.loadSource(finalStreamUrl);
                             window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 toggleAppFullscreen();
                             });
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                            video.src = streamUrl;
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl') && finalStreamUrl.toLowerCase().includes('.m3u8')) {
+                            video.src = finalStreamUrl;
                             video.play().then(() => toggleAppFullscreen());
+                        } else {
+                            video.src = finalStreamUrl;
+                            video.play().then(() => toggleAppFullscreen()).catch(e => console.warn('Error en video fallback', e));
                         }                    } else {
                         video.style.display = 'none';
                         iframe.style.display = 'block';
-                        iframe.src = streamUrl;
+                        iframe.src = finalStreamUrl;
                         toggleAppFullscreen();
                     }
                 };
@@ -5848,22 +5859,6 @@ function renderCurrentView() {
                 </div>
             </div>
 
-            <div class="settings-card">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #a29bfe; font-size: 1.4rem;">settings_input_antenna</span></div>
-                        <div>
-                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Reproductor Ace Native</div>
-                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Usar motor local Ace Serve (Evitar App Externa)</div>
-                        </div>
-                    </div>
-                    <label style="margin: 0;">
-                        <input type="checkbox" id="aceNativeToggle" onchange="toggleAceNative(this.checked)" style="display: none;">
-                        <div class="ios-toggle"></div>
-                    </label>
-                </div>
-            </div>
-
             <div class="settings-card" style="display: block;">
                 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
                     <div class="settings-icon-wrapper"><span class="material-icons" style="color: #9d4edd; font-size: 1.4rem;">anchor</span></div>
@@ -5967,14 +5962,11 @@ function renderCurrentView() {
                 function toggleNoVideoFilter(isToggled) {
                     hideNoVideoChannels = isToggled;
                     localStorage.setItem('hideNoVideoChannels', isToggled);
-                }                function toggleP2P(isToggled) {
-                    isP2PEnabled = isToggled;
-                    localStorage.setItem('isP2PEnabled', isToggled);
                 }
 
-                function toggleAceNative(isToggled) {
-                    isAceNativeEnabled = isToggled;
-                    localStorage.setItem('isAceNativeEnabled', isToggled);
+                function toggleP2P(isToggled) {
+                    isP2PEnabled = isToggled;
+                    localStorage.setItem('isP2PEnabled', isToggled);
                 }
 
                 function changeCinemetaLang(lang) {
@@ -6017,13 +6009,10 @@ function renderCurrentView() {
                         if(chkNoImage) chkNoImage.checked = hideNoImageEvents;
 
                         const chkNoVideo = document.getElementById('noVideoToggle');
-                        if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;                        const chkP2P = document.getElementById('p2pToggle');
-                        if(chkP2P) chkP2P.checked = isP2PEnabled;
+                        if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;
 
-                        const chkAceNative = document.getElementById('aceNativeToggle');
-                        if(chkAceNative) chkAceNative.checked = isAceNativeEnabled;
-
-                        const langPicker = document.getElementById('cinemetaLangPicker');
+                        const chkP2P = document.getElementById('p2pToggle');
+                        if(chkP2P) chkP2P.checked = isP2PEnabled;                        const langPicker = document.getElementById('cinemetaLangPicker');
                         if(langPicker) langPicker.value = localStorage.getItem('cinemetaLang') || 'es';
 
                         const proxyInput = document.getElementById('torrentProxyInput');
