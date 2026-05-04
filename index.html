@@ -3383,25 +3383,6 @@ function renderCurrentView() {
             channelStreams = {};
             console.log("Cargando listas optimizadas...");
 
-            // Integración de la lista autoactualizable de Ace Serve
-            try {
-                const aceRes = await fetch('http://127.0.0.1:6878/pl.m3u');
-                if (aceRes.ok) {
-                    const text = await aceRes.text();
-                    const lines = text.split('\n');
-                    let curN = '';
-                    for (let i = 0; i < lines.length; i++) {
-                        if (lines[i].startsWith('#EXTINF')) {
-                            const m = lines[i].match(/,(.+)$/);
-                            curN = m ? m[1].trim() : '';
-                        } else if (lines[i].trim() && !lines[i].startsWith('#')) {
-                            if (curN) matchStreamToChannel(curN, lines[i].trim(), `AceServe | ${curN}`, '');
-                        }
-                    }
-                    console.log('[AceServe] Canales locales sincronizados ✓');
-                }
-            } catch (e) { console.log('[AceServe] Motor local no detectado en el inicio.'); }
-
             const disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
             const activeSources = streamSources.filter(url => !disabled.includes(url));
 
@@ -4643,58 +4624,32 @@ function renderCurrentView() {
                         setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
-                    }                    const sourceObj = sources[currentSourceIdx];                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
+                    }                    const sourceObj = sources[currentSourceIdx];
+                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
-                    const iframe = document.getElementById('main-web-player');
-                    const container = document.getElementById('player-container');                    // Normalización de AceServe (Hash o URL Local)
-                    let isAce = streamUrl.startsWith('acestream://') || streamUrl.includes('127.0.0.1:6878');
-                    let finalStreamUrl = streamUrl;
-
-                    if (isAce) {
-                        // Extraemos el hash de forma robusta como en la demo
-                        const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0].split('id=').pop().trim();
-                        finalStreamUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
-                    }
-
-                    video.classList.remove('stremio-mode');
-                    video.controls = true;
-                    document.getElementById('playerControls').style.display = 'none';
-
-                    if (video) { video.pause(); video.removeAttribute('src'); video.load(); video.style.display = 'none'; }
+                    const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
+            video.controls = true;
+            document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
-                    if (isAce) {
-                        iframe.style.display = 'none';
-                        video.style.display = 'block';
-                        console.log('[AceServe] Sincronizando con lógica de demo:', finalStreamUrl);
+                    let isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');
 
-                        if (Hls.isSupported()) {
-                            if (window.hls) window.hls.destroy();
-                            // Usamos la configuración estándar de la demo para evitar el bucle de carga en local
-                            window.hls = new Hls(); 
-                            window.hls.loadSource(finalStreamUrl);
-                            window.hls.attachMedia(video);
-                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                video.play().catch(e => console.error('[AceServe] Error al iniciar reproducción:', e));
-                                // Pequeño delay de 500ms para asegurar la estabilidad del buffer antes de rotar
-                                setTimeout(() => window.toggleAppFullscreen(), 500);
-                            });
-                            window.hls.on(Hls.Events.ERROR, (event, data) => {
-                                if (data.fatal) {
-                                    console.warn('[AceServe] Error HLS Fatal:', data);
-                                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                                        if (!streamUrl.includes('127.0.0.1')) window.location.href = streamUrl;
-                                    }
-                                }
-                            });
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                            video.src = finalStreamUrl;
-                            video.play();
+                    if (streamUrl.startsWith('acestream://')) {
+                        if (localStorage.getItem('useAceServe') === 'true') {
+                            const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0];
+                            if (hash.length === 40) {
+                                streamUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
+                                isVideo = true;
+                            } else {
+                                window.location.href = streamUrl;
+                                return;
+                            }
+                        } else {
+                            window.location.href = streamUrl;
+                            return;
                         }
-                        return;
                     }
-                    const isVideo = finalStreamUrl.toLowerCase().includes('.m3u8') || finalStreamUrl.toLowerCase().includes('.mp4') || finalStreamUrl.toLowerCase().includes('.ts') || finalStreamUrl.includes('127.0.0.1:6878');
-                    
+
                     if (isVideo) {
                         const fsBtn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
                         iframe.style.display = 'none';
@@ -4702,7 +4657,7 @@ function renderCurrentView() {
                         if (fsBtn) {
                             fsBtn.style.display = 'flex';
                             fsBtn.style.opacity = '0';
-                        }                        if (Hls.isSupported() && finalStreamUrl.toLowerCase().includes('.m3u8')) {
+                        }                        if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
                             
                             const fastSeekConfig = {
@@ -4717,21 +4672,18 @@ function renderCurrentView() {
                             };
 
                             window.hls = new Hls(fastSeekConfig);
-                            window.hls.loadSource(finalStreamUrl);
+                            window.hls.loadSource(streamUrl);
                             window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 toggleAppFullscreen();
                             });
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl') && finalStreamUrl.toLowerCase().includes('.m3u8')) {
-                            video.src = finalStreamUrl;
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = streamUrl;
                             video.play().then(() => toggleAppFullscreen());
-                        } else {
-                            video.src = finalStreamUrl;
-                            video.play().then(() => toggleAppFullscreen()).catch(e => console.warn('Error en video fallback', e));
                         }                    } else {
                         video.style.display = 'none';
                         iframe.style.display = 'block';
-                        iframe.src = finalStreamUrl;
+                        iframe.src = streamUrl;
                         toggleAppFullscreen();
                     }
                 };
@@ -5863,6 +5815,22 @@ function renderCurrentView() {
                 </div>
             </div>
 
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: #00e5ff; font-size: 1.4rem;">dns</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Motor Ace Serve Local</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Reproducir Acestream en el navegador (Req. AceStream)</div>
+                        </div>
+                    </div>
+                    <label style="margin: 0;">
+                        <input type="checkbox" id="aceServeToggle" onchange="localStorage.setItem('useAceServe', this.checked)" style="display: none;">
+                        <div class="ios-toggle"></div>
+                    </label>
+                </div>
+            </div>
+
             <div class="settings-card" style="display: block;">
                 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
                     <div class="settings-icon-wrapper"><span class="material-icons" style="color: #9d4edd; font-size: 1.4rem;">anchor</span></div>
@@ -6013,10 +5981,9 @@ function renderCurrentView() {
                         if(chkNoImage) chkNoImage.checked = hideNoImageEvents;
 
                         const chkNoVideo = document.getElementById('noVideoToggle');
-                        if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;
-
-                        const chkP2P = document.getElementById('p2pToggle');
-                        if(chkP2P) chkP2P.checked = isP2PEnabled;                        const langPicker = document.getElementById('cinemetaLangPicker');
+                        if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;                        const chkP2P = document.getElementById('p2pToggle');
+                        if(chkP2P) chkP2P.checked = isP2PEnabled;                        const chkAce = document.getElementById('aceServeToggle');
+                        if(chkAce) chkAce.checked = localStorage.getItem('useAceServe') === 'true';                        const langPicker = document.getElementById('cinemetaLangPicker');
                         if(langPicker) langPicker.value = localStorage.getItem('cinemetaLang') || 'es';
 
                         const proxyInput = document.getElementById('torrentProxyInput');
