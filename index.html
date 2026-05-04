@@ -4643,52 +4643,52 @@ function renderCurrentView() {
                         setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
-                    }                    const sourceObj = sources[currentSourceIdx];
-                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
-                    if (streamUrl.includes('/ace/getstream?id=')) {
-                        streamUrl = streamUrl.replace('/ace/getstream?id=', '/ace/manifest.m3u8?id=');
-                    }
+                    }                    const sourceObj = sources[currentSourceIdx];                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
-                    const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
-            video.controls = true;
-            document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
-                    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }                    if (streamUrl.startsWith('acestream://')) {
-                        const hash = streamUrl.replace('acestream://', '').trim();
-                        // Endpoint nativo de Ace Serve
-                        const localManifest = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
-                        
-                        const video = document.getElementById('main-video-player');
-                        const iframe = document.getElementById('main-web-player');
-                        if (iframe) iframe.style.display = 'none';
-                        video.style.display = 'block';
-                        video.classList.remove('stremio-mode');
+                    const iframe = document.getElementById('main-web-player');
+                    const container = document.getElementById('player-container');
 
-                        console.log('[AceServe] Cargando flujo nativo:', hash);
+                    // Normalización de AceServe (Hash o URL Local)
+                    let isAce = streamUrl.startsWith('acestream://') || streamUrl.includes('127.0.0.1:6878');
+                    let finalStreamUrl = streamUrl;
+
+                    if (isAce) {
+                        const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0].split('id=').pop().trim();
+                        finalStreamUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
+                    }
+
+                    video.classList.remove('stremio-mode');
+                    video.controls = true;
+                    document.getElementById('playerControls').style.display = 'none';
+
+                    if (video) { video.pause(); video.removeAttribute('src'); video.load(); video.style.display = 'none'; }
+                    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+
+                    if (isAce) {
+                        iframe.style.display = 'none';
+                        video.style.display = 'block';
+                        console.log('[AceServe] Iniciando reproducción nativa:', finalStreamUrl);
 
                         if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
                             window.hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-                            window.hls.loadSource(localManifest);
+                            window.hls.loadSource(finalStreamUrl);
                             window.hls.attachMedia(video);
                             window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
-                                if (window.toggleAppFullscreen) toggleAppFullscreen();
+                                window.toggleAppFullscreen();
                             });
-                            // Fallback si Ace Serve no responde (motor apagado)
                             window.hls.on(Hls.Events.ERROR, (event, data) => {
                                 if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                                    console.warn('[AceServe] Motor no detectado. Usando protocolo externo.');
-                                    window.location.href = streamUrl;
+                                    console.warn('[AceServe] Error de red. ¿Ace Serve está abierto?');
+                                    if (!streamUrl.includes('127.0.0.1')) window.location.href = streamUrl;
                                 }
                             });
-                        } else {
-                            video.src = localManifest;
-                            video.play().catch(() => window.location.href = streamUrl);
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = finalStreamUrl;
+                            video.play();
                         }
                         return;
-                    }                    let finalStreamUrl = streamUrl;
-                    if (finalStreamUrl.includes('127.0.0.1:6878/ace/getstream?id=')) {
-                        finalStreamUrl = finalStreamUrl.replace('/ace/getstream?id=', '/ace/manifest.m3u8?id=');
                     }
                     const isVideo = finalStreamUrl.toLowerCase().includes('.m3u8') || finalStreamUrl.toLowerCase().includes('.mp4') || finalStreamUrl.toLowerCase().includes('.ts') || finalStreamUrl.includes('127.0.0.1:6878');
                     
