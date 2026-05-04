@@ -4647,15 +4647,15 @@ function renderCurrentView() {
                             video.removeEventListener('playing', removeBlackoutTV);
                         };
                         video.addEventListener('playing', removeBlackoutTV);
-                        setTimeout(removeBlackoutTV, 4000);                        await new Promise(r => setTimeout(r, 1400));
-                    }
+                        setTimeout(removeBlackoutTV, 4000);
 
-                    const video = document.getElementById('main-video-player');
+                        await new Promise(r => setTimeout(r, 1400));
+                    }                    const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
             document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }                    if (streamUrl.toLowerCase().startsWith('acestream:')) {
-                        const hash = streamUrl.split(':').pop().replace('//', '').trim();
+                        const hash = streamUrl.split(':').pop().replace('//', '').split(/[?&]/)[0].trim();
                         const localManifest = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
                         
                         if (iframe) iframe.style.display = 'none';
@@ -4664,22 +4664,21 @@ function renderCurrentView() {
 
                         if (Hls.isSupported()) {
                             if (window.hls) window.hls.destroy();
-                            window.hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                            window.hls = new Hls();
                             window.hls.loadSource(localManifest);
                             window.hls.attachMedia(video);
                             window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 if (window.toggleAppFullscreen) toggleAppFullscreen();
                             });
-                            // Quitamos el fallback externo para evitar que se abra la app al mismo tiempo que el reproductor web
                             window.hls.on(Hls.Events.ERROR, (event, data) => {
                                 if (data.fatal) {
-                                    console.warn('[AceServe] Error en el motor local.', data);
+                                    console.error('[AceServe] Error en reproductor nativo:', data);
                                 }
                             });
-                        } else {
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                             video.src = localManifest;
-                            video.play().catch(e => console.warn('No se pudo reproducir el flujo local', e));
+                            video.play();
                         }
                         return;
                     }
@@ -6022,7 +6021,9 @@ function renderCurrentView() {
                         if(chkP2P) chkP2P.checked = isP2PEnabled;
 
                         const chkAceNative = document.getElementById('aceNativeToggle');
-                        if(chkAceNative) chkAceNative.checked = isAceNativeEnabled;                        const langPicker = document.getElementById('cinemetaLangPicker');
+                        if(chkAceNative) chkAceNative.checked = isAceNativeEnabled;
+
+                        const langPicker = document.getElementById('cinemetaLangPicker');
                         if(langPicker) langPicker.value = localStorage.getItem('cinemetaLang') || 'es';
 
                         const proxyInput = document.getElementById('torrentProxyInput');
