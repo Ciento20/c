@@ -4671,14 +4671,15 @@ function renderCurrentView() {
                                 video.play();
                                 if (window.toggleAppFullscreen) toggleAppFullscreen();
                             });
+                            // Quitamos el fallback externo para evitar que se abra la app al mismo tiempo que el reproductor web
                             window.hls.on(Hls.Events.ERROR, (event, data) => {
-                                if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                                    window.location.href = streamUrl;
+                                if (data.fatal) {
+                                    console.warn('[AceServe] Error en el motor local.', data);
                                 }
                             });
                         } else {
                             video.src = localManifest;
-                            video.play().catch(() => window.location.href = streamUrl);
+                            video.play().catch(e => console.warn('No se pudo reproducir el flujo local', e));
                         }
                         return;
                     }
