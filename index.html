@@ -4574,15 +4574,43 @@ function renderCurrentView() {
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
-
+            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.hasManualSourceSelection = false;
             window.changeSource = (idx, cid) => {
+                window.hasManualSourceSelection = true;
                 currentSourceIdx = idx;
                 document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
                 }
-            };            if (sources.length > 0) {                playBtn.onclick = async () => {
+            };
+
+            if (sources.length > 0) {
+                playBtn.onclick = async () => {
+                    let sourceObj = sources[currentSourceIdx];
+
+                    if (!window.hasManualSourceSelection && sources.length > 1) {
+                        const originalHtml = playBtn.innerHTML;
+                        playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite;">sync</span> Buscando mejor señal...`;
+                        try {
+                            const fastest = await Promise.any(sources.map(async (s) => {
+                                const url = typeof s === 'string' ? s : s.url;
+                                let testUrl = url;
+                                if (url.startsWith('acestream://')) {
+                                    if (localStorage.getItem('useAceServe') !== 'true') throw new Error();
+                                    const hash = url.replace('acestream://', '').split(/[?&]/)[0];
+                                    testUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
+                                }
+                                await fetch(testUrl, { method: 'HEAD', mode: 'no-cors' });
+                                return s;
+                            }));
+                            sourceObj = fastest;
+                            currentSourceIdx = sources.indexOf(fastest);
+                            document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === currentSourceIdx));
+                        } catch (e) { 
+                            sourceObj = sources[currentSourceIdx]; 
+                        }
+                        playBtn.innerHTML = originalHtml;
+                    }
                     const logoImg = modal.querySelector('.detail-channel-logo');
                     if (logoImg && logoImg.style.display !== 'none' && logoImg.src) {
                         const backdrop = document.createElement('div');
@@ -4624,8 +4652,7 @@ function renderCurrentView() {
                         setTimeout(removeBlackoutTV, 4000);
 
                         await new Promise(r => setTimeout(r, 1400));
-                    }                    const sourceObj = sources[currentSourceIdx];
-                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
+                    }                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
                     const video = document.getElementById('main-video-player');
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
