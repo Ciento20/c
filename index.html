@@ -4632,23 +4632,27 @@ function renderCurrentView() {
             document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
 
-                    let isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');
-
-                    if (streamUrl.startsWith('acestream://')) {
-                        if (localStorage.getItem('useAceServe') === 'true') {
-                            const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0];
-                            if (hash.length === 40) {
-                                streamUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
-                                isVideo = true;
-                            } else {
-                                window.location.href = streamUrl;
-                                return;
+                    let isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');                            if (streamUrl.startsWith('acestream://')) {
+                                if (localStorage.getItem('useAceServe') === 'true') {
+                                    const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0];
+                                    if (hash.length === 40) {
+                                        // Comprobación de estado del motor sin reenvío de hash
+                                        fetch('http://127.0.0.1:6878/webui/api/service?method=get_version', { mode: 'no-cors' })
+                                            .catch(() => {
+                                                showFbToast('🚀 Iniciando motor AceStream...', 'var(--primary)');
+                                                window.location.href = 'acestream://'; // Arranca el motor pero no el hash
+                                            });
+                                        streamUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
+                                        isVideo = true;
+                                    } else {
+                                        window.location.href = streamUrl;
+                                        return;
+                                    }
+                                } else {
+                                    window.location.href = streamUrl;
+                                    return;
+                                }
                             }
-                        } else {
-                            window.location.href = streamUrl;
-                            return;
-                        }
-                    }
 
                     if (isVideo) {
                         const fsBtn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
