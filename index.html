@@ -4409,9 +4409,8 @@ function renderCurrentView() {
                 playBtn.style.color = '#777';
                 playBtn.innerHTML = "Error al cargar información";
             }
-        }
-
-        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+        }        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+            window.hasManualSourceSelection = false; // Reset cada vez que abres un canal
             const epgBlock = document.getElementById('epg-status-block');
             const vodBlock = document.getElementById('vod-title-block');
             if(epgBlock) epgBlock.style.display = 'flex';
@@ -4574,41 +4573,46 @@ function renderCurrentView() {
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.hasManualSourceSelection = false;
-            window.changeSource = (idx, cid) => {
+            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.changeSource = (idx, cid) => {
                 window.hasManualSourceSelection = true;
                 currentSourceIdx = idx;
                 document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
                 }
-            };            if (sources.length > 0) {                playBtn.onclick = async () => {
-                    // Lógica de selección automática para AceServe
+            };            if (sources.length > 0) {
+                playBtn.onclick = async () => {
+                    // CARRERA DE VELOCIDAD PARA ACESTREAM
                     if (!window.hasManualSourceSelection && sources.length > 1 && localStorage.getItem('useAceServe') === 'true') {
-                        const originalText = playBtn.innerHTML;
-                        playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite;">sync</span> Probando mejor señal AceServe...`;
-                        
+                        const originalHtml = playBtn.innerHTML;
+                        playBtn.disabled = true;
+                        playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite;">sync</span> Buscando señal rápida...`;
+
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 3000); // Máximo 3 segundos de espera
+
                         try {
-                            const fastestSource = await Promise.any(sources.map(async (s) => {
+                            const winner = await Promise.any(sources.map(async (s, i) => {
                                 const url = typeof s === 'string' ? s : s.url;
                                 if (!url.startsWith('acestream://')) throw new Error();
                                 
                                 const hash = url.replace('acestream://', '').split(/[?&]/)[0];
                                 const testUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
                                 
-                                // Probamos cuál responde antes
-                                const resp = await fetch(testUrl, { method: 'HEAD', mode: 'no-cors' });
-                                return s;
+                                await fetch(testUrl, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
+                                return i;
                             }));
-                            
-                            if (fastestSource) {
-                                currentSourceIdx = sources.indexOf(fastestSource);
-                                document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === currentSourceIdx));
-                            }
-                        } catch (e) { 
-                            console.log('Usando fuente por defecto');
+                            currentSourceIdx = winner;
+                        } catch (e) {
+                            console.log("Race fallida o timeout, usando enlace 1");
+                            currentSourceIdx = 0;
+                        } finally {
+                            clearTimeout(timeoutId);
+                            playBtn.disabled = false;
+                            playBtn.innerHTML = originalHtml;
+                            // Marcar visualmente la pill ganadora
+                            document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === currentSourceIdx));
                         }
-                        playBtn.innerHTML = originalText;
                     }
 
                     const logoImg = modal.querySelector('.detail-channel-logo');
