@@ -4679,6 +4679,13 @@ function renderCurrentView() {
             const sources = channelStreams[channelId] || [];
             let currentSourceIdx = 0;
 
+            const savedSourcePrefs = JSON.parse(localStorage.getItem('channelSourcePrefs') || '{}');
+            if (savedSourcePrefs[channelId]) {
+                const savedUrl = savedSourcePrefs[channelId];
+                const foundIdx = sources.findIndex(s => (typeof s === 'string' ? s : s.url) === savedUrl);
+                if (foundIdx !== -1) currentSourceIdx = foundIdx;
+            }
+
             let selectorHtml = '';
             if (sources.length > 0) {
                 selectorHtml = '<div class="source-selector" style="width: 100%; margin-bottom: 15px;">';
@@ -4687,32 +4694,58 @@ function renderCurrentView() {
                     const rawInfo = typeof sourceObj === 'string' ? `ENLACE ${i+1}` : sourceObj.info;                    const qualityMatch = rawInfo.match(/4K|2160p|1080p|720p|SD/i)?.[0] || 'HD';
                     const quality = qualityMatch.toUpperCase();
                     const lang = rawInfo.match(/ES|EN|LAT|VOSE|Castellano/i)?.[0] || 'ES';
-                    const provider = rawInfo.split('|').length > 1 ? rawInfo.split('|').pop().trim() : `Señal ${i+1}`;
-
-                    const isAce = url.startsWith('acestream://');                    let qIcon = 'high_quality';
+                    const provider = rawInfo.split('|').length > 1 ? rawInfo.split('|').pop().trim() : `Señal ${i+1}`;                    const isAce = url.startsWith('acestream://');                    let qIcon = 'high_quality';
                     if(quality === '4K' || quality === '2160P') qIcon = '4k';
                     else if(quality === '1080P') qIcon = 'full_hd';
                     else if(quality === '720P') qIcon = 'hd';
                     else if(quality === 'SD') qIcon = 'sd';
 
+                    let ratingHtml = '';
+                    if (isAce) {
+                        const ratings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
+                        const hash = url.replace('acestream://', '').split(/[?&]/)[0];
+                        const rData = ratings[hash] || { score: 0, plays: 0 };
+                        if (rData.plays > 0) {                            const seconds = rData.score;
+                            let rColor, rIcon, rLabel;
+                            
+                            if (seconds === 0) { rColor = '#ff4d4d'; rIcon = 'error'; rLabel = 'No funciona'; }
+                            else if (seconds < 300) { rColor = '#e67e22'; rIcon = 'hourglass_empty'; rLabel = 'Breve (< 5m)'; }
+                            else if (seconds < 600) { rColor = '#f1c40f'; rIcon = 'timer'; rLabel = 'Corto (5-10m)'; }
+                            else if (seconds < 1500) { rColor = '#3498db'; rIcon = 'play_circle_filled'; rLabel = 'Medio (10-25m)'; }
+                            else if (seconds < 3000) { rColor = '#2ecc71'; rIcon = 'verified'; rLabel = 'Largo (25-50m)'; }
+                            else { rColor = '#9b59b6'; rIcon = 'workspace_premium'; rLabel = 'Full (> 50m)'; }
+
+                            ratingHtml = `<div style="font-size: 0.55rem; color: ${rColor}; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:4px; font-weight:800; background:rgba(0,0,0,0.2); padding:3px 6px; border-radius:4px;"><span class="material-icons" style="font-size:0.7rem;">${rIcon}</span> ${rLabel}</div>`;
+                        } else {
+                            ratingHtml = `<div style="font-size: 0.55rem; color: #888; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:4px; font-weight:600;"><span class="material-icons" style="font-size:0.7rem;">help_outline</span> Sin probar</div>`;
+                        }
+                    }
+
                     selectorHtml += `
-                        <div class="source-pill ${i === 0 ? 'active' : ''}"
+                        <div class="source-pill ${i === currentSourceIdx ? 'active' : ''}"
                              style="${isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15);' : ''}"
                              onclick="window.changeSource(${i}, '${channelId}')">
-                            <div class="source-pill-title" style="display:flex; align-items:center; gap:4px;">
+                            <div class="source-pill-title" style="display:flex; align-items:center; gap:4px; justify-content:center;">
                                 ${isAce ? '<span class="material-symbols-outlined" style="font-size: 1rem; color:#9d4edd;">bolt</span>' : ''}
                                 <span class="material-symbols-outlined" style="font-size: 1.6rem;">${qIcon}</span>
                             </div>
-                            <div class="source-pill-meta">${lang} • ${provider}</div>
+                            <div class="source-pill-meta" style="text-align:center;">${lang} • ${provider}</div>
+                            ${ratingHtml}
                         </div>`;
                 });
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
-
-            window.changeSource = (idx, cid) => {
+            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.changeSource = (idx, cid) => {
                 currentSourceIdx = idx;
+
+                const srcList = channelStreams[cid] || [];
+                if (srcList[idx]) {
+                    const savedSourcePrefs = JSON.parse(localStorage.getItem('channelSourcePrefs') || '{}');
+                    savedSourcePrefs[cid] = typeof srcList[idx] === 'string' ? srcList[idx] : srcList[idx].url;
+                    localStorage.setItem('channelSourcePrefs', JSON.stringify(savedSourcePrefs));
+                }
+
                 document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
@@ -4766,6 +4799,25 @@ function renderCurrentView() {
             video.controls = true;
             document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+
+                    if (window.aceRatingInterval) clearInterval(window.aceRatingInterval);
+                    if (streamUrl.startsWith('acestream://')) {
+                        const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0];
+                        const ratings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
+                        if (!ratings[hash]) ratings[hash] = { score: 0, plays: 0 };
+                        ratings[hash].plays += 1;
+                        localStorage.setItem('aceRatings', JSON.stringify(ratings));
+                        
+                        window.aceRatingInterval = setInterval(() => {
+                            if (video && video.style.display === 'block' && !video.paused && video.readyState > 2) {
+                                const currentRatings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
+                                if (!currentRatings[hash]) currentRatings[hash] = { score: 0, plays: 1 };
+                                // Sumamos 5 segundos reales de visualización efectiva
+                                currentRatings[hash].score += 5;
+                                localStorage.setItem('aceRatings', JSON.stringify(currentRatings));
+                            }
+                        }, 5000);
+                    }
 
                     let isVideo = streamUrl.toLowerCase().includes('.m3u8') || streamUrl.toLowerCase().includes('.mp4') || streamUrl.toLowerCase().includes('.ts');                            if (streamUrl.startsWith('acestream://')) {
                                 if (localStorage.getItem('useAceServe') === 'true') {
@@ -5205,9 +5257,8 @@ function renderCurrentView() {
                 } catch (error) {
                     console.warn("PiP nativo no disponible:", error);
                 }
-            }
-
-            // Lógica de cierre normal (Si no hay video o falla el PiP)
+            }            // Lógica de cierre normal (Si no hay video o falla el PiP)
+            if (window.aceRatingInterval) clearInterval(window.aceRatingInterval);
             const epgView = document.getElementById('epg-view-content');
             const epgHeader = document.querySelector('.detail-header-fixed');
             const vodView = document.getElementById('vod-view-content');
