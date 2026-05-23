@@ -1638,6 +1638,141 @@
                 opacity: 1; 
                 border-radius: 0;
             }
+        }
+
+        /* =====================================================
+           MODAL EN LANDSCAPE — ventana flotante centrada
+           Grid: topbar (fila 1) | imagen/player + info (fila 2)
+           ===================================================== */
+        @keyframes detailLandscapePop {
+            from { transform: scale(0.93); opacity: 0; }
+            to   { transform: scale(1);    opacity: 1; }
+        }
+
+        @media (orientation: landscape) and (min-width: 600px) {
+
+            /* Overlay oscuro semitransparente, centra la ventana */
+            #programDetailModal.detail-overlay {
+                background: rgba(0, 0, 0, 0.80);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                align-items: center;
+                justify-content: center;
+                padding: 12px;
+            }
+
+            /* Ventana flotante con grid de 3 áreas:
+               topbar | imagen | info  (en columnas) */
+            #programDetailModal .detail-content {
+                width: 90vw;
+                max-width: 920px;
+                height: 80vh;
+                max-height: 580px;
+                border-radius: 18px;
+                border: 1px solid rgba(255,255,255,0.1);
+                box-shadow: 0 30px 80px rgba(0,0,0,0.95);
+                overflow: hidden;
+                animation: detailLandscapePop 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+
+                /* Grid: topbar ocupa columnas 1+2; fila 2 → imagen | info */
+                display: grid;
+                grid-template-rows: 48px 1fr;
+                grid-template-columns: 54% 46%;
+                grid-template-areas:
+                    "topbar  topbar"
+                    "player  info";
+            }
+
+            /* ── Barra superior ── */
+            #programDetailModal .detail-content > div:first-child {
+                grid-area: topbar;
+                padding: 8px 14px;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+                background: var(--bg-deep);
+                z-index: 10;
+            }
+
+            /* ── Área imagen / player ── */
+            #programDetailModal .detail-bg {
+                grid-area: player;
+                width: 100%;
+                height: 100%;
+                aspect-ratio: unset;          /* cancela el 16/9 del portrait */
+                background-size: cover;
+                background-position: center;
+                border-radius: 0 0 0 18px;
+                overflow: hidden;
+                position: relative;           /* necesario para video/iframe absolute dentro */
+            }
+
+            /* El ::after del detail-bg (gradiente) ya es relativo al padre, OK */
+
+            /* ── Panel info derecho ── */
+            #programDetailModal .detail-body {
+                grid-area: info;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                border-left: 1px solid rgba(255,255,255,0.06);
+                background: #0a0a0a;
+                border-radius: 0 0 18px 0;
+            }
+
+            /* Padding compacto en header, scroll y footer */
+            #programDetailModal .detail-header-fixed {
+                padding: 10px 14px 6px 14px;
+                background: #0a0a0a;
+            }
+
+            #programDetailModal .detail-scroll-content {
+                padding: 6px 14px 10px 14px;
+            }
+
+            #programDetailModal .detail-footer-fixed {
+                padding: 8px 14px 14px 14px;
+                background: #0a0a0a;
+            }
+
+            /* Botón más compacto */
+            #programDetailModal .detail-play-btn {
+                padding: 10px 14px;
+                font-size: 0.87rem;
+                margin-top: 8px;
+                border-radius: 10px;
+            }
+
+            /* Descripción con clamp para no desbordar */
+            #programDetailModal .detail-desc {
+                font-size: 0.80rem;
+                margin-top: 6px;
+                display: -webkit-box;
+                -webkit-line-clamp: 4;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
+            #programDetailModal .detail-meta {
+                margin-top: 6px;
+                gap: 8px;
+            }
+
+            #programDetailModal .source-selector {
+                margin-top: 6px;
+                margin-bottom: 6px;
+            }
+
+            #programDetailModal .source-pill {
+                min-width: 76px;
+                padding: 4px 8px;
+            }
+        }
+
+        /* TV grande ≥1200px: ventana un poco más amplia */
+        @media (orientation: landscape) and (min-width: 1200px) {
+            #programDetailModal .detail-content {
+                max-width: 1080px;
+                max-height: 640px;
+            }
         }        .detail-bg {
             width: 100%;
             aspect-ratio: 16 / 9;
@@ -4409,8 +4544,9 @@ function renderCurrentView() {
                 playBtn.style.color = '#777';
                 playBtn.innerHTML = "Error al cargar información";
             }
-        }        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
-            window.hasManualSourceSelection = false; // Reset cada vez que abres un canal
+        }
+
+        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
             const epgBlock = document.getElementById('epg-status-block');
             const vodBlock = document.getElementById('vod-title-block');
             if(epgBlock) epgBlock.style.display = 'flex';
@@ -4573,48 +4709,15 @@ function renderCurrentView() {
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.changeSource = (idx, cid) => {
-                window.hasManualSourceSelection = true;
+            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);
+
+            window.changeSource = (idx, cid) => {
                 currentSourceIdx = idx;
                 document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === idx));
                 if (document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block') {
                     playBtn.click();
                 }
-            };            if (sources.length > 0) {
-                playBtn.onclick = async () => {
-                    // CARRERA DE VELOCIDAD PARA ACESTREAM
-                    if (!window.hasManualSourceSelection && sources.length > 1 && localStorage.getItem('useAceServe') === 'true') {
-                        const originalHtml = playBtn.innerHTML;
-                        playBtn.disabled = true;
-                        playBtn.innerHTML = `<span class="material-icons" style="animation:spin 1s linear infinite;">sync</span> Buscando señal rápida...`;
-
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 3000); // Máximo 3 segundos de espera
-
-                        try {
-                            const winner = await Promise.any(sources.map(async (s, i) => {
-                                const url = typeof s === 'string' ? s : s.url;
-                                if (!url.startsWith('acestream://')) throw new Error();
-                                
-                                const hash = url.replace('acestream://', '').split(/[?&]/)[0];
-                                const testUrl = `http://127.0.0.1:6878/ace/manifest.m3u8?id=${hash}`;
-                                
-                                await fetch(testUrl, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
-                                return i;
-                            }));
-                            currentSourceIdx = winner;
-                        } catch (e) {
-                            console.log("Race fallida o timeout, usando enlace 1");
-                            currentSourceIdx = 0;
-                        } finally {
-                            clearTimeout(timeoutId);
-                            playBtn.disabled = false;
-                            playBtn.innerHTML = originalHtml;
-                            // Marcar visualmente la pill ganadora
-                            document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === currentSourceIdx));
-                        }
-                    }
-
+            };            if (sources.length > 0) {                playBtn.onclick = async () => {
                     const logoImg = modal.querySelector('.detail-channel-logo');
                     if (logoImg && logoImg.style.display !== 'none' && logoImg.src) {
                         const backdrop = document.createElement('div');
