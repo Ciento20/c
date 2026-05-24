@@ -4698,9 +4698,7 @@ function renderCurrentView() {
                     if(quality === '4K' || quality === '2160P') qIcon = '4k';
                     else if(quality === '1080P') qIcon = 'full_hd';
                     else if(quality === '720P') qIcon = 'hd';
-                    else if(quality === 'SD') qIcon = 'sd';
-
-                    let ratingHtml = '';
+                    else if(quality === 'SD') qIcon = 'sd';                    let ratingHtml = '';
                     if (isAce) {
                         const ratings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
                         const hash = url.replace('acestream://', '').split(/[?&]/)[0];
@@ -4715,15 +4713,16 @@ function renderCurrentView() {
                             else if (seconds < 3000) { rColor = '#2ecc71'; rIcon = 'verified'; rLabel = 'Largo (25-50m)'; }
                             else { rColor = '#9b59b6'; rIcon = 'workspace_premium'; rLabel = 'Full (> 50m)'; }
 
-                            ratingHtml = `<div style="font-size: 0.55rem; color: ${rColor}; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:4px; font-weight:800; background:rgba(0,0,0,0.2); padding:3px 6px; border-radius:4px;"><span class="material-icons" style="font-size:0.7rem;">${rIcon}</span> ${rLabel}</div>`;
+                            ratingHtml = `<div class="ace-indicator" style="font-size: 0.55rem; color: ${rColor}; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:4px; font-weight:800; background:rgba(0,0,0,0.2); padding:3px 6px; border-radius:4px;"><span class="material-icons" style="font-size:0.7rem;">${rIcon}</span> <span class="ace-label">${rLabel}</span></div>`;
                         } else {
-                            ratingHtml = `<div style="font-size: 0.55rem; color: #888; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:4px; font-weight:600;"><span class="material-icons" style="font-size:0.7rem;">help_outline</span> Sin probar</div>`;
+                            ratingHtml = `<div class="ace-indicator" style="font-size: 0.55rem; color: #888; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:4px; font-weight:600;"><span class="material-icons" style="font-size:0.7rem;">help_outline</span> <span class="ace-label">Sin probar</span></div>`;
                         }
                     }
 
                     selectorHtml += `
                         <div class="source-pill ${i === currentSourceIdx ? 'active' : ''}"
                              style="${isAce ? 'border-color: #9d4edd; background: rgba(157, 78, 221, 0.15);' : ''}"
+                             data-hash="${isAce ? url.replace('acestream://', '').split(/[?&]/)[0] : ''}"
                              onclick="window.changeSource(${i}, '${channelId}')">
                             <div class="source-pill-title" style="display:flex; align-items:center; gap:4px; justify-content:center;">
                                 ${isAce ? '<span class="material-symbols-outlined" style="font-size: 1rem; color:#9d4edd;">bolt</span>' : ''}
@@ -4736,7 +4735,33 @@ function renderCurrentView() {
                 selectorHtml += '</div>';
             }            const existingSelector = modal.querySelector('.source-selector');
             if (existingSelector) existingSelector.remove();
-            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.changeSource = (idx, cid) => {
+            playBtn.parentElement.insertAdjacentHTML('beforebegin', selectorHtml);            window.refreshAceIndicators = () => {
+                const ratings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
+                document.querySelectorAll('.source-pill').forEach((pill) => {
+                    const hash = pill.getAttribute('data-hash');
+                    if (!hash) return;
+                    const rData = ratings[hash] || { score: 0, plays: 0 };
+                    const ind = pill.querySelector('.ace-indicator');
+                    if (!ind) return;
+                    if (rData.plays > 0) {
+                        const seconds = rData.score;
+                        let rColor, rIcon, rLabel;
+                        if (seconds === 0) { rColor = '#ff4d4d'; rIcon = 'error'; rLabel = 'No funciona'; }
+                        else if (seconds < 300) { rColor = '#e67e22'; rIcon = 'hourglass_empty'; rLabel = 'Breve (< 5m)'; }
+                        else if (seconds < 600) { rColor = '#f1c40f'; rIcon = 'timer'; rLabel = 'Corto (5-10m)'; }
+                        else if (seconds < 1500) { rColor = '#3498db'; rIcon = 'play_circle_filled'; rLabel = 'Medio (10-25m)'; }
+                        else if (seconds < 3000) { rColor = '#2ecc71'; rIcon = 'verified'; rLabel = 'Largo (25-50m)'; }
+                        else { rColor = '#9b59b6'; rIcon = 'workspace_premium'; rLabel = 'Full (> 50m)'; }
+                        ind.style.color = rColor;
+                        ind.innerHTML = `<span class="material-icons" style="font-size:0.7rem;">${rIcon}</span> <span class="ace-label">${rLabel}</span>`;
+                    } else {
+                        ind.style.color = '#888';
+                        ind.innerHTML = `<span class="material-icons" style="font-size:0.7rem;">help_outline</span> <span class="ace-label">Sin probar</span>`;
+                    }
+                });
+            };
+
+            window.changeSource = (idx, cid) => {
                 currentSourceIdx = idx;
 
                 const srcList = channelStreams[cid] || [];
@@ -4798,9 +4823,7 @@ function renderCurrentView() {
                     const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
             video.controls = true;
             document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
-                    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
-
-                    if (window.aceRatingInterval) clearInterval(window.aceRatingInterval);
+                    if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }                    if (window.aceRatingInterval) clearInterval(window.aceRatingInterval);
                     if (streamUrl.startsWith('acestream://')) {
                         const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0];
                         const ratings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
@@ -4808,6 +4831,8 @@ function renderCurrentView() {
                         ratings[hash].plays += 1;
                         localStorage.setItem('aceRatings', JSON.stringify(ratings));
                         
+                        if (typeof window.refreshAceIndicators === 'function') window.refreshAceIndicators();
+
                         window.aceRatingInterval = setInterval(() => {
                             if (video && video.style.display === 'block' && !video.paused && video.readyState > 2) {
                                 const currentRatings = JSON.parse(localStorage.getItem('aceRatings') || '{}');
@@ -4815,6 +4840,7 @@ function renderCurrentView() {
                                 // Sumamos 5 segundos reales de visualización efectiva
                                 currentRatings[hash].score += 5;
                                 localStorage.setItem('aceRatings', JSON.stringify(currentRatings));
+                                if (typeof window.refreshAceIndicators === 'function') window.refreshAceIndicators();
                             }
                         }, 5000);
                     }
@@ -4868,7 +4894,51 @@ function renderCurrentView() {
 
                             window.hls = new Hls(fastSeekConfig);
                             window.hls.loadSource(streamUrl);
-                            window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            window.hls.attachMedia(video);
+
+                            // --- AUTO-SKIP ACESTREAM: saltar al siguiente enlace si falla ---
+                            const isAceUrl = streamUrl.includes('127.0.0.1:6878/ace/');
+                            let aceConnectTimeout = null;
+                            let aceDidConnect = false;
+
+                            const _tryNextAceSource = () => {
+                                if (aceDidConnect) return;
+                                // Limpiar estado
+                                if (aceConnectTimeout) { clearTimeout(aceConnectTimeout); aceConnectTimeout = null; }
+                                const nextIdx = currentSourceIdx + 1;
+                                const nextSources = sources || [];
+                                if (nextIdx < nextSources.length) {
+                                    // Mostrar toast informativo
+                                    showFbToast(`⚡ Enlace ${currentSourceIdx + 1} sin señal → probando enlace ${nextIdx + 1}...`, '#e67e22');
+                                    // Resaltar visualmente la siguiente píldora
+                                    document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === nextIdx));
+                                    currentSourceIdx = nextIdx;
+                                    // Pequeña pausa antes de intentar el siguiente
+                                    setTimeout(() => { playBtn.click(); }, 800);
+                                } else {
+                                    showFbToast('❌ Ningún enlace disponible en este momento', '#ff4d4d');
+                                }
+                            };
+
+                            if (isAceUrl) {
+                                // Timeout de 18 segundos: si no hay señal, saltar
+                                aceConnectTimeout = setTimeout(() => {
+                                    if (!aceDidConnect) _tryNextAceSource();
+                                }, 18000);
+
+                                // Error de HLS → saltar inmediatamente
+                                window.hls.on(Hls.Events.ERROR, (event, data) => {
+                                    if (data.fatal && !aceDidConnect) {
+                                        clearTimeout(aceConnectTimeout);
+                                        setTimeout(_tryNextAceSource, 400);
+                                    }
+                                });
+                            }
+                            // --- FIN AUTO-SKIP ---
+
+                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                aceDidConnect = true;
+                                if (aceConnectTimeout) { clearTimeout(aceConnectTimeout); aceConnectTimeout = null; }
                                 video.play();
                                 toggleAppFullscreen();
                             });
