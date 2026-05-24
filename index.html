@@ -787,6 +787,90 @@
             border-color: var(--primary);
             filter: brightness(1.15);
             z-index: 10;
+        }
+
+        /* === TIEMPO REAL: badges y barra de progreso === */
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #e53935;
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            box-shadow: 0 0 12px rgba(229,57,53,0.7);
+            animation: livePulse 2s ease-in-out infinite;
+        }
+        .live-badge::before {
+            content: '';
+            width: 6px; height: 6px;
+            background: #fff;
+            border-radius: 50%;
+            animation: dotBlink 1s step-start infinite;
+            flex-shrink: 0;
+        }
+        @keyframes livePulse {
+            0%, 100% { box-shadow: 0 0 8px rgba(229,57,53,0.5); }
+            50% { box-shadow: 0 0 18px rgba(229,57,53,0.9); }
+        }
+        @keyframes dotBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .upcoming-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(var(--primary-rgb), 0.2);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            font-size: 0.6rem;
+            font-weight: 900;
+            letter-spacing: 1px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+        .past-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,255,255,0.05);
+            color: #666;
+            font-size: 0.6rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+        .realtime-progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 0 0 20px 20px;
+            overflow: hidden;
+            z-index: 5;
+        }
+        .realtime-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), rgba(var(--primary-rgb), 0.6));
+            border-radius: inherit;
+            transition: width 30s linear;
+        }
+        .program-card.is-live {
+            border-color: rgba(229,57,53,0.6) !important;
+        }
+        .program-card.is-past {
+            opacity: 0.55;
+            filter: grayscale(0.4);
         }                .channel-row-modern {
             background: var(--bg-surface);
             border-radius: 18px;
@@ -3374,6 +3458,10 @@ function renderCurrentView() {
                 const card = document.createElement('div');
                 card.className = 'program-card';
                 card.style.cursor = 'pointer';
+                // Guardar datos temporales para actualización en tiempo real
+                card.dataset.date = item.date;
+                card.dataset.start = item.start;
+                card.dataset.stop = item.stop;
                 card.onclick = (e) => {
                     if (!e.target.closest('.details-btn')) {
                         openProgramDetails(item.channel, item.start, item.date, true);
@@ -3397,6 +3485,7 @@ function renderCurrentView() {
                         <div class="title" style="font-size: 0.9rem; color: #fff; font-weight: 800; line-height: 1.1; text-shadow: 0 2px 4px rgba(0,0,0,1); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
                             ${processColoredText(item.title)}
                         </div>
+                        <div class="rt-badge-container" style="margin-top: 4px;"></div>
                     </div>
                 </div>
                 ${item.channelIcon ? `
@@ -3463,8 +3552,16 @@ function renderCurrentView() {
                 </div>
             </div>
         `;
+                // Barra de progreso en tiempo real
+                const progressBar = document.createElement('div');
+                progressBar.className = 'realtime-progress-bar';
+                progressBar.innerHTML = '<div class="realtime-progress-fill" style="width:0%"></div>';
+                card.appendChild(progressBar);
+
                 dataList.appendChild(card);
             });
+            // Actualizar estado live inmediatamente tras renderizar
+            updateLiveStatus();
         }
 
         document.getElementById('channelDropdown').addEventListener('input', () => {
@@ -3500,6 +3597,86 @@ function renderCurrentView() {
                 renderTable(false);
             }
         });
+
+        /* ============================================================
+           MOTOR DE ACTUALIZACIÓN EN TIEMPO REAL
+           Recorre las tarjetas del DOM cada 30s y actualiza:
+             - Badge (AHORA / PRÓXIMO / TERMINADO)
+             - Barra de progreso
+             - Clase is-live / is-past para el borde y opacidad
+           Sin refrescar la página ni re-renderizar las tarjetas.
+        ============================================================ */
+        function _parseCardDateTime(dateStr, timeStr) {
+            // dateStr: "DD/MM/YYYY", timeStr: "HH:MM"
+            if (!dateStr || !timeStr) return null;
+            const [d, m, y] = dateStr.split('/');
+            const [h, min] = timeStr.split(':');
+            if (!d || !m || !y || h === undefined || min === undefined) return null;
+            return new Date(+y, +m - 1, +d, +h, +min, 0);
+        }
+
+        function updateLiveStatus() {
+            const now = new Date();
+            const cards = document.querySelectorAll('#data-list .program-card[data-date]');
+
+            cards.forEach(card => {
+                const dateStr = card.dataset.date;
+                const startStr = card.dataset.start;
+                const stopStr = card.dataset.stop;
+
+                const start = _parseCardDateTime(dateStr, startStr);
+                const stop  = _parseCardDateTime(dateStr, stopStr);
+                if (!start || !stop) return;
+
+                const badgeContainer = card.querySelector('.rt-badge-container');
+                const progressFill   = card.querySelector('.realtime-progress-fill');
+
+                const isLive     = now >= start && now < stop;
+                const isPast     = now >= stop;
+                const minsUntil  = Math.round((start - now) / 60000);
+                const isUpcoming = !isLive && !isPast && minsUntil <= 30 && minsUntil > 0;
+
+                // --- Badge ---
+                if (badgeContainer) {
+                    let html = '';
+                    if (isLive) {
+                        const elapsed = Math.round((now - start) / 60000);
+                        html = `<span class="live-badge">EN DIRECTO · ${elapsed}′</span>`;
+                    } else if (isUpcoming) {
+                        html = `<span class="upcoming-badge">⏱ en ${minsUntil} min</span>`;
+                    } else if (isPast) {
+                        html = `<span class="past-badge">✓ Terminado</span>`;
+                    }
+                    if (badgeContainer.innerHTML !== html) badgeContainer.innerHTML = html;
+                }
+
+                // --- Barra de progreso ---
+                if (progressFill) {
+                    let pct = 0;
+                    if (isLive) {
+                        const total = stop - start;
+                        const done  = now - start;
+                        pct = Math.min(100, Math.round((done / total) * 100));
+                    } else if (isPast) {
+                        pct = 100;
+                    }
+                    progressFill.style.width = pct + '%';
+                    progressFill.style.background = isPast
+                        ? 'rgba(255,255,255,0.15)'
+                        : 'linear-gradient(90deg, var(--primary), rgba(var(--primary-rgb), 0.6))';
+                }
+
+                // --- Clases de estado ---
+                card.classList.toggle('is-live', isLive);
+                card.classList.toggle('is-past', isPast);
+            });
+        }
+
+        // Arrancar el ticker cada 30 segundos
+        (function startRealtimeTicker() {
+            updateLiveStatus();
+            setInterval(updateLiveStatus, 30000);
+        })();
 
         document.addEventListener('DOMContentLoaded', setDateToCurrent);        fetchXML().then(() => {
             switchMainView('home');
