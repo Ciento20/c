@@ -4894,51 +4894,7 @@ function renderCurrentView() {
 
                             window.hls = new Hls(fastSeekConfig);
                             window.hls.loadSource(streamUrl);
-                            window.hls.attachMedia(video);
-
-                            // --- AUTO-SKIP ACESTREAM: saltar al siguiente enlace si falla ---
-                            const isAceUrl = streamUrl.includes('127.0.0.1:6878/ace/');
-                            let aceConnectTimeout = null;
-                            let aceDidConnect = false;
-
-                            const _tryNextAceSource = () => {
-                                if (aceDidConnect) return;
-                                // Limpiar estado
-                                if (aceConnectTimeout) { clearTimeout(aceConnectTimeout); aceConnectTimeout = null; }
-                                const nextIdx = currentSourceIdx + 1;
-                                const nextSources = sources || [];
-                                if (nextIdx < nextSources.length) {
-                                    // Mostrar toast informativo
-                                    showFbToast(`⚡ Enlace ${currentSourceIdx + 1} sin señal → probando enlace ${nextIdx + 1}...`, '#e67e22');
-                                    // Resaltar visualmente la siguiente píldora
-                                    document.querySelectorAll('.source-pill').forEach((p, i) => p.classList.toggle('active', i === nextIdx));
-                                    currentSourceIdx = nextIdx;
-                                    // Pequeña pausa antes de intentar el siguiente
-                                    setTimeout(() => { playBtn.click(); }, 800);
-                                } else {
-                                    showFbToast('❌ Ningún enlace disponible en este momento', '#ff4d4d');
-                                }
-                            };
-
-                            if (isAceUrl) {
-                                // Timeout de 18 segundos: si no hay señal, saltar
-                                aceConnectTimeout = setTimeout(() => {
-                                    if (!aceDidConnect) _tryNextAceSource();
-                                }, 18000);
-
-                                // Error de HLS → saltar inmediatamente
-                                window.hls.on(Hls.Events.ERROR, (event, data) => {
-                                    if (data.fatal && !aceDidConnect) {
-                                        clearTimeout(aceConnectTimeout);
-                                        setTimeout(_tryNextAceSource, 400);
-                                    }
-                                });
-                            }
-                            // --- FIN AUTO-SKIP ---
-
-                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                aceDidConnect = true;
-                                if (aceConnectTimeout) { clearTimeout(aceConnectTimeout); aceConnectTimeout = null; }
+                            window.hls.attachMedia(video);                            window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 video.play();
                                 toggleAppFullscreen();
                             });
