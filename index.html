@@ -74,7 +74,6 @@
                 }
             });
 
-            console.log('[FB] Firebase inicializado ✓');
             return true;
         } catch(e) {
             console.error('[FB] Error al inicializar:', e);
@@ -137,7 +136,7 @@
                 v.webkitShowPlaybackTargetPicker();
             }
         } catch (err) {
-            console.log('Error al iniciar Cast:', err);
+
             // Si falla el prompt, al menos dejamos los controles visibles para usar el icono nativo
             v.controls = true;
         }
@@ -200,7 +199,7 @@
             const snap = await window.fbDB.collection('users').doc(window.fbUser.uid)
                 .collection('data').get();
             if (snap.empty) {
-                console.log('[FB] Sin datos en la nube todavía');
+
                 return;
             }
             let changed = false;
@@ -215,7 +214,7 @@
                 }
             });
             _fbIgnoreProxy = false;
-            console.log('[FB] Datos cargados desde la nube ✓');
+
             if (needsReload && changed) {
                 _realLS.setItem('_fbJustSynced', '1');
                 window.location.reload();
@@ -263,7 +262,7 @@
             if (val !== null) batch.set(userRef.doc(key), { value: val, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
         });
         await batch.commit();
-        console.log('[FB] Datos subidos a la nube ✓');
+
     }    window.expandStremioCatalog = function(key) {
         const data = window.catalogStorage[key];
         if (!data) return;
@@ -594,16 +593,14 @@
             --bg-surface: #090909;            --primary-rgb: 88, 166, 255;
             --bg-ui: #1c1c1e;
             --primary: #58a6ff;
-            --accent: #58a6ff; /* Unificado al color primario */
+            --accent: #58a6ff;  
             --text-main: #f0f6fc;
             --text-muted: #8b949e;
             --glass: rgba(22, 27, 34, 0.8);
 
-
             --nav-height: 75px;
             --section-gap: 24px;
             --card-gap: 16px;
-
 
             --color-bg-dark-start: var(--bg-surface);
             --color-bg-dark-end: var(--bg-deep);
@@ -615,7 +612,6 @@
             --color-bg-card-dark: var(--bg-surface);
             --color-bg-controls-dark: var(--bg-ui);
             --color-border-input-dark: rgba(255, 255, 255, 0.12);
-
 
             --color-bg-light-start: #f0f2f5;
             --color-bg-light-end: #e8eaed;
@@ -671,7 +667,6 @@
             padding: 15px;
             border-radius: 10px;
 
-
         }
 
         input[type="text"],
@@ -704,8 +699,8 @@
             transition: background-color 0.3s;
         }        button:hover {
             background-color: var(--color-primary-hover);
-            filter: brightness(1.3); /* Efecto de brillo para simular el tono de acento */
-            box-shadow: none; /* Sombreado eliminado */
+            filter: brightness(1.3);  
+            box-shadow: none;  
         }
 
         button:disabled {
@@ -758,7 +753,7 @@
             flex-direction: column;
             color: #fff;
             overflow: visible;
-            /* Borde limpio sin sombras pesadas */
+             
             border: 1px solid rgba(255, 255, 255, 0.1);
             width: calc(100% - 32px);
             max-width: 500px;
@@ -769,7 +764,7 @@
             transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s ease;
         }
 
-        /* Clip the background image and ::before overlay inside the border-radius */
+         
         .program-card > * {
             border-radius: inherit;
         }        .program-card::before {
@@ -777,19 +772,19 @@
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            /* Degradado suave para legibilidad sin efecto vignette agresivo */
+             
             background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, transparent 100%) !important;
             z-index: 1;
             pointer-events: none;
         }        .program-card:hover {
             transform: translateY(-4px) scale(1.02);
-            /* Hover basado en borde de color activo en lugar de sombras */
+             
             border-color: var(--primary);
             filter: brightness(1.15);
             z-index: 10;
         }
 
-        /* === TIEMPO REAL: badges y barra de progreso === */
+         
         .live-badge {
             display: inline-flex;
             align-items: center;
@@ -935,7 +930,7 @@
         }        .bar-fill-modern {
             height: 100%;
             background: var(--color-primary);
-            /* Ajuste de brillo y opacidad en el resplandor de la interfaz */
+             
             box-shadow: 0 0 12px rgba(var(--primary-rgb), 0.6);
             opacity: 0.9;
             border-radius: 3px;
@@ -1097,7 +1092,6 @@
             min-width: 150px;
         }
 
-
         #loader {
             transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), visibility 1.2s;
             background: #000 !important;
@@ -1164,7 +1158,6 @@
             100% { left: 110%; }
         }
 
-
         body.light-mode {
             background: linear-gradient(180deg, var(--color-bg-light-start), var(--color-bg-light-end));
             color: var(--color-text-light);
@@ -1207,7 +1200,6 @@
 
         }
 
-
         body.light-mode input[type="text"],
         body.light-mode select,
         body.light-mode input[type="date"],
@@ -1241,7 +1233,6 @@
             color: var(--color-text-muted-light);
         }
 
-
         body.light-mode #grid-container table {
             border: 1px solid var(--color-border-input-dark);
 
@@ -1253,7 +1244,6 @@
             color: var(--color-text-light);
 
             border: 1px solid var(--color-border-input-dark);
-
 
             position: sticky;
 
@@ -1284,7 +1274,6 @@
 
             color: var(--color-text-light);
 
-
             position: sticky;
 
             left: 0;
@@ -1304,7 +1293,6 @@
 
         }
 
-
         #grid-container th {
 
             z-index: 10;
@@ -1312,7 +1300,6 @@
             top: 0;
 
         }
-
 
         #grid-container th:first-child {
             background: #222 !important;
@@ -1323,7 +1310,6 @@
             left: 0;
         }
 
-
         #grid-container td:first-child {
             position: sticky;
             left: 0;
@@ -1333,7 +1319,6 @@
 
         }
 
-
         body.light-mode #grid-container th:first-child {
             background-color: #e0e0e0 !important;
 
@@ -1341,7 +1326,6 @@
             position: sticky;
             left: 0;
         }
-
 
         body.light-mode #loader-spinner {
             border-color: var(--color-primary-hover);
@@ -1446,7 +1430,6 @@
             }
         }
 
-
         .settings-card {
             display: flex;
             align-items: center;
@@ -1471,7 +1454,6 @@
             flex-shrink: 0;
         }
 
-
         .custom-fullscreen-btn {
             background: none !important;
             border: none !important;
@@ -1492,7 +1474,6 @@
         .channel-tab img { max-width: 50px; max-height: 40px; object-fit: contain; }
         .channel-tab.active { border-color: var(--color-primary) !important; }        .date-tab { color: #888; font-size: 0.82rem; font-weight: 600; cursor: pointer; padding-bottom: 4px; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; flex: 1; text-align: center; }        .date-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
         #channel-tabs::-webkit-scrollbar, #date-tabs::-webkit-scrollbar, #hour-tabs::-webkit-scrollbar { display: none; }
-
 
         #hour-tabs .date-tab:first-child {
             position: sticky;
@@ -1518,7 +1499,6 @@
         body.light-mode .channel-tab:first-child { background: #f4f4f4; box-shadow: -20px 0 0 #f4f4f4, 10px 0 15px -10px rgba(0,0,0,0.2); margin-right: 6px; position: relative; }
         body.light-mode .channel-tab:first-child::after { content: ''; position: absolute; top: 0; right: -6px; width: 6px; height: 100%; background: #f4f4f4; pointer-events: none; }
         body.light-mode #currentChannelLabel { color: #333 !important; }
-
 
         #sport-category-view {
             position: fixed;
@@ -1565,14 +1545,14 @@
             border-radius: 14px;
             position: relative;
             flex-shrink: 0;
-            /* Efecto Ambilight Negro Profundo */
+             
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.7);
             overflow: hidden;
         }        .poster-card::after {
             content: '';
             position: absolute;
             inset: 0;
-            /* Cristal Líquido Negro en Píxeles Exteriores */
+             
             box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.9), inset 0 0 15px rgba(0, 0, 0, 0.6);
             background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 40%, transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 40%) !important;
         }
@@ -1724,10 +1704,7 @@
             }
         }
 
-        /* =====================================================
-           MODAL EN LANDSCAPE — ventana flotante centrada
-           Grid: topbar (fila 1) | imagen/player + info (fila 2)
-           ===================================================== */
+         
         @keyframes detailLandscapePop {
             from { transform: scale(0.93); opacity: 0; }
             to   { transform: scale(1);    opacity: 1; }
@@ -1735,7 +1712,7 @@
 
         @media (orientation: landscape) and (min-width: 600px) {
 
-            /* Overlay oscuro semitransparente, centra la ventana */
+             
             #programDetailModal.detail-overlay {
                 background: rgba(0, 0, 0, 0.80);
                 backdrop-filter: blur(12px);
@@ -1745,8 +1722,7 @@
                 padding: 12px;
             }
 
-            /* Ventana flotante con grid de 3 áreas:
-               topbar | imagen | info  (en columnas) */
+             
             #programDetailModal .detail-content {
                 width: 90vw;
                 max-width: 920px;
@@ -1758,7 +1734,7 @@
                 overflow: hidden;
                 animation: detailLandscapePop 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 
-                /* Grid: topbar ocupa columnas 1+2; fila 2 → imagen | info */
+                 
                 display: grid;
                 grid-template-rows: 48px 1fr;
                 grid-template-columns: 54% 46%;
@@ -1767,7 +1743,7 @@
                     "player  info";
             }
 
-            /* ── Barra superior ── */
+             
             #programDetailModal .detail-content > div:first-child {
                 grid-area: topbar;
                 padding: 8px 14px;
@@ -1776,22 +1752,22 @@
                 z-index: 10;
             }
 
-            /* ── Área imagen / player ── */
+             
             #programDetailModal .detail-bg {
                 grid-area: player;
                 width: 100%;
                 height: 100%;
-                aspect-ratio: unset;          /* cancela el 16/9 del portrait */
+                aspect-ratio: unset;           
                 background-size: cover;
                 background-position: center;
                 border-radius: 0 0 0 18px;
                 overflow: hidden;
-                position: relative;           /* necesario para video/iframe absolute dentro */
+                position: relative;            
             }
 
-            /* El ::after del detail-bg (gradiente) ya es relativo al padre, OK */
+             
 
-            /* ── Panel info derecho ── */
+             
             #programDetailModal .detail-body {
                 grid-area: info;
                 display: flex;
@@ -1802,7 +1778,7 @@
                 border-radius: 0 0 18px 0;
             }
 
-            /* Padding compacto en header, scroll y footer */
+             
             #programDetailModal .detail-header-fixed {
                 padding: 10px 14px 6px 14px;
                 background: #0a0a0a;
@@ -1817,7 +1793,7 @@
                 background: #0a0a0a;
             }
 
-            /* Botón más compacto */
+             
             #programDetailModal .detail-play-btn {
                 padding: 10px 14px;
                 font-size: 0.87rem;
@@ -1825,7 +1801,7 @@
                 border-radius: 10px;
             }
 
-            /* Descripción con clamp para no desbordar */
+             
             #programDetailModal .detail-desc {
                 font-size: 0.80rem;
                 margin-top: 6px;
@@ -1851,7 +1827,7 @@
             }
         }
 
-        /* TV grande ≥1200px: ventana un poco más amplia */
+         
         @media (orientation: landscape) and (min-width: 1200px) {
             #programDetailModal .detail-content {
                 max-width: 1080px;
@@ -1998,9 +1974,10 @@
             box-shadow: 0 0 0 2px var(--primary);
         }
 
-        .player-action-item:hover { color: #fff; }
-        .player-action-item span { font-size: 20px !important; }        video.stremio-mode::-webkit-media-controls { display: none !important; }
-        #main-video-player.stremio-mode { pointer-events: none; }        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
+        .player-action-item:hover { color: #fff; }        .player-action-item span { font-size: 20px !important; }
+        video::-webkit-media-controls { display: none !important; }
+        #main-video-player { pointer-events: none; }
+        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
         #next-ep-overlay.is-visible { opacity: 1 !important; pointer-events: auto !important; }
 
         .detail-bg::after {
@@ -2850,7 +2827,7 @@
             const url = localStorage.getItem('epgSourceUrl');
 
             if (!url) {
-                console.log("URL de EPG no configurada.");
+
                 return;
             }
 
@@ -3693,7 +3670,6 @@ function renderCurrentView() {
             return n.trim();
         }        async function loadAllStreamSources() {
             channelStreams = {};
-            console.log("Cargando listas optimizadas...");
 
             const disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
             const activeSources = streamSources.filter(url => !disabled.includes(url));
@@ -3722,7 +3698,7 @@ function renderCurrentView() {
 
                             // LÓGICA DE PLUGINS DE SCRAPING DINÁMICO
                             if (d.type === 'scraping-addon') {
-                                console.log('[Scraper] Ejecutando plugin:', d.name);
+
                                 executeScrapingAddon(d);
                                 return;
                             }
@@ -3764,7 +3740,7 @@ function renderCurrentView() {
                     }
                 } catch (e) { console.error("Error en fuente:", e); }
             }
-            console.log("Carga de canales finalizada.");
+
             if (currentMainView === 'channels') renderChannelsView();
         }        const groupedAliases = {
             "DAZN 1": ["DAZN1"],
@@ -3920,8 +3896,6 @@ function renderCurrentView() {
                     // 5. Asignar imágenes: iconFile (canal) y bannerFile (fondo)
                     const iconFile = images.length > 0 ? images[0] : (config.logo || '');
                     const bannerFile = images.length > 1 ? images[1] : iconFile;
-
-                    console.log(`[Scraper] Encontrado: ${eventTitle} | Hora: ${eventTime}`);
 
                     matchStreamToChannel(config.channelId, streamUrl, `${config.name} | ${eventTitle}`, iconFile);
 
@@ -4761,7 +4735,7 @@ function renderCurrentView() {
                 modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
 
                 const rawDesc = processColoredText(prog.description);
-                const splitIndex = rawDesc.indexOf('·');                const parts = rawDesc.split('·');
+                const parts = rawDesc.split('·');
                 document.getElementById('detail-metadata-fixed').style.display = 'none';
 
                 if (parts.length > 0) {
@@ -6352,21 +6326,7 @@ function renderCurrentView() {
                         return json[0].map(x => x[0]).join('');
                     } catch (e) { return text; }
                 };
-
-                function changeCinemetaLang(lang) {
-                    localStorage.setItem('cinemetaLang', lang);
-                    showFbToast('Idioma de traducción: ' + lang, 'var(--primary)');
-                }
-
-                window.translateText = async (text) => {
-                    if (!text || text.length < 10) return text;
-                    try {
-                        const target = localStorage.getItem('cinemetaLang') || 'es';
-                        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`);
-                        const json = await res.json();
-                        return json[0].map(x => x[0]).join('');
-                    } catch (e) { return text; }
-                };                document.addEventListener('DOMContentLoaded', () => {
+                document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         const colorPicker = document.getElementById('primaryColorPicker');
                         if(colorPicker) colorPicker.value = localStorage.getItem('customPrimaryColor') || '#58a6ff';
@@ -6555,7 +6515,7 @@ function renderCurrentView() {
                 box-shadow: 0 6px 24px rgba(0,0,0,0.6);
             }            .sport-card-overlay {
                 position: absolute; inset: 0; padding: 12px;
-                /* Efecto Cristal Líquido y Ambilight Negro */
+                 
                 box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.7);
                 background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 40%, transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 40%) !important;
                 display: flex; flex-direction: column; justify-content: flex-end;
