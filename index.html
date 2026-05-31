@@ -84,9 +84,60 @@
         if (saved) {
             try { _fbInit(JSON.parse(saved)); } catch(e) {}
         }
-    })();
+    })();    /* --- FUNCIONES GLOBALES DEL REPRODUCTOR (FIX) --- */
 
-    /* --- FUNCIONES GLOBALES DEL REPRODUCTOR (FIX) --- */
+    // Inyección de controles de TV (Canal +/-, Cambiar Enlace)
+    const tvControlsObserver = new MutationObserver((mutations) => {
+        const overlay = document.querySelector('.player-ui-overlay');
+        if (overlay && !document.getElementById('tv-controls-container')) {
+            const tvControls = document.createElement('div');
+            tvControls.id = 'tv-controls-container';
+            tvControls.style.cssText = 'position: absolute; right: 25px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 15px; z-index: 9999; transition: opacity 0.3s ease;';
+            tvControls.innerHTML = `
+                <button onclick="window.nextChannel(event)" class="player-action-item" style="background: rgba(0,0,0,0.6) !important; padding: 12px !important; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1) !important; width: 60px !important; height: 60px !important; justify-content: center;">
+                    <span class="material-icons" style="font-size: 26px !important; color: white;">keyboard_arrow_up</span>
+                    <div style="font-size: 0.6rem; font-weight: 800; margin-top: 2px; color: white;">CH+</div>
+                </button>
+                <button onclick="window.prevChannel(event)" class="player-action-item" style="background: rgba(0,0,0,0.6) !important; padding: 12px !important; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1) !important; width: 60px !important; height: 60px !important; justify-content: center;">
+                    <span class="material-icons" style="font-size: 26px !important; color: white;">keyboard_arrow_down</span>
+                    <div style="font-size: 0.6rem; font-weight: 800; margin-top: 2px; color: white;">CH-</div>
+                </button>
+                <button onclick="window.changeChannelSource(event)" class="player-action-item" style="background: rgba(var(--primary-rgb), 0.2) !important; padding: 12px !important; border-radius: 50%; margin-top: 15px; border: 1px solid var(--primary) !important; width: 60px !important; height: 60px !important; justify-content: center;">
+                    <span class="material-icons" style="font-size: 22px !important; color: var(--primary);">settings_input_hdmi</span>
+                    <div style="font-size: 0.55rem; font-weight: 800; margin-top: 2px; color: white;">LINK</div>
+                </button>
+            `;
+            overlay.appendChild(tvControls);
+        }
+    });
+    document.addEventListener('DOMContentLoaded', () => tvControlsObserver.observe(document.body, { childList: true, subtree: true }));
+
+    window.nextChannel = (e) => {
+        if(e) e.stopPropagation();
+        if(typeof playNextChannel === 'function') playNextChannel();
+        else console.warn('Lógica de siguiente canal no definida en el contexto actual.');
+    };
+
+    window.prevChannel = (e) => {
+        if(e) e.stopPropagation();
+        if(typeof playPrevChannel === 'function') playPrevChannel();
+        else console.warn('Lógica de canal anterior no definida en el contexto actual.');
+    };
+
+    window.changeChannelSource = (e) => {
+        if(e) e.stopPropagation();
+        const sources = document.querySelector('.source-selector');
+        if(sources) {
+            const currentModal = document.getElementById('programDetailModal');
+            if(currentModal) currentModal.scrollTo({top: sources.offsetTop - 50, behavior: 'smooth'});
+            sources.style.transition = 'box-shadow 0.3s ease';
+            sources.style.boxShadow = '0 0 20px var(--primary)';
+            setTimeout(() => sources.style.boxShadow = 'none', 1500);
+        } else {
+            if(typeof showSourceSelector === 'function') showSourceSelector();
+        }
+    };
+
     window.togglePlaybackSpeed = (e) => {
         if(e) e.stopPropagation();
         const v = document.getElementById('main-video-player');
@@ -4004,11 +4055,15 @@ function renderCurrentView() {
                 window.hls.attachMedia(video);
             } else {
                 video.src = meta.cachedStream.url;
-            }
-            video.style.display = 'block';
+            }            video.style.display = 'block';
             video.classList.add('stremio-mode');
             video.dataset.nextTriggered = '';
             document.getElementById('playerControls').style.display = 'flex';
+            if(document.getElementById('btnPrevChannel')) document.getElementById('btnPrevChannel').style.display = 'none';
+            if(document.getElementById('btnNextChannel')) document.getElementById('btnNextChannel').style.display = 'none';
+            if(document.getElementById('btnChangeSource')) document.getElementById('btnChangeSource').style.display = 'none';
+            if(document.getElementById('btnReplay')) document.getElementById('btnReplay').style.display = 'flex';
+            if(document.getElementById('btnForward')) document.getElementById('btnForward').style.display = 'flex';
 
             video.onplay = () => {
                 const btn = document.getElementById('centerPlayBtn');
@@ -4491,6 +4546,11 @@ function renderCurrentView() {
                                 video.dataset.nextTriggered = '';
                                 video.controls = false;
                                 document.getElementById('playerControls').style.display = 'flex';
+                                if(document.getElementById('btnPrevChannel')) document.getElementById('btnPrevChannel').style.display = 'flex';
+                                if(document.getElementById('btnNextChannel')) document.getElementById('btnNextChannel').style.display = 'flex';
+                                if(document.getElementById('btnChangeSource')) document.getElementById('btnChangeSource').style.display = 'flex';
+                                if(document.getElementById('btnReplay')) document.getElementById('btnReplay').style.display = 'none';
+                                if(document.getElementById('btnForward')) document.getElementById('btnForward').style.display = 'none';
 
                                 video.onplay = () => {
                                     const btn = document.getElementById('centerPlayBtn');
@@ -4694,9 +4754,8 @@ function renderCurrentView() {
                 playBtn.style.color = '#777';
                 playBtn.innerHTML = "Error al cargar información";
             }
-        }
-
-        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+        }        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+            window.currentPlayingChannel = channelId;
             const epgBlock = document.getElementById('epg-status-block');
             const vodBlock = document.getElementById('vod-title-block');
             if(epgBlock) epgBlock.style.display = 'flex';
@@ -4909,10 +4968,9 @@ function renderCurrentView() {
                         ind.innerHTML = `<span class="material-icons" style="font-size:0.7rem;">help_outline</span> <span class="ace-label">Sin probar</span>`;
                     }
                 });
-            };
-
-            window.changeSource = (idx, cid) => {
+            };            window.changeSource = (idx, cid) => {
                 currentSourceIdx = idx;
+                window.currentSourceIdx = idx;
 
                 const srcList = channelStreams[cid] || [];
                 if (srcList[idx]) {
@@ -6684,14 +6742,20 @@ function renderCurrentView() {
                     </div>
 
                     <div class="player-center-controls">
-                        <button class="player-btn-large" onclick="event.stopPropagation(); const v=document.getElementById('main-video-player'); v.currentTime -= 10;">
+                        <button class="player-btn-large" id="btnPrevChannel" onclick="event.stopPropagation(); window.prevChannel && window.prevChannel();" style="display:none;">
+                            <span class="material-icons">skip_previous</span>
+                        </button>
+                        <button class="player-btn-large" id="btnReplay" onclick="event.stopPropagation(); const v=document.getElementById('main-video-player'); v.currentTime -= 10;">
                             <span class="material-icons">replay_10</span>
                         </button>
                         <button class="player-btn-large" id="centerPlayBtn" onclick="event.stopPropagation(); const v=document.getElementById('main-video-player'); v.paused ? v.play() : v.pause();">
                             <span class="material-icons">pause_circle</span>
                         </button>
-                        <button class="player-btn-large" onclick="event.stopPropagation(); const v=document.getElementById('main-video-player'); v.currentTime += 10;">
+                        <button class="player-btn-large" id="btnForward" onclick="event.stopPropagation(); const v=document.getElementById('main-video-player'); v.currentTime += 10;">
                             <span class="material-icons">forward_10</span>
+                        </button>
+                        <button class="player-btn-large" id="btnNextChannel" onclick="event.stopPropagation(); window.nextChannel && window.nextChannel();" style="display:none;">
+                            <span class="material-icons">skip_next</span>
                         </button>
                     </div>
 
@@ -6709,6 +6773,9 @@ function renderCurrentView() {
                                 <span class="material-icons">subtitles</span>
                             </button>
 
+                            <button class="player-action-item" id="btnChangeSource" onclick="event.stopPropagation(); window.nextSource && window.nextSource();" style="display:none;">
+                                <span class="material-icons">switch_video</span>
+                            </button>
                             <button class="player-action-item" onclick="window.togglePlaybackSpeed(event)">
                                 <span class="material-icons">speed</span>
                             </button>
@@ -6720,6 +6787,55 @@ function renderCurrentView() {
                             </button>
                         </div>
                     </div>
+                    <script>
+                        window.nextChannel = () => {
+                            if (!window.currentPlayingChannel) return;
+                            const active = typeof visibleChannelsList !== 'undefined' && visibleChannelsList.length ? visibleChannelsList : channelsList.filter(ch => userSelectedChannels.has(ch));
+                            let idx = active.indexOf(window.currentPlayingChannel);
+                            if (idx >= 0 && idx < active.length - 1) {
+                                document.getElementById('main-video-player').pause();
+                                document.getElementById('programDetailModal').style.display = 'none';
+                                setTimeout(() => {
+                                    openProgramDetails(active[idx+1], null, null, true);
+                                    setTimeout(() => {
+                                        const playBtn = document.querySelector('.detail-play-btn');
+                                        if (playBtn) playBtn.click();
+                                    }, 400);
+                                }, 100);
+                            } else {
+                                if(typeof showFbToast === 'function') showFbToast('Último canal de la lista', '#f1c40f');
+                            }
+                        };
+                        window.prevChannel = () => {
+                            if (!window.currentPlayingChannel) return;
+                            const active = typeof visibleChannelsList !== 'undefined' && visibleChannelsList.length ? visibleChannelsList : channelsList.filter(ch => userSelectedChannels.has(ch));
+                            let idx = active.indexOf(window.currentPlayingChannel);
+                            if (idx > 0) {
+                                document.getElementById('main-video-player').pause();
+                                document.getElementById('programDetailModal').style.display = 'none';
+                                setTimeout(() => {
+                                    openProgramDetails(active[idx-1], null, null, true);
+                                    setTimeout(() => {
+                                        const playBtn = document.querySelector('.detail-play-btn');
+                                        if (playBtn) playBtn.click();
+                                    }, 400);
+                                }, 100);
+                            } else {
+                                if(typeof showFbToast === 'function') showFbToast('Primer canal de la lista', '#f1c40f');
+                            }
+                        };
+                        window.nextSource = () => {
+                            if (!window.currentPlayingChannel) return;
+                            const sources = channelStreams[window.currentPlayingChannel] || [];
+                            if (sources.length > 1) {
+                                let nextIdx = ((window.currentSourceIdx || 0) + 1) % sources.length;
+                                window.changeSource(nextIdx, window.currentPlayingChannel);
+                                if(typeof showFbToast === 'function') showFbToast('Cambiando a enlace ' + (nextIdx + 1) + ' de ' + sources.length, 'var(--primary)');
+                            } else {
+                                if(typeof showFbToast === 'function') showFbToast('No hay más enlaces para este canal', '#f1c40f');
+                            }
+                        };
+                    </script>
                 </div>
             </div>            <div class="detail-body">
                 <div class="detail-header-fixed">
