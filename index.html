@@ -1974,10 +1974,9 @@
             box-shadow: 0 0 0 2px var(--primary);
         }
 
-        .player-action-item:hover { color: #fff; }        .player-action-item span { font-size: 20px !important; }
-        video::-webkit-media-controls { display: none !important; }
-        #main-video-player { pointer-events: none; }
-        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
+        .player-action-item:hover { color: #fff; }
+        .player-action-item span { font-size: 20px !important; }        video.stremio-mode::-webkit-media-controls { display: none !important; }
+        #main-video-player.stremio-mode { pointer-events: none; }        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
         #next-ep-overlay.is-visible { opacity: 1 !important; pointer-events: auto !important; }
 
         .detail-bg::after {
@@ -4969,11 +4968,12 @@ function renderCurrentView() {
 
                         await new Promise(r => setTimeout(r, 1400));
                     }                    const sourceObj = sources[currentSourceIdx];
-                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;
-                    const video = document.getElementById('main-video-player');
-                    const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.remove('stremio-mode');
-            video.controls = true;
-            document.getElementById('playerControls').style.display = 'none';                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
+                    let streamUrl = typeof sourceObj === 'string' ? sourceObj : sourceObj.url;                    const video = document.getElementById('main-video-player');
+                    const iframe = document.getElementById('main-web-player');            const container = document.getElementById('player-container');            video.classList.add('stremio-mode');
+            video.controls = false;
+            document.getElementById('playerControls').style.display = 'flex';
+            video.onplay = () => { const btn = document.getElementById('centerPlayBtn'); if(btn) btn.innerHTML = '<span class="material-icons">pause_circle</span>'; };
+            video.onpause = () => { const btn = document.getElementById('centerPlayBtn'); if(btn) btn.innerHTML = '<span class="material-icons">play_circle</span>'; };                    if (video) { video.pause(); video.src = ''; video.style.display = 'none'; }
                     if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }                    if (window.aceRatingInterval) clearInterval(window.aceRatingInterval);
                     if (streamUrl.startsWith('acestream://')) {
                         const hash = streamUrl.replace('acestream://', '').split(/[?&]/)[0];
