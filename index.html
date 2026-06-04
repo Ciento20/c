@@ -4750,6 +4750,43 @@ function renderCurrentView() {
                 } else {
                     window.fetchStreamsForId(meta.id);
                 }
+
+                // --- BOTÓN MI LISTA ---
+                const addListBtn = document.getElementById('add-to-list-btn');
+                if (addListBtn) {
+                    const updateListBtn = () => {
+                        let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                        const inList = myList.some(i => i.id === fullMeta.id);
+                        addListBtn.style.display = 'flex';
+                        addListBtn.querySelector('.material-icons').textContent = inList ? 'bookmark' : 'bookmark_border';
+                        addListBtn.style.background = inList ? 'rgba(var(--primary-rgb), 0.2)' : 'rgba(255,255,255,0.05)';
+                        addListBtn.style.borderColor = inList ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
+                        addListBtn.style.color = inList ? 'var(--primary)' : 'white';
+                    };
+                    addListBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        let myList = JSON.parse(localStorage.getItem('userMyList') || '[]');
+                        const exists = myList.some(i => i.id === fullMeta.id);
+                        if (exists) {
+                            myList = myList.filter(i => i.id !== fullMeta.id);
+                            showFbToast('Eliminado de Mi Lista', '#ef476f');
+                        } else {
+                            myList.unshift({
+                                id: fullMeta.id,
+                                name: fullMeta.name,
+                                poster: fullMeta.poster,
+                                background: fullMeta.background,
+                                type: fullMeta.type,
+                                baseUrl: baseUrl
+                            });
+                            showFbToast('Añadido a Mi Lista ✓', 'var(--primary)');
+                        }
+                        localStorage.setItem('userMyList', JSON.stringify(myList));
+                        updateListBtn();
+                    };
+                    updateListBtn();
+                }
+
             } catch (e) { playBtn.style.background = '#333';
                 playBtn.style.color = '#777';
                 playBtn.innerHTML = "Error al cargar información";
