@@ -102,12 +102,8 @@
                     <span class="material-icons" style="font-size: 26px !important; color: white;">keyboard_arrow_down</span>
                     <div style="font-size: 0.6rem; font-weight: 800; margin-top: 2px; color: white;">CH-</div>
                 </button>
-                <button onclick="window.changeChannelSource(event)" class="player-action-item" style="background: rgba(var(--primary-rgb), 0.2) !important; padding: 12px !important; border-radius: 50%; margin-top: 15px; border: 1px solid var(--primary) !important; width: 60px !important; height: 60px !important; justify-content: center;">
-                    <span class="material-icons" style="font-size: 22px !important; color: var(--primary);">settings_input_hdmi</span>
-                    <div style="font-size: 0.55rem; font-weight: 800; margin-top: 2px; color: white;">LINK</div>
-                </button>
-                <button id="fullscreen-btn" onclick="window.toggleFullscreen(event)" class="player-action-item" style="background: rgba(0,0,0,0.6) !important; padding: 12px !important; border-radius: 50%; margin-top: 5px; border: 1px solid rgba(255,255,255,0.2) !important; width: 60px !important; height: 60px !important; justify-content: center;">
-                    <span class="material-icons" id="fullscreen-icon" style="font-size: 22px !important; color: white;">fullscreen</span>
+                <button id="tv-fullscreen-btn" onclick="window.toggleAppFullscreen(event)" class="player-action-item" style="background: rgba(0,0,0,0.6) !important; padding: 12px !important; border-radius: 50%; margin-top: 5px; border: 1px solid rgba(255,255,255,0.25) !important; width: 60px !important; height: 60px !important; justify-content: center;">
+                    <span class="material-icons" id="tv-fullscreen-icon" style="font-size: 22px !important; color: white;">screen_rotation</span>
                     <div style="font-size: 0.55rem; font-weight: 800; margin-top: 2px; color: white;">FULL</div>
                 </button>
             `;
@@ -128,19 +124,6 @@
         else console.warn('Lógica de canal anterior no definida en el contexto actual.');
     };
 
-    window.changeChannelSource = (e) => {
-        if(e) e.stopPropagation();
-        const sources = document.querySelector('.source-selector');
-        if(sources) {
-            const currentModal = document.getElementById('programDetailModal');
-            if(currentModal) currentModal.scrollTo({top: sources.offsetTop - 50, behavior: 'smooth'});
-            sources.style.transition = 'box-shadow 0.3s ease';
-            sources.style.boxShadow = '0 0 20px var(--primary)';
-            setTimeout(() => sources.style.boxShadow = 'none', 1500);
-        } else {
-            if(typeof showSourceSelector === 'function') showSourceSelector();
-        }
-    };
 
     window.togglePlaybackSpeed = (e) => {
         if(e) e.stopPropagation();
@@ -168,45 +151,6 @@
         const close = (ev) => { if(!menu.contains(ev.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
         setTimeout(() => document.addEventListener('click', close), 10);
     };
-
-    window.toggleFullscreen = (e) => {
-        if(e) e.stopPropagation();
-        const container = document.getElementById('player-container');
-        const icon = document.getElementById('fullscreen-icon');
-        const target = container || document.documentElement;
-
-        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-
-        if (!isFs) {
-            // Entrar en pantalla completa
-            if (target.requestFullscreen) target.requestFullscreen();
-            else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
-            else if (target.mozRequestFullScreen) target.mozRequestFullScreen();
-            else if (target.msRequestFullscreen) target.msRequestFullscreen();
-            if (icon) icon.textContent = 'fullscreen_exit';
-        } else {
-            // Salir de pantalla completa
-            if (document.exitFullscreen) document.exitFullscreen();
-            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-            else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
-            else if (document.msExitFullscreen) document.msExitFullscreen();
-            if (icon) icon.textContent = 'fullscreen';
-        }
-    };
-
-    // Actualizar icono si el usuario sale de fullscreen con la tecla Escape
-    document.addEventListener('fullscreenchange', () => {
-        const icon = document.getElementById('fullscreen-icon');
-        if (!icon) return;
-        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-        icon.textContent = isFs ? 'fullscreen_exit' : 'fullscreen';
-    });
-    document.addEventListener('webkitfullscreenchange', () => {
-        const icon = document.getElementById('fullscreen-icon');
-        if (!icon) return;
-        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-        icon.textContent = isFs ? 'fullscreen_exit' : 'fullscreen';
-    });
 
     window.toggleVideoScaling = (e) => {
         if(e) e.stopPropagation();
@@ -5525,6 +5469,11 @@ function renderCurrentView() {
             const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
             const btn = document.querySelector('.player-action-item[onclick*="toggleAppFullscreen"]');
             if (btn) btn.querySelector('span').textContent = isFS ? 'fullscreen_exit' : 'screen_rotation';
+            // Sincronizar también el icono del botón lateral de TV
+            const tvIcon = document.getElementById('tv-fullscreen-icon');
+            if (tvIcon) tvIcon.textContent = isFS ? 'fullscreen_exit' : 'screen_rotation';
+            // Si sale de fullscreen, liberar orientación (por si sale con Escape)
+            if (!isFS && screen.orientation && screen.orientation.unlock) { screen.orientation.unlock().catch(()=>{}); }
         }));
 
         function toggleVodView() {
