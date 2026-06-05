@@ -106,6 +106,10 @@
                     <span class="material-icons" style="font-size: 22px !important; color: var(--primary);">settings_input_hdmi</span>
                     <div style="font-size: 0.55rem; font-weight: 800; margin-top: 2px; color: white;">LINK</div>
                 </button>
+                <button id="fullscreen-btn" onclick="window.toggleFullscreen(event)" class="player-action-item" style="background: rgba(0,0,0,0.6) !important; padding: 12px !important; border-radius: 50%; margin-top: 5px; border: 1px solid rgba(255,255,255,0.2) !important; width: 60px !important; height: 60px !important; justify-content: center;">
+                    <span class="material-icons" id="fullscreen-icon" style="font-size: 22px !important; color: white;">fullscreen</span>
+                    <div style="font-size: 0.55rem; font-weight: 800; margin-top: 2px; color: white;">FULL</div>
+                </button>
             `;
             overlay.appendChild(tvControls);
         }
@@ -164,6 +168,45 @@
         const close = (ev) => { if(!menu.contains(ev.target)) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
         setTimeout(() => document.addEventListener('click', close), 10);
     };
+
+    window.toggleFullscreen = (e) => {
+        if(e) e.stopPropagation();
+        const container = document.getElementById('player-container');
+        const icon = document.getElementById('fullscreen-icon');
+        const target = container || document.documentElement;
+
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+
+        if (!isFs) {
+            // Entrar en pantalla completa
+            if (target.requestFullscreen) target.requestFullscreen();
+            else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
+            else if (target.mozRequestFullScreen) target.mozRequestFullScreen();
+            else if (target.msRequestFullscreen) target.msRequestFullscreen();
+            if (icon) icon.textContent = 'fullscreen_exit';
+        } else {
+            // Salir de pantalla completa
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+            else if (document.msExitFullscreen) document.msExitFullscreen();
+            if (icon) icon.textContent = 'fullscreen';
+        }
+    };
+
+    // Actualizar icono si el usuario sale de fullscreen con la tecla Escape
+    document.addEventListener('fullscreenchange', () => {
+        const icon = document.getElementById('fullscreen-icon');
+        if (!icon) return;
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        icon.textContent = isFs ? 'fullscreen_exit' : 'fullscreen';
+    });
+    document.addEventListener('webkitfullscreenchange', () => {
+        const icon = document.getElementById('fullscreen-icon');
+        if (!icon) return;
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        icon.textContent = isFs ? 'fullscreen_exit' : 'fullscreen';
+    });
 
     window.toggleVideoScaling = (e) => {
         if(e) e.stopPropagation();
