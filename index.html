@@ -4332,7 +4332,20 @@ function renderCurrentView() {
                     document.getElementById('currentTimeText').textContent = formatTime(cur);
                     document.getElementById('totalTimeText').textContent = formatTime(dur);
                 }
-                if (cur > 5 && dur) {                    const remaining = dur - cur;
+                if (cur > 5 && dur) {
+                    // --- Detección de vídeo de error de Debrid (duración anómala < 60s) ---
+                    const MIN_VALID_DURATION = 60;
+                    if (dur < MIN_VALID_DURATION) {
+                        if (!video.dataset.errorDetected) {
+                            video.dataset.errorDetected = 'true';
+                            console.warn('[Stremio] Vídeo de error detectado (duración de ' + Math.round(dur) + 's < ' + MIN_VALID_DURATION + 's). No se marcará como visto ni se mostrará "siguiente capítulo".');
+                            if (typeof showFbToast === 'function') showFbToast('⚠️ Fallo del stream/Debrid: vídeo demasiado corto', '#ff5252');
+                        }
+                        const badOverlay = document.getElementById('next-ep-overlay');
+                        if (badOverlay) badOverlay.remove();
+                        return; // Cortamos aquí: no se toca watchedEps ni videoProgress ni overlay
+                    }
+                    const remaining = dur - cur;
                     const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
                     const threshold = seriesOffsets[fullMeta.id] || 90;
                     const existingOverlay = document.getElementById('next-ep-overlay');                    if (fullMeta.type === 'series' && dur > 0 && remaining <= threshold && fullMeta.videos) {
@@ -4764,11 +4777,11 @@ function renderCurrentView() {
                                 video.dataset.nextTriggered = '';
                                 video.controls = false;
                                 document.getElementById('playerControls').style.display = 'flex';
-                                if(document.getElementById('btnPrevChannel')) document.getElementById('btnPrevChannel').style.display = 'flex';
-                                if(document.getElementById('btnNextChannel')) document.getElementById('btnNextChannel').style.display = 'flex';
-                                if(document.getElementById('btnChangeSource')) document.getElementById('btnChangeSource').style.display = 'flex';
-                                if(document.getElementById('btnReplay')) document.getElementById('btnReplay').style.display = 'none';
-                                if(document.getElementById('btnForward')) document.getElementById('btnForward').style.display = 'none';
+                                // Modo VOD: oculta controles de canal/Acestream (prev/next/cambiar fuente)
+                                // y muestra los controles propios de vídeo (retroceder/avanzar, subtítulos, velocidad, etc.)
+                                updateControlsForMode('vod');
+                                if(document.getElementById('btnReplay')) document.getElementById('btnReplay').style.display = 'flex';
+                                if(document.getElementById('btnForward')) document.getElementById('btnForward').style.display = 'flex';
 
                                 video.onplay = () => {
                                     const btn = document.getElementById('centerPlayBtn');
@@ -4811,6 +4824,18 @@ function renderCurrentView() {
                                     }
 
                                     if (video.currentTime > 5 && video.duration) {
+                                        // --- Detección de vídeo de error de Debrid (duración anómala < 60s) ---
+                                        const MIN_VALID_DURATION = 60;
+                                        if (video.duration < MIN_VALID_DURATION) {
+                                            if (!video.dataset.errorDetected) {
+                                                video.dataset.errorDetected = 'true';
+                                                console.warn('[Stremio] Vídeo de error detectado (duración de ' + Math.round(video.duration) + 's < ' + MIN_VALID_DURATION + 's). No se marcará como visto ni se mostrará "siguiente capítulo".');
+                                                if (typeof showFbToast === 'function') showFbToast('⚠️ Fallo del stream/Debrid: vídeo demasiado corto', '#ff5252');
+                                            }
+                                            const badOverlay = document.getElementById('next-ep-overlay');
+                                            if (badOverlay) badOverlay.remove();
+                                            return; // Cortamos aquí: no se toca watchedEps ni videoProgress ni overlay
+                                        }
                                         const progress = JSON.parse(localStorage.getItem('videoProgress') || '{}');
                                         const percentage = (video.currentTime / video.duration) * 100;                                        const remaining = video.duration - video.currentTime;
                                         const seriesOffsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}');
