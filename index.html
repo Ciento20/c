@@ -159,6 +159,92 @@
         const modes = ['contain', 'cover', 'fill'];
         let current = modes.indexOf(v.style.objectFit || 'contain');
         v.style.objectFit = modes[(current + 1) % modes.length];
+    };
+
+    /* --- ZOOM DE PRECISIÓN DEL VÍDEO --- */
+    window.applyStoredVideoZoom = () => {
+        const v = document.getElementById('main-video-player');
+        if(!v) return;
+        const zoom = parseFloat(localStorage.getItem('videoZoomLevel')) || 1;
+        const panX = parseFloat(localStorage.getItem('videoZoomX')) || 0;
+        const panY = parseFloat(localStorage.getItem('videoZoomY')) || 0;
+        v.style.transformOrigin = 'center center';
+        v.style.transform = `scale(${zoom}) translate(${panX}%, ${panY}%)`;
+    };
+    document.addEventListener('DOMContentLoaded', () => window.applyStoredVideoZoom());
+
+    window.toggleVideoZoom = (e) => {
+        if(e) e.stopPropagation();
+        const v = document.getElementById('main-video-player');
+        const container = document.getElementById('player-container');
+        if(!v || !container) return;
+
+        let menu = document.getElementById('customZoomMenu');
+        if(!menu) {
+            menu = document.createElement('div');
+            menu.id = 'customZoomMenu';
+            menu.className = 'quick-menu';
+            menu.style.cssText = 'position: absolute; bottom: 50px; right: 10px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); max-height: calc(100% - 60px); overflow-y: auto; display: none; width: 250px; padding: 16px;';
+            container.appendChild(menu);
+        }
+
+        let zoom = parseFloat(localStorage.getItem('videoZoomLevel')) || 1;
+        let panX = parseFloat(localStorage.getItem('videoZoomX')) || 0;
+        let panY = parseFloat(localStorage.getItem('videoZoomY')) || 0;
+
+        const applyZoom = () => {
+            v.style.transformOrigin = 'center center';
+            v.style.transform = `scale(${zoom}) translate(${panX}%, ${panY}%)`;
+            localStorage.setItem('videoZoomLevel', zoom);
+            localStorage.setItem('videoZoomX', panX);
+            localStorage.setItem('videoZoomY', panY);
+            const label = menu.querySelector('#zoomValueLabel');
+            const slider = menu.querySelector('#zoomSlider');
+            if(label) label.textContent = Math.round(zoom * 100) + '%';
+            if(slider) slider.value = zoom;
+        };
+
+        menu.innerHTML = `
+            <div style="font-size: 0.6rem; color: var(--primary); text-transform: uppercase; font-weight: 800; margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center;">
+                <span>Zoom</span>
+                <span id="zoomValueLabel" style="color:#fff; font-weight:700; font-size: 0.8rem;">${Math.round(zoom * 100)}%</span>
+            </div>
+            <input type="range" id="zoomSlider" min="1" max="3" step="0.005" value="${zoom}" style="width:100%; accent-color: var(--primary); margin-bottom: 12px;">
+            <div style="display:flex; gap:8px; margin-bottom: 14px;">
+                <button id="zoomOutBtn" style="flex:1; background:rgba(255,255,255,0.08); border:none; color:white; padding:8px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">remove</span></button>
+                <button id="zoomInBtn" style="flex:1; background:rgba(255,255,255,0.08); border:none; color:white; padding:8px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">add</span></button>
+            </div>
+            <div style="font-size:0.55rem; color:#888; text-transform:uppercase; font-weight:700; margin: 4px 0 8px;">Posición</div>
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; justify-items:center; margin-bottom: 4px;">
+                <div></div>
+                <button class="zoomPanBtn" data-dx="0" data-dy="-1" style="background:rgba(255,255,255,0.08); border:none; color:white; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">keyboard_arrow_up</span></button>
+                <div></div>
+                <button class="zoomPanBtn" data-dx="-1" data-dy="0" style="background:rgba(255,255,255,0.08); border:none; color:white; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">keyboard_arrow_left</span></button>
+                <button id="zoomResetBtn" style="background:rgba(255,255,255,0.08); border:none; color:var(--primary); width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">center_focus_strong</span></button>
+                <button class="zoomPanBtn" data-dx="1" data-dy="0" style="background:rgba(255,255,255,0.08); border:none; color:white; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">keyboard_arrow_right</span></button>
+                <div></div>
+                <button class="zoomPanBtn" data-dx="0" data-dy="1" style="background:rgba(255,255,255,0.08); border:none; color:white; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons" style="font-size:1.1rem;">keyboard_arrow_down</span></button>
+                <div></div>
+            </div>
+        `;
+
+        menu.querySelector('#zoomSlider').oninput = (ev) => { ev.stopPropagation(); zoom = parseFloat(ev.target.value); applyZoom(); };
+        menu.querySelectorAll('input').forEach(inp => inp.onclick = (ev) => ev.stopPropagation());
+        menu.querySelector('#zoomInBtn').onclick = (ev) => { ev.stopPropagation(); zoom = Math.min(3, +(zoom + 0.01).toFixed(3)); applyZoom(); };
+        menu.querySelector('#zoomOutBtn').onclick = (ev) => { ev.stopPropagation(); zoom = Math.max(1, +(zoom - 0.01).toFixed(3)); applyZoom(); };
+        menu.querySelectorAll('.zoomPanBtn').forEach(btn => {
+            btn.onclick = (ev) => {
+                ev.stopPropagation();
+                panX = Math.max(-50, Math.min(50, panX + parseFloat(btn.dataset.dx)));
+                panY = Math.max(-50, Math.min(50, panY + parseFloat(btn.dataset.dy)));
+                applyZoom();
+            };
+        });
+        menu.querySelector('#zoomResetBtn').onclick = (ev) => { ev.stopPropagation(); zoom = 1; panX = 0; panY = 0; applyZoom(); };
+
+        menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+        const close = (ev) => { if(!menu.contains(ev.target) && !ev.target.closest('#zoomBtn')) { menu.style.display = 'none'; document.removeEventListener('click', close); } };
+        setTimeout(() => document.addEventListener('click', close), 10);
     };    window.castToDevice = async (e) => {
         if(e) e.stopPropagation();
         const v = document.getElementById('main-video-player');
@@ -1941,10 +2027,10 @@
         /* --- MODO AMBIENTE (Ambilight) --- */
         .ambient-canvas {
             position: absolute;
-            top: -25%;
-            left: -25%;
-            width: 150%;
-            height: 150%;
+            top: -3%;
+            left: -3%;
+            width: 106%;
+            height: 106%;
             z-index: 1;
             filter: blur(48px) saturate(1.6) brightness(1.15);
             opacity: 0;
@@ -6944,6 +7030,9 @@ function renderCurrentView() {
                             </button>
                             <button class="player-action-item" id="scalingBtn" onclick="window.toggleVideoScaling(event)">
                                 <span class="material-icons">aspect_ratio</span>
+                            </button>
+                            <button class="player-action-item" id="zoomBtn" onclick="window.toggleVideoZoom(event)">
+                                <span class="material-icons">zoom_in</span>
                             </button>
                             <button class="player-action-item" id="castBtn" onclick="window.castToDevice(event)">
                                 <span class="material-icons">cast</span>
