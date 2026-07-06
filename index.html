@@ -346,7 +346,14 @@
         window.startAmbientMode = function() {
             const canvas = document.getElementById('ambientCanvas');
             const video = document.getElementById('main-video-player');
+            const container = document.getElementById('player-container');
             if (!canvas || !video) return;
+            // Al reproducir, quitamos la imagen estática de fondo para que no se vea
+            // traslúcida por detrás/alrededor del vídeo y del blur del ambilight.
+            if (container && container.style.backgroundImage !== 'none') {
+                container.dataset.posterBg = container.style.backgroundImage;
+                container.style.backgroundImage = 'none';
+            }
             if (!isAmbientEnabled()) { canvas.classList.remove('active'); return; }
             canvas.classList.add('active');
             if (ambientRAF) cancelAnimationFrame(ambientRAF);
@@ -358,6 +365,11 @@
             if (ambientRAF) { cancelAnimationFrame(ambientRAF); ambientRAF = null; }
             const canvas = document.getElementById('ambientCanvas');
             if (canvas) canvas.classList.remove('active');
+            // Al pausar/terminar, devolvemos la imagen estática que había antes de reproducir.
+            const container = document.getElementById('player-container');
+            if (container && container.dataset.posterBg) {
+                container.style.backgroundImage = container.dataset.posterBg;
+            }
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1747,11 +1759,7 @@
              
             overflow: hidden;
         }        .poster-card::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-             
-            background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0.8) 40%, transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 40%) !important;
+            display: none;
         }
 
         .poster-info {
@@ -4416,7 +4424,10 @@ function renderCurrentView() {
                 }
             }
 
-            modal.querySelector('.detail-bg').style.backgroundImage = 'none';
+            {
+                const vodBg = meta.background || meta.poster;
+                modal.querySelector('.detail-bg').style.backgroundImage = vodBg ? `url('${vodBg}')` : 'none';
+            }
             const titleEl = modal.querySelector('.detail-title');
             titleEl.innerHTML = '';            if (meta.logo) {
                 titleEl.innerHTML = `<img src="${meta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
@@ -5034,7 +5045,7 @@ function renderCurrentView() {
                 const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));
                 const diff = Math.round((stop - now) / 60000);                const bgImg = customMediaMap[channelId]?.banner || prog.iconSrc2 || prog.iconSrc;
 
-                modal.querySelector('.detail-bg').style.backgroundImage = 'none';                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
+                modal.querySelector('.detail-bg').style.backgroundImage = bgImg ? `url('${bgImg}')` : 'none';                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
                 modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
 
                 const rawDesc = processColoredText(prog.description);
@@ -5112,7 +5123,7 @@ function renderCurrentView() {
                 const epgIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
 
                 const finalBg = customBanner || epgIcon || customLogo;
-                modal.querySelector('.detail-bg').style.backgroundImage = 'none';
+                modal.querySelector('.detail-bg').style.backgroundImage = finalBg ? `url('${finalBg}')` : 'none';
 
                 modal.querySelector('.detail-title').textContent = channelId;
                 modal.querySelector('.detail-time').textContent = "Emisión en directo";
