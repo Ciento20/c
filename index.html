@@ -222,6 +222,66 @@
         setTimeout(() => document.addEventListener('click', close), 10);
     };
 
+    /* --- MODO AMBIENTE (Ambilight) ---
+       Técnica: un <canvas> de baja resolución (160x90) colocado detrás del vídeo,
+       escalado al 150% del contenedor y con un blur CSS muy alto. En cada
+       fotograma "pintamos" el vídeo actual dentro de ese canvas pequeño; el
+       navegador se encarga de escalarlo y desenfocarlo, así que el coste de
+       CPU/GPU es mínimo. drawImage() funciona aunque el vídeo sea de otro
+       dominio (HLS/m3u8 sin CORS): solo se bloquearía si intentásemos leer
+       los píxeles (getImageData/toDataURL), cosa que aquí nunca hacemos. */
+    (function() {
+        let ambientRAF = null;
+        let ambientCtx = null;
+        let lastAmbientDraw = 0;
+        const AMBIENT_FRAME_MS = 66; // ~15fps, de sobra para un efecto de color ambiental
+
+        function isAmbientEnabled() {
+            return localStorage.getItem('ambientModeEnabled') !== 'false';
+        }
+
+        function ambientLoop(ts) {
+            const video = document.getElementById('main-video-player');
+            const canvas = document.getElementById('ambientCanvas');
+            if (!video || !canvas || video.paused || video.ended || video.style.display === 'none') {
+                window.stopAmbientMode();
+                return;
+            }
+            if (!lastAmbientDraw || (ts - lastAmbientDraw) >= AMBIENT_FRAME_MS) {
+                lastAmbientDraw = ts;
+                try {
+                    if (!ambientCtx) ambientCtx = canvas.getContext('2d', { alpha: false });
+                    ambientCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                } catch (e) { /* el primer fotograma puede no estar listo aún, se ignora */ }
+            }
+            ambientRAF = requestAnimationFrame(ambientLoop);
+        }
+
+        window.startAmbientMode = function() {
+            const canvas = document.getElementById('ambientCanvas');
+            const video = document.getElementById('main-video-player');
+            if (!canvas || !video) return;
+            if (!isAmbientEnabled()) { canvas.classList.remove('active'); return; }
+            canvas.classList.add('active');
+            if (ambientRAF) cancelAnimationFrame(ambientRAF);
+            lastAmbientDraw = 0;
+            ambientRAF = requestAnimationFrame(ambientLoop);
+        };
+
+        window.stopAmbientMode = function() {
+            if (ambientRAF) { cancelAnimationFrame(ambientRAF); ambientRAF = null; }
+            const canvas = document.getElementById('ambientCanvas');
+            if (canvas) canvas.classList.remove('active');
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('main-video-player');
+            if (!video) return;
+            ['play', 'playing'].forEach(ev => video.addEventListener(ev, window.startAmbientMode));
+            ['pause', 'ended', 'emptied'].forEach(ev => video.addEventListener(ev, window.stopAmbientMode));
+        });
+    })();
+
     async function _fbSetKey(key, value) {
         if (!window.fbUser || !window.fbDB) return;
         try {
@@ -1877,6 +1937,29 @@
             position: relative;
             background-color: #000;
         }
+
+        /* --- MODO AMBIENTE (Ambilight) --- */
+        .ambient-canvas {
+            position: absolute;
+            top: -25%;
+            left: -25%;
+            width: 150%;
+            height: 150%;
+            z-index: 1;
+            filter: blur(48px) saturate(1.6) brightness(1.15);
+            opacity: 0;
+            transform: translateZ(0);
+            pointer-events: none;
+            transition: opacity 0.7s ease;
+            will-change: opacity;
+        }
+        .ambient-canvas.active {
+            opacity: 0.85;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .ambient-canvas { transition: none; }
+        }
+
         .player-ui-overlay {
             position: absolute;
             inset: 0;
@@ -2306,11 +2389,33 @@
             ));
         }let streamSources = JSON.parse(localStorage.getItem('streamSources') || '[]');
         let stremioAddons = JSON.parse(localStorage.getItem('stremioAddons') || '[]');
-        let currentMainView = 'home';
-        let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
+        let currentMainView = 'home';        let onlyLiveEvents = localStorage.getItem('onlyLiveEvents') === 'true';
         let isP2PEnabled = localStorage.getItem('isP2PEnabled') === 'true';
         let hideNoImageEvents = localStorage.getItem('hideNoImageEvents') === 'true';
-        let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';
+        let hideNoVideoChannels = localStorage.getItem('hideNoVideoChannels') === 'true';        let currentPlaybackMode = null;
+        function updateControlsForMode(mode) {
+            currentPlaybackMode = mode;
+            const isTv = (mode === 'tv');
+            const isVod = (mode === 'vod');
+            const prevBtn = document.getElementById('btnPrevChannel');
+            const nextBtn = document.getElementById('btnNextChannel');
+            const changeSourceBtn = document.getElementById('btnChangeSource');
+            if (prevBtn) prevBtn.style.display = isTv ? 'flex' : 'none';
+            if (nextBtn) nextBtn.style.display = isTv ? 'flex' : 'none';
+            if (changeSourceBtn) changeSourceBtn.style.display = isTv ? 'flex' : 'none';
+            const subtitleBtn = document.getElementById('subtitleBtn');
+            const speedBtn = document.getElementById('speedBtn');
+            const scalingBtn = document.getElementById('scalingBtn');
+            const castBtn = document.getElementById('castBtn');
+            if (subtitleBtn) subtitleBtn.style.display = isVod ? 'flex' : 'none';
+            if (speedBtn) speedBtn.style.display = isVod ? 'flex' : 'none';
+            if (scalingBtn) scalingBtn.style.display = isVod ? 'flex' : 'none';
+            if (castBtn) castBtn.style.display = isVod ? 'flex' : 'none';
+            const tvControlsContainer = document.getElementById('tv-controls-container');
+            if (tvControlsContainer) {
+                tvControlsContainer.style.display = isTv ? 'flex' : 'none';
+            }
+        }
 
         async function fetchStremioCatalog(addonUrl) {
             try {
@@ -4015,6 +4120,7 @@ function renderCurrentView() {
 
             modal.style.display = 'flex';
         }        window.playStremioDirect = async (meta) => {
+            updateControlsForMode('vod');
             const video = document.getElementById('main-video-player');
             const titleDisplay = document.getElementById('playerTitleDisplay');
             if (titleDisplay) titleDisplay.textContent = meta.name;
@@ -4154,9 +4260,8 @@ function renderCurrentView() {
                     localStorage.setItem('videoProgress', JSON.stringify(progress));
                 }
             };
-        };
-
-        async function openStremioDetails(meta, baseUrl) {
+        };        async function openStremioDetails(meta, baseUrl) {
+            updateControlsForMode('vod');
             const modal = document.getElementById('programDetailModal');
 
             document.getElementById('playerControls').style.display = 'none';
@@ -4194,7 +4299,7 @@ function renderCurrentView() {
                 }
             }
 
-            modal.querySelector('.detail-bg').style.backgroundImage = `url('${meta.background || meta.poster}')`;
+            modal.querySelector('.detail-bg').style.backgroundImage = 'none';
             const titleEl = modal.querySelector('.detail-title');
             titleEl.innerHTML = '';            if (meta.logo) {
                 titleEl.innerHTML = `<img src="${meta.logo}" style="max-width: 60%; max-height: 35px; object-fit: contain; transition: opacity 0.4s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">`;
@@ -4777,6 +4882,7 @@ function renderCurrentView() {
                 playBtn.innerHTML = "Error al cargar información";
             }
         }        function openProgramDetails(channelId, startTime = null, progDate = null, autoPlay = false) {
+    updateControlsForMode('tv');
             window.currentPlayingChannel = channelId;
             const epgBlock = document.getElementById('epg-status-block');
             const vodBlock = document.getElementById('vod-title-block');
@@ -4811,7 +4917,7 @@ function renderCurrentView() {
                 const progress = Math.max(0, Math.min(100, ((now - start) / (stop - start)) * 100));
                 const diff = Math.round((stop - now) / 60000);                const bgImg = customMediaMap[channelId]?.banner || prog.iconSrc2 || prog.iconSrc;
 
-                modal.querySelector('.detail-bg').style.backgroundImage = `url('${bgImg}')`;                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
+                modal.querySelector('.detail-bg').style.backgroundImage = 'none';                modal.querySelector('.detail-title').innerHTML = processColoredText(prog.title);
                 modal.querySelector('.detail-time').textContent = `${prog.start} - ${prog.stop}`;
 
                 const rawDesc = processColoredText(prog.description);
@@ -4889,7 +4995,7 @@ function renderCurrentView() {
                 const epgIcon = epgData.find(p => p.channel === channelId)?.channelIcon || '';
 
                 const finalBg = customBanner || epgIcon || customLogo;
-                modal.querySelector('.detail-bg').style.backgroundImage = finalBg ? `url('${finalBg}')` : 'none';
+                modal.querySelector('.detail-bg').style.backgroundImage = 'none';
 
                 modal.querySelector('.detail-title').textContent = channelId;
                 modal.querySelector('.detail-time').textContent = "Emisión en directo";
@@ -6364,6 +6470,22 @@ function renderCurrentView() {
                 </div>
             </div>
 
+            <div class="settings-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="settings-icon-wrapper"><span class="material-icons" style="color: var(--primary); font-size: 1.4rem;">wb_iridescent</span></div>
+                        <div>
+                            <div style="font-weight: 700; color: white; font-size: 1.05rem;">Modo Ambiente</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 2px;">Difumina los colores del vídeo alrededor del reproductor</div>
+                        </div>
+                    </div>
+                    <label style="margin: 0;">
+                        <input type="checkbox" id="ambientToggle" onchange="toggleAmbientMode(this.checked)" style="display: none;">
+                        <div class="ios-toggle"></div>
+                    </label>
+                </div>
+            </div>
+
             <script>
                 function hexToRgb(hex) {
                     var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -6397,6 +6519,16 @@ function renderCurrentView() {
                     localStorage.setItem('isP2PEnabled', isToggled);
                 }
 
+                function toggleAmbientMode(isToggled) {
+                    localStorage.setItem('ambientModeEnabled', isToggled);
+                    if (!isToggled) {
+                        if (window.stopAmbientMode) window.stopAmbientMode();
+                    } else {
+                        const v = document.getElementById('main-video-player');
+                        if (v && !v.paused && window.startAmbientMode) window.startAmbientMode();
+                    }
+                }
+
                 function changeCinemetaLang(lang) {
                     localStorage.setItem('cinemetaLang', lang);
                     showFbToast('Idioma actualizado: ' + lang, 'var(--primary)');
@@ -6424,7 +6556,11 @@ function renderCurrentView() {
 
                         const chkNoVideo = document.getElementById('noVideoToggle');
                         if(chkNoVideo) chkNoVideo.checked = hideNoVideoChannels;                        const chkP2P = document.getElementById('p2pToggle');
-                        if(chkP2P) chkP2P.checked = isP2PEnabled;                        const chkAce = document.getElementById('aceServeToggle');
+                        if(chkP2P) chkP2P.checked = isP2PEnabled;
+
+                        const chkAmbient = document.getElementById('ambientToggle');
+                        if(chkAmbient) chkAmbient.checked = localStorage.getItem('ambientModeEnabled') !== 'false';
+                        const chkAce = document.getElementById('aceServeToggle');
                         if(chkAce) chkAce.checked = localStorage.getItem('useAceServe') === 'true';                        const langPicker = document.getElementById('cinemetaLangPicker');
                         if(langPicker) langPicker.value = localStorage.getItem('cinemetaLang') || 'es';
 
@@ -6756,7 +6892,8 @@ function renderCurrentView() {
                 <div id="detail-rating-floating" style="background: rgba(241, 196, 15, 0.1); padding: 5px 12px; border-radius: 10px; color: #f1c40f; font-weight: 800; font-size: 0.85rem; display: none; align-items: center; gap: 6px; border: 1px solid rgba(241, 196, 15, 0.2);"></div>
                 <div style="width: 40px;"></div>
             </div>            <div class="detail-bg" id="player-container" onclick="const isPlaying = document.getElementById('main-video-player').style.display === 'block' || document.getElementById('main-web-player').style.display === 'block'; if(isPlaying) this.classList.toggle('show-controls');">
-                <video id="main-video-player" playsinline webkit-playsinline style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:#000; object-fit:contain;"></video>
+                <canvas id="ambientCanvas" class="ambient-canvas" width="160" height="90"></canvas>
+                <video id="main-video-player" playsinline webkit-playsinline style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; background:transparent; object-fit:contain;"></video>
                 <iframe id="main-web-player" style="display:none; width:100%; height:100%; position:absolute; top:0; left:0; z-index:5; border:none; background:#fff;" allowfullscreen></iframe>                <div class="player-ui-overlay" id="playerControls" style="display: none;">
                     <div class="player-top-bar" style="align-items: flex-start;">
                         <div style="display: flex; flex-direction: column; gap: 0px; align-items: flex-start;">
@@ -6795,21 +6932,20 @@ function renderCurrentView() {
                             <span id="totalTimeText">00:00</span>
                         </div>
 
-                        <div class="player-actions-row">
-                            <button class="player-action-item" onclick="window.toggleSubtitles(event)">
+                        <div class="player-actions-row">                            <button class="player-action-item" id="subtitleBtn" onclick="window.toggleSubtitles(event)">
                                 <span class="material-icons">subtitles</span>
                             </button>
 
                             <button class="player-action-item" id="btnChangeSource" onclick="event.stopPropagation(); window.nextSource && window.nextSource();" style="display:none;">
                                 <span class="material-icons">switch_video</span>
                             </button>
-                            <button class="player-action-item" onclick="window.togglePlaybackSpeed(event)">
+                            <button class="player-action-item" id="speedBtn" onclick="window.togglePlaybackSpeed(event)">
                                 <span class="material-icons">speed</span>
                             </button>
-                            <button class="player-action-item" onclick="window.toggleVideoScaling(event)">
+                            <button class="player-action-item" id="scalingBtn" onclick="window.toggleVideoScaling(event)">
                                 <span class="material-icons">aspect_ratio</span>
                             </button>
-                            <button class="player-action-item" onclick="window.castToDevice(event)">
+                            <button class="player-action-item" id="castBtn" onclick="window.castToDevice(event)">
                                 <span class="material-icons">cast</span>
                             </button>
                         </div>
