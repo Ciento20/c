@@ -2574,8 +2574,10 @@
                 document.getElementById('nav-channels').classList.add('active');
                 renderChannelsView();            } else if(mode === 'home') {
                 document.getElementById('nav-home').classList.add('active');
-                homeView.style.display = 'block';
-                renderHomeView();
+                if (homeView) {
+                    homeView.style.display = 'block';
+                    renderHomeView();
+                }
             } else if(mode === 'settings') {
                 settingsView.style.display = 'block';
             }
@@ -3896,12 +3898,26 @@ function renderCurrentView() {
             setInterval(updateLiveStatus, 30000);
         })();
 
-        document.addEventListener('DOMContentLoaded', setDateToCurrent);        fetchXML().then(() => {
-            switchMainView('home');
-            setTimeout(() => {
-                requestAnimationFrame(() => loadAllStreamSources());
-            }, 1200);
-        });        function normalizeName(name) {
+        document.addEventListener('DOMContentLoaded', setDateToCurrent);
+
+        function runInitialLoad() {
+            fetchXML().then(() => {
+                switchMainView('home');
+                setTimeout(() => {
+                    requestAnimationFrame(() => loadAllStreamSources());
+                }, 1200);
+            });
+        }
+        // Nos aseguramos de que todo el DOM (home-view, botón de ajustes, etc.)
+        // esté ya parseado antes de lanzar la carga inicial, para que funcione
+        // igual de bien tanto si hay EPG configurado como si no lo hay.
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runInitialLoad);
+        } else {
+            runInitialLoad();
+        }
+
+        function normalizeName(name) {
             if (!name) return '';
             let n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             // Limpieza agresiva de etiquetas comunes en listas de hashes (*, **, 1080p, etc)
