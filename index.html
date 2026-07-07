@@ -999,24 +999,24 @@
         .live-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: #e53935;
-            color: #fff;
-            font-size: 0.6rem;
-            font-weight: 900;
-            letter-spacing: 1.5px;
-            padding: 3px 8px;
-            border-radius: 6px;
+            gap: 3px;
+            background: transparent;
+            color: #ff5449;
+            font-size: 0.55rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            padding: 0;
+            border-radius: 0;
             text-transform: uppercase;
-            box-shadow: 0 0 12px rgba(229,57,53,0.7);
-            animation: livePulse 2s ease-in-out infinite;
+            box-shadow: none;
+            animation: none;
         }
         .live-badge::before {
             content: '';
-            width: 6px; height: 6px;
-            background: #fff;
+            width: 5px; height: 5px;
+            background: #ff5449;
             border-radius: 50%;
-            animation: dotBlink 1s step-start infinite;
+            animation: dotBlink 1.4s ease-in-out infinite;
             flex-shrink: 0;
         }
         @keyframes livePulse {
@@ -1030,28 +1030,28 @@
         .upcoming-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: rgba(var(--primary-rgb), 0.2);
-            color: var(--primary);
-            border: 1px solid var(--primary);
-            font-size: 0.6rem;
-            font-weight: 900;
-            letter-spacing: 1px;
-            padding: 3px 8px;
-            border-radius: 6px;
+            gap: 3px;
+            background: transparent;
+            color: var(--color-text-muted-dark);
+            border: none;
+            font-size: 0.55rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            padding: 0;
+            border-radius: 0;
             text-transform: uppercase;
         }
         .past-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: rgba(255,255,255,0.05);
+            gap: 3px;
+            background: transparent;
             color: #666;
-            font-size: 0.6rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            padding: 3px 8px;
-            border-radius: 6px;
+            font-size: 0.55rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            padding: 0;
+            border-radius: 0;
             text-transform: uppercase;
         }
         .realtime-progress-bar {
@@ -1192,9 +1192,10 @@
         }
 
         .card-time .duration {
-            font-size: 0.8em;
+            font-size: 0.7em;
+            font-weight: 500;
             color: var(--color-text-muted-dark);
-            margin-left: 5px;
+            margin-left: 4px;
         }
 
         .card-channel {
