@@ -2206,6 +2206,8 @@
         .player-action-item span { font-size: 20px !important; }        video.stremio-mode::-webkit-media-controls { display: none !important; }
         #main-video-player.stremio-mode { pointer-events: none; }        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
         #next-ep-overlay.is-visible { opacity: 1 !important; pointer-events: auto !important; }
+        #next-ep-overlay.auto-hidden { opacity: 0 !important; pointer-events: none !important; }
+        #player-container.show-controls #next-ep-overlay.auto-hidden { opacity: 1 !important; pointer-events: auto !important; }
 
         .detail-bg::after {
             content: '';
@@ -4379,7 +4381,7 @@ function renderCurrentView() {
                                 <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:44px; height:44px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"><span class="material-icons" style="font-size:28px;">skip_next</span></button>                            `;
                             video.parentElement.appendChild(overlay);
 
-                            // Animación de recogido a los 3 segundos
+                            // Animación de recogido a los 5 segundos
                             setTimeout(() => {
                                 if (document.getElementById('next-ep-overlay')) {
                                     const img = document.getElementById('next-ep-img');
@@ -4391,7 +4393,13 @@ function renderCurrentView() {
                                     if (img) { img.style.width = '0px'; img.style.opacity = '0'; img.style.marginRight = '0px'; }
                                     if (info) { info.style.width = '0px'; info.style.opacity = '0'; }
                                 }
-                            }, 3000);
+                            }, 5000);
+
+                            // A los 5 segundos siguientes (10s en total), se oculta hasta que el usuario toque la pantalla
+                            setTimeout(() => {
+                                const liveOverlay = document.getElementById('next-ep-overlay');
+                                if (liveOverlay) liveOverlay.classList.add('auto-hidden');
+                            }, 10000);
                         }
                     } else if (remaining > threshold + 10) {
                         video.dataset.nextTriggered = '';
@@ -4863,13 +4871,33 @@ function renderCurrentView() {
                                                 overlay.className = 'is-visible';
                                                 overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
                                                 overlay.innerHTML = `
-                                    <img src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
-                                                    <div style="text-align:left;">
+                                    <img id="next-ep-img" src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px; transition: all 0.5s ease; flex-shrink: 0;">
+                                                    <div id="next-ep-info" style="text-align:left; transition: all 0.5s ease; overflow:hidden; white-space:nowrap;">
                                                         <div style="font-size:0.6rem; color:var(--primary); font-weight:800;">SIGUIENTE CAPÍTULO</div>
                                                         <div style="font-size:0.8rem; color:white; font-weight:600; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nextEp.title || 'Episodio ' + nextEp.episode}</div>
                                                     </div>
-                                                    <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><span class="material-icons">skip_next</span></button>                            `;
+                                                    <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink: 0;"><span class="material-icons">skip_next</span></button>                            `;
                             video.parentElement.appendChild(overlay);
+
+                            // Animación de recogido a los 5 segundos
+                            setTimeout(() => {
+                                if (document.getElementById('next-ep-overlay')) {
+                                    const img = document.getElementById('next-ep-img');
+                                    const info = document.getElementById('next-ep-info');
+                                    overlay.style.padding = '6px';
+                                    overlay.style.gap = '0px';
+                                    overlay.style.borderRadius = '30px';
+                                    overlay.style.background = 'rgba(0,0,0,0.6)';
+                                    if (img) { img.style.width = '0px'; img.style.opacity = '0'; img.style.marginRight = '0px'; }
+                                    if (info) { info.style.width = '0px'; info.style.opacity = '0'; }
+                                }
+                            }, 5000);
+
+                            // A los 5 segundos siguientes (10s en total), se oculta hasta que el usuario toque la pantalla
+                            setTimeout(() => {
+                                const liveOverlay = document.getElementById('next-ep-overlay');
+                                if (liveOverlay) liveOverlay.classList.add('auto-hidden');
+                            }, 10000);
                         }
                                         } else if (remaining > threshold + 10) {
                                             video.dataset.nextTriggered = '';
