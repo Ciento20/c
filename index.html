@@ -6252,15 +6252,21 @@ function renderCurrentView() {
 
             const words = q.split(/\s+/).filter(Boolean);
 
-            // Función de puntuación: cuánto coincide un texto con el query
+            // Función de puntuación: cuánto coincide un texto con el query.
+            // Sólo cuenta como coincidencia real: texto exacto, prefijo, frase
+            // completa contenida, o (si hay varias palabras) que TODAS las
+            // palabras estén presentes. Ya no se puntúan coincidencias
+            // parciales/débiles (antes bastaba con que matcheara 1 sola
+            // palabra de varias para colar resultados poco relacionados).
+            const MIN_SCORE = 45; // umbral mínimo para considerar que "coincide de verdad"
             function scoreMatch(text) {
                 if (!text) return 0;
                 const t = text.toLowerCase();
                 if (t === q) return 100;
                 if (t.startsWith(q)) return 80;
-                if (words.every(w => t.includes(w))) return 60;
-                const matched = words.filter(w => t.includes(w)).length;
-                return matched > 0 ? 20 + (matched / words.length) * 30 : 0;
+                if (t.includes(q)) return 70;
+                if (words.length > 1 && words.every(w => t.includes(w))) return 60;
+                return 0;
             }
 
             // ── 1. Canales directos ────────────────────────────────────────
@@ -6268,30 +6274,9 @@ function renderCurrentView() {
             if (typeof channelsList !== 'undefined') {
                 channelsList.forEach(ch => {
                     const score = scoreMatch(ch);
-                    if (score > 0) channelMatches.push({ ch, score });
+                    if (score >= MIN_SCORE) channelMatches.push({ ch, score });
                 });
                 channelMatches.sort((a, b) => b.score - a.score);
-            }
-
-            if (channelMatches.length > 0) {
-                _appendSectionHeader(resultsContainer, 'Canales', 'tv');
-                channelMatches.slice(0, 8).forEach(({ ch }) => {
-                    // Buscar icono del canal en channelIcons o epgData
-                    let icon = '';
-                    if (typeof channelIcons !== 'undefined' && channelIcons[ch]) {
-                        icon = channelIcons[ch];
-                    } else {
-                        const epgEntry = epgData.find(p => p.channel === ch && p.channelIcon);
-                        if (epgEntry) icon = epgEntry.channelIcon;
-                    }                    const card = buildModernRow({
-                        onClick: () => { closeGlobalSearch(); selectChannel(ch); },
-                        iconHtml: icon ? `<img src="${icon}" style="max-width:100%; max-height:100%; object-fit:contain;">` : `<span class="material-icons" style="color:#555;font-size:1.4rem;">tv</span>`,
-                        title: ch,
-                        subtitle: 'Canal directo',
-                        rightIconHtml: '<span class="material-icons" style="color:#333; font-size:1rem;">play_circle_outline</span>'
-                    });
-                    resultsContainer.appendChild(card);
-                });
             }
 
             // ── 2. Programas EPG ───────────────────────────────────────────
@@ -6302,33 +6287,82 @@ function renderCurrentView() {
                     const chanScore  = scoreMatch(p.channel) * 0.4;
                     const descScore  = p.description ? scoreMatch(p.description) * 0.2 : 0;
                     const total = titleScore + chanScore + descScore;
-                    if (total > 0) epgMatches.push({ p, score: total });
+                    // El título debe superar el umbral por sí solo; que sólo
+                    // coincida el canal o la descripción ya no es suficiente.
+                    if (titleScore >= MIN_SCORE) epgMatches.push({ p, score: total });
                 });
                 epgMatches.sort((a, b) => b.score - a.score);
             }
 
-            if (epgMatches.length > 0) {
-                _appendSectionHeader(resultsContainer, 'Televisión en vivo', 'live_tv');
-                epgMatches.slice(0, 15).forEach(({ p: item }) => {                    const card = buildModernRow({
-                        onClick: () => { closeGlobalSearch(); openProgramDetails(item.channel, item.start, item.date, true); },
-                        iconHtml: `<img src="${item.channelIcon || ''}" style="max-width:100%; max-height:100%; object-fit:contain;" onerror="this.style.display='none'">`,
-                        title: item.title,
-                        subtitle: `${item.channel} • ${item.start}`,
-                        rightIconHtml: '<span class="material-icons" style="color:#333; font-size:1rem;">live_tv</span>'
-                    });
-                    resultsContainer.appendChild(card);
+            // Renderizamos "Canales" y "Televisión en vivo" ordenadas por
+            // parentesco real: la sección cuya mejor coincidencia sea más
+            // fuerte se muestra primero. Si una sección no tiene ninguna
+            // coincidencia, no se muestra en absoluto.
+            const localSections = [];
+            if (channelMatches.length > 0) {
+                localSections.push({
+                    bestScore: channelMatches[0].score,
+                    render: () => {
+                        _appendSectionHeader(resultsContainer, 'Canales', 'tv');
+                        channelMatches.slice(0, 8).forEach(({ ch }) => {
+                            let icon = '';
+                            if (typeof channelIcons !== 'undefined' && channelIcons[ch]) {
+                                icon = channelIcons[ch];
+                            } else {
+                                const epgEntry = epgData.find(p => p.channel === ch && p.channelIcon);
+                                if (epgEntry) icon = epgEntry.channelIcon;
+                            }
+                            const card = buildModernRow({
+                                onClick: () => { closeGlobalSearch(); selectChannel(ch); },
+                                iconHtml: icon ? `<img src="${icon}" style="max-width:100%; max-height:100%; object-fit:contain;">` : `<span class="material-icons" style="color:#555;font-size:1.4rem;">tv</span>`,
+                                title: ch,
+                                subtitle: 'Canal directo',
+                                rightIconHtml: '<span class="material-icons" style="color:#333; font-size:1rem;">play_circle_outline</span>'
+                            });
+                            resultsContainer.appendChild(card);
+                        });
+                    }
                 });
             }
+            if (epgMatches.length > 0) {
+                localSections.push({
+                    bestScore: epgMatches[0].score,
+                    render: () => {
+                        _appendSectionHeader(resultsContainer, 'Televisión en vivo', 'live_tv');
+                        epgMatches.slice(0, 15).forEach(({ p: item }) => {
+                            const card = buildModernRow({
+                                onClick: () => { closeGlobalSearch(); openProgramDetails(item.channel, item.start, item.date, true); },
+                                iconHtml: `<img src="${item.channelIcon || ''}" style="max-width:100%; max-height:100%; object-fit:contain;" onerror="this.style.display='none'">`,
+                                title: item.title,
+                                subtitle: `${item.channel} • ${item.start}`,
+                                rightIconHtml: '<span class="material-icons" style="color:#333; font-size:1rem;">live_tv</span>'
+                            });
+                            resultsContainer.appendChild(card);
+                        });
+                    }
+                });
+            }
+            localSections.sort((a, b) => b.bestScore - a.bestScore);
+            localSections.forEach(s => s.render());
 
             // ── 3. Addons Stremio ──────────────────────────────────────────
             if (typeof stremioAddons !== 'undefined' && stremioAddons.length > 0) {
                 const stremioSection = document.createElement('div');
                 stremioSection.id = 'stremio-search-section';
-                _appendSectionHeader(stremioSection, 'Streaming', 'cloud_download', true);
-                resultsContainer.appendChild(stremioSection);
+                // Guardamos los resultados aquí y sólo insertamos la sección
+                // en el DOM (con su cabecera) cuando de verdad hay algo que
+                // coincida con lo escrito, en vez de mostrarla siempre.
+                const stremioResults = []; // { meta, cat, manifest, baseUrl, score }
+                let stremioSectionInserted = false;
+                function ensureStremioSectionInserted() {
+                    if (!stremioSectionInserted) {
+                        _appendSectionHeader(stremioSection, 'Streaming', 'cloud_download', true);
+                        resultsContainer.appendChild(stremioSection);
+                        stremioSectionInserted = true;
+                    }
+                }
 
                 (async () => {
-                    let stremioCount = 0;
                     for (const addonUrl of stremioAddons) {
                         if (signal.aborted) break;
                         try {
@@ -6362,24 +6396,21 @@ function renderCurrentView() {
                                     const res = await fetch(searchUrl, { signal });
                                     if (!res.ok) continue;
                                     const data = await res.json();
-                                    const metas = (data.metas || []).slice(0, 10);
+                                    const metas = data.metas || [];
                                     if (!metas.length) continue;
-
                                     if (signal.aborted) break;
 
-                                    // Insertar resultados justo en la sección stremio
-                                    metas.forEach(meta => {                                        const card = buildModernRow({
-                                            cardStyle: 'border-left: 3px solid #7b2cbf;',
-                                            onClick: () => { closeGlobalSearch(); openStremioDetails(meta, baseUrl); },
-                                            logoStyle: 'width:40px; height:56px; border-radius:4px; background:#000; overflow:hidden;',
-                                            iconHtml: `<img src="${meta.poster || ''}" style="height:100%; width:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<span class=\\'material-icons\\' style=\\'color:#555;font-size:1.4rem;\\'>movie</span>'">`,
-                                            title: meta.name || '',
-                                            subtitleStyle: 'font-size:0.65rem; color:#7b2cbf; font-weight:700;',
-                                            subtitle: `${cat.type.toUpperCase()} • ${manifest.name}`,
-                                            rightIconHtml: '<span class="material-icons" style="color:#7b2cbf; font-size:1rem;">cloud_download</span>'
-                                        });
-                                        stremioSection.appendChild(card);
-                                        stremioCount++;
+                                    // Algunos addons devuelven resultados "parecidos" aunque no
+                                    // coincidan de verdad con lo escrito (búsqueda difusa propia
+                                    // del addon). Filtramos aquí por relevancia real al título
+                                    // (y opcionalmente la descripción) antes de mostrarlos.
+                                    metas.forEach(meta => {
+                                        const nameScore = scoreMatch(meta.name);
+                                        const descScore = meta.description ? scoreMatch(meta.description) * 0.3 : 0;
+                                        const score = Math.max(nameScore, descScore);
+                                        if (nameScore >= MIN_SCORE || descScore >= MIN_SCORE) {
+                                            stremioResults.push({ meta, cat, manifest, baseUrl, score });
+                                        }
                                     });
                                 } catch(e) {
                                     if (e.name !== 'AbortError') console.warn('[Search] Stremio catalog error:', searchUrl, e);
@@ -6390,20 +6421,47 @@ function renderCurrentView() {
                         }
                     }
 
-                    if (!signal.aborted) {
-                        // Actualizar cabecera de la sección con el count
+                    if (!signal.aborted && stremioResults.length > 0) {
+                        // Quitamos duplicados (mismo id) quedándonos con el de mayor score
+                        const byId = new Map();
+                        stremioResults.forEach(r => {
+                            const key = r.meta.id || r.meta.name;
+                            const prev = byId.get(key);
+                            if (!prev || r.score > prev.score) byId.set(key, r);
+                        });
+                        const finalResults = Array.from(byId.values()).sort((a, b) => b.score - a.score);
+
+                        ensureStremioSectionInserted();
                         const header = stremioSection.querySelector('[data-section-loading]');
                         if (header) {
-                            header.innerHTML = `<span class="material-icons" style="font-size:0.9rem; opacity:0.6;">cloud_download</span> Streaming ${stremioCount > 0 ? '(' + stremioCount + ')' : '— sin resultados'}`;
+                            header.innerHTML = `<span class="material-icons" style="font-size:0.9rem; opacity:0.6;">cloud_download</span> Streaming (${finalResults.length})`;
                             header.removeAttribute('data-section-loading');
                         }
-                        if (stremioCount === 0) {
-                            const empty = document.createElement('div');
-                            empty.style.cssText = 'font-size:0.75rem; color:#555; padding: 8px 5px 5px 5px;';
-                            empty.textContent = 'Sin resultados en los addons configurados';
-                            stremioSection.appendChild(empty);
-                        }
+                        finalResults.forEach(({ meta, cat, manifest, baseUrl }) => {
+                            // Usamos el color de acento elegido por el usuario en vez de
+                            // un morado fijo. Las series usan una variante más oscura del
+                            // mismo acento para distinguirse de las películas por tono.
+                            const isSeries = cat.type === 'series';
+                            const itemColor = isSeries
+                                ? 'color-mix(in srgb, var(--color-primary) 65%, black)'
+                                : 'var(--color-primary)';
+                            const card = buildModernRow({
+                                cardStyle: `border-left: 3px solid ${itemColor};`,
+                                onClick: () => { closeGlobalSearch(); openStremioDetails(meta, baseUrl); },
+                                logoStyle: 'width:40px; height:56px; border-radius:4px; background:#000; overflow:hidden;',
+                                iconHtml: `<img src="${meta.poster || ''}" style="height:100%; width:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<span class=\\'material-icons\\' style=\\'color:#555;font-size:1.4rem;\\'>movie</span>'">`,
+                                title: meta.name || '',
+                                subtitleStyle: `font-size:0.65rem; color:${itemColor}; font-weight:700;`,
+                                subtitle: `${cat.type.toUpperCase()} • ${manifest.name}`,
+                                rightIconHtml: `<span class="material-icons" style="color:${itemColor}; font-size:1rem;">cloud_download</span>`
+                            });
+                            stremioSection.appendChild(card);
+                        });
                     }
+                    // Si no hay ningún resultado relevante, simplemente no se
+                    // inserta la sección "Streaming" (nunca se llamó a
+                    // ensureStremioSectionInserted), en vez de forzar un
+                    // mensaje de "sin resultados" que ocupa espacio.
                 })();
             }
 
