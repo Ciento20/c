@@ -1055,15 +1055,14 @@
             text-transform: uppercase;
         }
         .realtime-progress-bar {
-    position: absolute;
-    bottom: 8px;
-    left: 12px;
-    right: 12px;
-    height: 5px;
+    position: relative;
+    flex: 1;
+    height: 4px;
     background: rgba(255,255,255,0.15);
     border-radius: 6px;
     overflow: hidden;
     z-index: 5;
+    min-width: 20px;
 }
 .realtime-progress-fill {
     height: 100%;
@@ -3768,9 +3767,13 @@ function renderCurrentView() {
                         })()}
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-size: 0.75rem; font-weight: 800; color: #fff;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: #fff; flex-shrink: 0; white-space: nowrap;">
                             ${item.start} - ${item.stop} <span style="color: rgba(255,255,255,0.5); font-size: 0.65rem; font-weight: 500; margin-left: 6px;">(${item.duration})</span>
+                        </div>
+
+                        <div class="realtime-progress-bar">
+                            <div class="realtime-progress-fill" style="width:0%"></div>
                         </div>
 
                         <div class="details-btn" onclick="showQuickMenu(event, '${item.channel}', '${item.title.replace(/'/g, "\'")}', '${item.start}', '${item.date}')"
@@ -3781,11 +3784,7 @@ function renderCurrentView() {
                 </div>
             </div>
         `;
-                // Barra de progreso en tiempo real
-                const progressBar = document.createElement('div');
-                progressBar.className = 'realtime-progress-bar';
-                progressBar.innerHTML = '<div class="realtime-progress-fill" style="width:0%"></div>';
-                card.appendChild(progressBar);
+
 
                 dataList.appendChild(card);
             });
