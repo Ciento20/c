@@ -749,7 +749,7 @@
                 "name": "TV Guide Premium",
                 "short_name": "TV Guide",
                 "start_url": "https://carlostropico.github.io/c/",                "display": "fullscreen",
-                "orientation": "portrait",
+                "orientation": "any",
                 "background_color": "#000000",
                 "theme_color": "#000000",
                 "icons": [
@@ -781,10 +781,13 @@
             }
 
             // Deshabilitar el giro automático de pantalla cuando la app está instalada como PWA
+            // (pero solo en móviles: en tablets forzar "portrait" gira físicamente la pantalla
+            // y rompe la experiencia si el usuario la sostiene en horizontal)
             window.isInstalledPWA = window.matchMedia('(display-mode: standalone)').matches
                 || window.matchMedia('(display-mode: fullscreen)').matches
                 || window.navigator.standalone === true;
-            if (window.isInstalledPWA && screen.orientation && screen.orientation.lock) {
+            window.isTabletDevice = Math.min(screen.width, screen.height) >= 600;
+            if (window.isInstalledPWA && !window.isTabletDevice && screen.orientation && screen.orientation.lock) {
                 const lockPortrait = () => screen.orientation.lock('portrait').catch(() => {});
                 lockPortrait();
                 document.addEventListener('DOMContentLoaded', lockPortrait);
@@ -5746,7 +5749,7 @@ function renderCurrentView() {
                     const exit = d.exitFullscreen || d.webkitExitFullscreen || d.mozCancelFullScreen || d.msExitFullscreen;
                     if (exit) await exit.call(d).catch(()=>{});
                     if (screen.orientation && screen.orientation.lock) {
-                        if (window.isInstalledPWA) { await screen.orientation.lock('portrait').catch(()=>{}); }
+                        if (window.isInstalledPWA && !window.isTabletDevice) { await screen.orientation.lock('portrait').catch(()=>{}); }
                         else if (screen.orientation.unlock) { screen.orientation.unlock().catch(()=>{}); }
                     }
                 } else {
@@ -5766,7 +5769,7 @@ function renderCurrentView() {
             if (tvIcon) tvIcon.textContent = isFS ? 'fullscreen_exit' : 'screen_rotation';
             // Si sale de fullscreen, restaurar el bloqueo de portrait (PWA instalada) o liberar orientación
             if (!isFS && screen.orientation) {
-                if (window.isInstalledPWA && screen.orientation.lock) { screen.orientation.lock('portrait').catch(()=>{}); }
+                if (window.isInstalledPWA && !window.isTabletDevice && screen.orientation.lock) { screen.orientation.lock('portrait').catch(()=>{}); }
                 else if (screen.orientation.unlock) { screen.orientation.unlock().catch(()=>{}); }
             }
         }));
