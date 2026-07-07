@@ -3975,9 +3975,22 @@ function renderCurrentView() {
                             else if (Array.isArray(d)) raw = d;
 
                             items = raw.map(i => {
-                                let url = i.url || i.link || i.hash || i.acestream || i.cid;
-                                // Si es un hash puro de 40 caracteres, añadimos el protocolo
-                                if (url && /^[a-fA-F0-9]{40}$/.test(url.trim())) url = 'acestream://' + url.trim();
+                                // Un enlace explícito (url/link) se respeta SIEMPRE tal cual, sin tocarlo.
+                                // Antes, si ese enlace era una cadena de 40 caracteres hex (p.ej. un cid o
+                                // hash de otro servicio, no de Acestream), se convertía igualmente en un
+                                // enlace acestream://, obligando a pasar por AceServe sin ser necesario.
+                                let url = i.url || i.link;
+                                if (!url) {
+                                    // Solo tratamos como Acestream lo que viene explícitamente marcado como tal.
+                                    const aceHash = (i.hash || i.acestream || '').toString().trim();
+                                    if (aceHash) {
+                                        // Si es un hash puro de 40 caracteres, añadimos el protocolo
+                                        url = /^[a-fA-F0-9]{40}$/.test(aceHash) ? 'acestream://' + aceHash : aceHash;
+                                    } else if (i.cid) {
+                                        // 'cid' es ambiguo (puede ser de otro servicio): se usa tal cual, sin asumir Acestream
+                                        url = i.cid;
+                                    }
+                                }
                                 
                                 // Para matching: usar tvg_id (nombre limpio del canal) si existe,
                                 // si no, intentar con title/name. El title original se preserva como rawName.
