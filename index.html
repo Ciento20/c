@@ -2204,10 +2204,13 @@
 
         .player-action-item:hover { color: #fff; }
         .player-action-item span { font-size: 20px !important; }        video.stremio-mode::-webkit-media-controls { display: none !important; }
-        #main-video-player.stremio-mode { pointer-events: none; }        #next-ep-overlay { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 99999 !important; }
-        #next-ep-overlay.is-visible { opacity: 1 !important; pointer-events: auto !important; }
+        #main-video-player.stremio-mode { pointer-events: none; }        #next-ep-overlay { opacity: 0; pointer-events: none; transform: translateY(20px) scale(0.85); transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 99999 !important; }
+        #next-ep-overlay.is-visible { opacity: 1 !important; pointer-events: auto !important; transform: translateY(0) scale(1) !important; }
         #next-ep-overlay.auto-hidden { opacity: 0 !important; pointer-events: none !important; }
         #player-container.show-controls #next-ep-overlay.auto-hidden { opacity: 1 !important; pointer-events: auto !important; }
+        #next-ep-overlay.next-ep-collapsed { padding: 6px !important; gap: 0px !important; border-radius: 30px !important; background: rgba(0,0,0,0.6) !important; }
+        #next-ep-overlay.next-ep-collapsed #next-ep-img { width: 0px !important; opacity: 0 !important; margin-right: 0px !important; }
+        #next-ep-overlay.next-ep-collapsed #next-ep-info { width: 0px !important; opacity: 0 !important; }
 
         .detail-bg::after {
             content: '';
@@ -4370,8 +4373,7 @@ function renderCurrentView() {
                             video.dataset.nextTriggered = 'true';
                             const overlay = document.createElement('div');
                             overlay.id = 'next-ep-overlay';
-                            overlay.className = 'is-visible';
-                            overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.85); padding:12px; border-radius:16px; border:1px solid rgba(var(--primary-rgb), 0.5); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(15px); transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1); overflow:hidden; max-width: 350px;';
+                            overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.85); padding:12px; border-radius:16px; border:1px solid rgba(var(--primary-rgb), 0.5); display:flex; align-items:center; gap:12px; backdrop-filter:blur(15px); transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1); overflow:hidden; max-width: 350px;';
                             overlay.innerHTML = `
                                 <img id="next-ep-img" src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:8px; transition: all 0.5s ease; flex-shrink: 0;">
                                 <div id="next-ep-info" style="text-align:left; transition: all 0.5s ease; overflow:hidden; white-space:nowrap;">
@@ -4380,18 +4382,13 @@ function renderCurrentView() {
                                 </div>
                                 <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:44px; height:44px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"><span class="material-icons" style="font-size:28px;">skip_next</span></button>                            `;
                             video.parentElement.appendChild(overlay);
+                            // Forzar reflow y añadir la clase en el siguiente frame para que se vea la animación de entrada
+                            requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('is-visible')));
 
                             // Animación de recogido a los 5 segundos
                             setTimeout(() => {
                                 if (document.getElementById('next-ep-overlay')) {
-                                    const img = document.getElementById('next-ep-img');
-                                    const info = document.getElementById('next-ep-info');
-                                    overlay.style.padding = '6px';
-                                    overlay.style.gap = '0px';
-                                    overlay.style.borderRadius = '30px';
-                                    overlay.style.background = 'rgba(0,0,0,0.6)';
-                                    if (img) { img.style.width = '0px'; img.style.opacity = '0'; img.style.marginRight = '0px'; }
-                                    if (info) { info.style.width = '0px'; info.style.opacity = '0'; }
+                                    overlay.classList.add('next-ep-collapsed');
                                 }
                             }, 5000);
 
@@ -4868,8 +4865,7 @@ function renderCurrentView() {
                                                 video.dataset.nextTriggered = 'true';
                                                 const overlay = document.createElement('div');
                                                 overlay.id = 'next-ep-overlay';
-                                                overlay.className = 'is-visible';
-                                                overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; animation: modalFadeIn 0.5s ease; backdrop-filter:blur(10px);';
+                                                overlay.style.cssText = 'position:absolute; bottom:120px; right:20px; z-index:100; background:rgba(0,0,0,0.8); padding:15px; border-radius:12px; border:1px solid var(--primary); display:flex; align-items:center; gap:12px; backdrop-filter:blur(10px);';
                                                 overlay.innerHTML = `
                                     <img id="next-ep-img" src="${nextEp.thumbnail || meta.poster}" style="width:80px; height:45px; object-fit:cover; border-radius:4px; transition: all 0.5s ease; flex-shrink: 0;">
                                                     <div id="next-ep-info" style="text-align:left; transition: all 0.5s ease; overflow:hidden; white-space:nowrap;">
@@ -4878,18 +4874,13 @@ function renderCurrentView() {
                                                     </div>
                                                     <button onclick="this.parentElement.remove(); const v = document.getElementById('main-video-player'); if(v && v.duration) { const offsets = JSON.parse(localStorage.getItem('seriesOffsets') || '{}'); offsets['${fullMeta.id}'] = v.duration - v.currentTime; localStorage.setItem('seriesOffsets', JSON.stringify(offsets)); } window.fetchStreamsForId('${nextEp.id}', true)" style="background:white; color:black; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink: 0;"><span class="material-icons">skip_next</span></button>                            `;
                             video.parentElement.appendChild(overlay);
+                            // Forzar reflow y añadir la clase en el siguiente frame para que se vea la animación de entrada
+                            requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('is-visible')));
 
                             // Animación de recogido a los 5 segundos
                             setTimeout(() => {
                                 if (document.getElementById('next-ep-overlay')) {
-                                    const img = document.getElementById('next-ep-img');
-                                    const info = document.getElementById('next-ep-info');
-                                    overlay.style.padding = '6px';
-                                    overlay.style.gap = '0px';
-                                    overlay.style.borderRadius = '30px';
-                                    overlay.style.background = 'rgba(0,0,0,0.6)';
-                                    if (img) { img.style.width = '0px'; img.style.opacity = '0'; img.style.marginRight = '0px'; }
-                                    if (info) { info.style.width = '0px'; info.style.opacity = '0'; }
+                                    overlay.classList.add('next-ep-collapsed');
                                 }
                             }, 5000);
 
@@ -7440,6 +7431,16 @@ function renderCurrentView() {
                 if (container.classList.contains('show-controls')) {
                     clearTimeout(hideTimer);
                     startHideTimer();
+
+                    // Si el botón de "siguiente capítulo" ya se auto-ocultó y sigue colapsado,
+                    // lo expandimos de nuevo (animación inversa a cuando se hizo pequeño).
+                    // A partir de aquí, solo se muestra/oculta junto con el resto de controles.
+                    const nextOverlay = document.getElementById('next-ep-overlay');
+                    if (nextOverlay && nextOverlay.classList.contains('auto-hidden') &&
+                        nextOverlay.classList.contains('next-ep-collapsed') && !nextOverlay.dataset.expanded) {
+                        nextOverlay.dataset.expanded = 'true';
+                        nextOverlay.classList.remove('next-ep-collapsed');
+                    }
                 } else {
                     clearTimeout(hideTimer);
                 }
