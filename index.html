@@ -326,6 +326,33 @@
             return localStorage.getItem('ambientModeEnabled') !== 'false';
         }
 
+        // La resolución interna del canvas debe seguir la relación de aspecto REAL
+        // que está ocupando en pantalla (no siempre 16:9): en fullscreen, el
+        // contenedor pasa a ocupar toda la pantalla (ver CSS de .detail-bg:fullscreen),
+        // así que ahí puede haber cualquier aspecto (p.ej. un móvil en vertical).
+        // Si no igualamos esa relación, el canvas se estiraría de forma distinta en
+        // horizontal y vertical, deformando el color.
+        const AMBIENT_BASE = 192;
+        function resizeAmbientCanvas() {
+            const canvas = document.getElementById('ambientCanvas');
+            const container = document.getElementById('player-container');
+            if (!canvas || !container) return;
+            const rect = container.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const aspect = rect.width / rect.height;
+            const newW = AMBIENT_BASE;
+            const newH = Math.max(1, Math.round(AMBIENT_BASE / aspect));
+            if (canvas.width !== newW || canvas.height !== newH) {
+                canvas.width = newW;
+                canvas.height = newH;
+            }
+        }
+        window.resizeAmbientCanvas = resizeAmbientCanvas;
+        ['resize', 'orientationchange'].forEach(ev => window.addEventListener(ev, resizeAmbientCanvas));
+        ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(ev =>
+            document.addEventListener(ev, () => setTimeout(resizeAmbientCanvas, 50))
+        );
+
         function ambientLoop(ts) {
             const video = document.getElementById('main-video-player');
             const canvas = document.getElementById('ambientCanvas');
@@ -337,7 +364,39 @@
                 lastAmbientDraw = ts;
                 try {
                     if (!ambientCtx) ambientCtx = canvas.getContext('2d', { alpha: false });
-                    ambientCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const cw = canvas.width, ch = canvas.height;
+                    const vw = video.videoWidth, vh = video.videoHeight;
+                    if (vw && vh) {
+                        // Calculamos el recuadro exacto que ocupa el vídeo real dentro del
+                        // contenedor (mismo cálculo que hace object-fit:contain), para no
+                        // estirar el fotograma entero sobre todo el canvas.
+                        const containerAspect = cw / ch;
+                        const videoAspect = vw / vh;
+                        let dw, dh, dx, dy;
+                        if (videoAspect > containerAspect) {
+                            dw = cw; dh = cw / videoAspect;
+                            dx = 0; dy = (ch - dh) / 2;
+                        } else {
+                            dh = ch; dw = ch * videoAspect;
+                            dy = 0; dx = (cw - dw) / 2;
+                        }
+                        // 1) Fotograma real, sin distorsión, en su recuadro exacto.
+                        ambientCtx.drawImage(video, dx, dy, dw, dh);
+                        // 2) Estiramos el borde exterior REAL del vídeo hacia las franjas,
+                        //    para que el color que toca el vídeo sea siempre el de su propio
+                        //    borde (da continuidad en vez de mostrar un recorte interior).
+                        const EXT = 1;
+                        if (dx > 0) {
+                            ambientCtx.drawImage(video, 0, 0, EXT, vh, 0, dy, dx, dh);
+                            ambientCtx.drawImage(video, vw - EXT, 0, EXT, vh, dx + dw, dy, cw - (dx + dw), dh);
+                        }
+                        if (dy > 0) {
+                            ambientCtx.drawImage(video, 0, 0, vw, EXT, dx, 0, dw, dy);
+                            ambientCtx.drawImage(video, 0, vh - EXT, vw, EXT, dx, dy + dh, dw, ch - (dy + dh));
+                        }
+                    } else {
+                        ambientCtx.drawImage(video, 0, 0, cw, ch);
+                    }
                 } catch (e) { /* el primer fotograma puede no estar listo aún, se ignora */ }
             }
             ambientRAF = requestAnimationFrame(ambientLoop);
@@ -355,6 +414,7 @@
                 container.style.backgroundImage = 'none';
             }
             if (!isAmbientEnabled()) { canvas.classList.remove('active'); return; }
+            resizeAmbientCanvas();
             canvas.classList.add('active');
             if (ambientRAF) cancelAnimationFrame(ambientRAF);
             lastAmbientDraw = 0;
@@ -2049,6 +2109,24 @@
             position: relative;
             background-color: #000;
         }
+        /* En fullscreen real, el navegador pinta franjas negras FUERA de este
+           elemento (su ::backdrop) cuando su aspect-ratio no coincide con la
+           pantalla; ningún hijo puede pintar ahí. Por eso, en fullscreen hacemos
+           que el contenedor ocupe toda la pantalla: así las franjas las genera
+           el propio <video> (object-fit:contain) DENTRO del contenedor, donde el
+           canvas de ambiente sí puede alcanzarlas y sustituirlas de verdad. */
+        .detail-bg:fullscreen,
+        .detail-bg:-webkit-full-screen,
+        .detail-bg:-moz-full-screen,
+        .detail-bg:-ms-fullscreen {
+            width: 100vw;
+            height: 100vh;
+            aspect-ratio: unset;
+        }
+        .detail-bg:fullscreen::backdrop,
+        .detail-bg:-webkit-full-screen::backdrop {
+            background: #000;
+        }
 
         /* --- MODO AMBIENTE (Ambilight) --- */
         .ambient-canvas {
@@ -2058,7 +2136,7 @@
             width: 106%;
             height: 106%;
             z-index: 1;
-            filter: blur(48px) saturate(1.6) brightness(1.15);
+            filter: blur(clamp(24px, 4vw, 90px)) saturate(1.7) brightness(1.2);
             opacity: 0;
             transform: translateZ(0);
             pointer-events: none;
@@ -2066,7 +2144,17 @@
             will-change: opacity;
         }
         .ambient-canvas.active {
-            opacity: 0.85;
+            opacity: 0.9;
+        }
+        .detail-bg:fullscreen .ambient-canvas,
+        .detail-bg:-webkit-full-screen .ambient-canvas {
+            /* En fullscreen el contenedor ya ocupa toda la pantalla, así que basta
+               con cubrirlo entero: el propio blur se encarga de que el color
+               "sangre" un poco más allá visualmente. */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
         @media (prefers-reduced-motion: reduce) {
             .ambient-canvas { transition: none; }
