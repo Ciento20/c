@@ -2577,7 +2577,24 @@
     <div id="result-count"></div>
 
     <script>        let epgData = [];
+        // channelStreams arranca con lo que se guardó la última vez (caché en localStorage),
+        // así el usuario ve de inmediato los enlaces/Acestream de la sesión anterior mientras
+        // las fuentes se vuelven a descargar en segundo plano e ir refrescando canal a canal.
         let channelStreams = {};
+        try {
+            channelStreams = JSON.parse(localStorage.getItem('channelStreamsCache') || '{}');
+        } catch (e) { channelStreams = {}; }
+
+        // Marca qué canales ya han recibido datos "frescos" en el ciclo de carga actual.
+        // La primera vez que un canal recibe un stream nuevo en esta pasada, se descarta
+        // su lista antigua (de la sesión anterior); hasta entonces se conserva tal cual.
+        let freshChannelIds = new Set();
+
+        function persistChannelStreamsCache() {
+            try {
+                localStorage.setItem('channelStreamsCache', JSON.stringify(channelStreams));
+            } catch (e) { /* almacenamiento lleno o no disponible: se ignora */ }
+        }
 
         async function raceFetch(url) {
             const targets = [
@@ -4006,10 +4023,12 @@ function renderCurrentView() {
 
         function runInitialLoad() {
             fetchXML().then(() => {
+                // Los enlaces de Acestream/streams se extraen justo después del EPG
+                // (channelsList depende del EPG para poder emparejar canales), y en
+                // paralelo con el resto de la interfaz: no esperamos ya un delay
+                // artificial de 1200ms antes de lanzar la carga de fuentes.
+                loadAllStreamSources();
                 switchMainView('home');
-                setTimeout(() => {
-                    requestAnimationFrame(() => loadAllStreamSources());
-                }, 1200);
             });
         }
         // Nos aseguramos de que todo el DOM (home-view, botón de ajustes, etc.)
@@ -4029,93 +4048,120 @@ function renderCurrentView() {
             n = n.replace(/[*]+/g, ''); 
             n = n.replace(/[^a-z0-9]/g, '');
             return n.trim();
-        }        async function loadAllStreamSources() {
-            channelStreams = {};
+        }        // Procesa UNA fuente (m3u/json/scraping-addon) de principio a fin: descarga,
+        // parsea y empareja sus canales/Acestream con el EPG. Se extrajo del antiguo
+        // bucle secuencial para poder lanzar todas las fuentes A LA VEZ con Promise.allSettled
+        // en vez de esperarlas una a una como una cola.
+        async function processStreamSource(url) {
+            try {
+                const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
+                const response = await fetch(cleanUrl);
+                const text = await response.text();
+                let items = [];
+
+                if (text.includes('#EXTINF')) {
+                    const lines = text.split('\n');
+                    let curN='', curL='', curB='';
+                    for(let i=0; i<lines.length; i++) {
+                        if(lines[i].startsWith('#EXTINF')) {
+                            const m = lines[i].match(/tvg-name="([^"]+)"/) || lines[i].match(/,(.+)$/);
+                            curN = m ? (m[1] || m[0].split(',')[1]).trim() : '';
+                            curL = (lines[i].match(/tvg-logo="([^"]+)"/) || [])[1] || '';
+                            curB = (lines[i].match(/tvg-banner="([^"]+)"/) || [])[1] || '';
+                        } else if(lines[i].trim() && !lines[i].startsWith('#')) {
+                            if(curN) items.push({n:curN, u:lines[i].trim(), l:curL, b:curB});
+                        }
+                    }                    } else {
+                    try {                            const d = JSON.parse(text);
+
+                        // LÓGICA DE PLUGINS DE SCRAPING DINÁMICO
+                        if (d.type === 'scraping-addon') {
+
+                            executeScrapingAddon(d);
+                            return;
+                        }
+
+                        // Soporte para formato 'hashes', 'groups' o Array directo
+                        let raw = [];
+                        if (d.hashes) raw = d.hashes;
+                        else if (d.groups) raw = d.groups.flatMap(g => g.stations);
+                        else if (Array.isArray(d)) raw = d;
+
+                        items = raw.map(i => {
+                            // Un enlace explícito (url/link) se respeta SIEMPRE tal cual, sin tocarlo.
+                            // Antes, si ese enlace era una cadena de 40 caracteres hex (p.ej. un cid o
+                            // hash de otro servicio, no de Acestream), se convertía igualmente en un
+                            // enlace acestream://, obligando a pasar por AceServe sin ser necesario.
+                            let url = i.url || i.link;
+                            if (!url) {
+                                // Solo tratamos como Acestream lo que viene explícitamente marcado como tal.
+                                const aceHash = (i.hash || i.acestream || '').toString().trim();
+                                if (aceHash) {
+                                    // Si es un hash puro de 40 caracteres, añadimos el protocolo
+                                    url = /^[a-fA-F0-9]{40}$/.test(aceHash) ? 'acestream://' + aceHash : aceHash;
+                                } else if (i.cid) {
+                                    // 'cid' es ambiguo (puede ser de otro servicio): se usa tal cual, sin asumir Acestream
+                                    url = i.cid;
+                                }
+                            }
+                            
+                            // Para matching: usar tvg_id (nombre limpio del canal) si existe,
+                            // si no, intentar con title/name. El title original se preserva como rawName.
+                            const matchName = i.tvg_id || i.title || i.name;
+                            const rawTitle = i.title || i.name || i.tvg_id;
+
+                            return {
+                                n: matchName,      // nombre usado para matching con EPG
+                                u: url,
+                                l: i.logo || i.icon,
+                                b: i.banner,
+                                raw: rawTitle      // nombre original con calidad (ej: "Eurosport 1 720p **")
+                            };
+                        }).filter(item => item.u); // Eliminar entradas sin link
+                    } catch(e){ console.error("Error parseando JSON:", e); }
+                }
+
+                const CHUNK_SIZE = 300;
+                for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+                    const chunk = items.slice(i, i + CHUNK_SIZE);
+                    chunk.forEach(item => {
+                        matchStreamToChannel(item.n, item.u, item.raw || item.n, item.l, item.b);
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            } catch (e) { console.error("Error en fuente:", e); }
+
+            // Renderizado progresivo: en cuanto UNA fuente termina de procesarse,
+            // refrescamos la vista de canales si está abierta, sin esperar a que
+            // terminen el resto de fuentes (que siguen bajando en paralelo).
+            if (currentMainView === 'channels') renderChannelsView();
+            // Guardamos lo que llevamos hasta ahora, así si el usuario recarga la
+            // página a mitad de la actualización, ya tiene disponible lo último bueno.
+            persistChannelStreamsCache();
+        }
+
+        async function loadAllStreamSources() {
+            // OJO: ya NO se vacía channelStreams aquí. Al arrancar, channelStreams ya
+            // contiene lo guardado en localStorage de la sesión anterior (ver arriba),
+            // así que los canales siguen mostrando sus enlaces/Acestream de siempre
+            // mientras las fuentes se descargan de nuevo en segundo plano. Cada canal
+            // solo se "limpia" de la caché vieja en el momento en que le llega su
+            // primer stream fresco de esta pasada (ver addStreamToChannel).
+            freshChannelIds = new Set();
 
             const disabled = JSON.parse(localStorage.getItem('disabledAddons') || '[]');
             const activeSources = streamSources.filter(url => !disabled.includes(url));
 
-            for (const url of activeSources) {
-                try {
-                    const cleanUrl = url.includes('gist.github.com') && !url.includes('/raw') ? url + '/raw' : url;
-                    const response = await fetch(cleanUrl);
-                    const text = await response.text();
-                    let items = [];
-
-                    if (text.includes('#EXTINF')) {
-                        const lines = text.split('\n');
-                        let curN='', curL='', curB='';
-                        for(let i=0; i<lines.length; i++) {
-                            if(lines[i].startsWith('#EXTINF')) {
-                                const m = lines[i].match(/tvg-name="([^"]+)"/) || lines[i].match(/,(.+)$/);
-                                curN = m ? (m[1] || m[0].split(',')[1]).trim() : '';
-                                curL = (lines[i].match(/tvg-logo="([^"]+)"/) || [])[1] || '';
-                                curB = (lines[i].match(/tvg-banner="([^"]+)"/) || [])[1] || '';
-                            } else if(lines[i].trim() && !lines[i].startsWith('#')) {
-                                if(curN) items.push({n:curN, u:lines[i].trim(), l:curL, b:curB});
-                            }
-                        }                    } else {
-                        try {                            const d = JSON.parse(text);
-
-                            // LÓGICA DE PLUGINS DE SCRAPING DINÁMICO
-                            if (d.type === 'scraping-addon') {
-
-                                executeScrapingAddon(d);
-                                return;
-                            }
-
-                            // Soporte para formato 'hashes', 'groups' o Array directo
-                            let raw = [];
-                            if (d.hashes) raw = d.hashes;
-                            else if (d.groups) raw = d.groups.flatMap(g => g.stations);
-                            else if (Array.isArray(d)) raw = d;
-
-                            items = raw.map(i => {
-                                // Un enlace explícito (url/link) se respeta SIEMPRE tal cual, sin tocarlo.
-                                // Antes, si ese enlace era una cadena de 40 caracteres hex (p.ej. un cid o
-                                // hash de otro servicio, no de Acestream), se convertía igualmente en un
-                                // enlace acestream://, obligando a pasar por AceServe sin ser necesario.
-                                let url = i.url || i.link;
-                                if (!url) {
-                                    // Solo tratamos como Acestream lo que viene explícitamente marcado como tal.
-                                    const aceHash = (i.hash || i.acestream || '').toString().trim();
-                                    if (aceHash) {
-                                        // Si es un hash puro de 40 caracteres, añadimos el protocolo
-                                        url = /^[a-fA-F0-9]{40}$/.test(aceHash) ? 'acestream://' + aceHash : aceHash;
-                                    } else if (i.cid) {
-                                        // 'cid' es ambiguo (puede ser de otro servicio): se usa tal cual, sin asumir Acestream
-                                        url = i.cid;
-                                    }
-                                }
-                                
-                                // Para matching: usar tvg_id (nombre limpio del canal) si existe,
-                                // si no, intentar con title/name. El title original se preserva como rawName.
-                                const matchName = i.tvg_id || i.title || i.name;
-                                const rawTitle = i.title || i.name || i.tvg_id;
-
-                                return {
-                                    n: matchName,      // nombre usado para matching con EPG
-                                    u: url,
-                                    l: i.logo || i.icon,
-                                    b: i.banner,
-                                    raw: rawTitle      // nombre original con calidad (ej: "Eurosport 1 720p **")
-                                };
-                            }).filter(item => item.u); // Eliminar entradas sin link
-                        } catch(e){ console.error("Error parseando JSON:", e); }
-                    }
-
-                    const CHUNK_SIZE = 300;
-                    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-                        const chunk = items.slice(i, i + CHUNK_SIZE);
-                        chunk.forEach(item => {
-                            matchStreamToChannel(item.n, item.u, item.raw || item.n, item.l, item.b);
-                        });
-                        await new Promise(resolve => setTimeout(resolve, 0));
-                    }
-                } catch (e) { console.error("Error en fuente:", e); }
-            }
+            // Antes se procesaba una fuente detrás de otra (await dentro de un for),
+            // formando una cola secuencial: si había varias fuentes, cada una esperaba
+            // a que la anterior terminase de descargarse y parsearse por completo.
+            // Ahora se lanzan TODAS a la vez y se dejan correr en paralelo; cada una
+            // actualiza los canales en cuanto llega, y Promise.allSettled evita que
+            // el fallo de una fuente bloquee o cancele a las demás.
+            await Promise.allSettled(activeSources.map(url => processStreamSource(url)));
 
             if (currentMainView === 'channels') renderChannelsView();
+            persistChannelStreamsCache();
         }        const groupedAliases = {
             "DAZN 1": ["DAZN1"],
             "DAZN LALIGA": ["DAZNLIGA", "DAZN LA LIGA 1"],
@@ -4292,6 +4338,13 @@ function renderCurrentView() {
     }
 
         function addStreamToChannel(channelId, url, streamName = '', customLogo = '', customBanner = '') {
+            // Primer stream fresco para este canal en la pasada de carga actual:
+            // se descarta la lista vieja (de sesión anterior/caché) antes de empezar
+            // a rellenar con los datos nuevos que están llegando.
+            if (!freshChannelIds.has(channelId)) {
+                freshChannelIds.add(channelId);
+                channelStreams[channelId] = [];
+            }
             if (!channelStreams[channelId]) channelStreams[channelId] = [];
 
             if (!customMediaMap[channelId]) customMediaMap[channelId] = { logo: '', banner: '' };
