@@ -4083,11 +4083,8 @@ function renderCurrentView() {
                                         // Si es un hash puro de 40 caracteres, añadimos el protocolo
                                         url = /^[a-fA-F0-9]{40}$/.test(aceHash) ? 'acestream://' + aceHash : aceHash;
                                     } else if (i.cid) {
-                                        // 'cid' se usa en muchas listas como el propio hash de Acestream.
-                                        // Si tiene pinta de hash (40 caracteres hex), lo tratamos como Acestream;
-                                        // si no, se respeta tal cual (evita asumir Acestream en cid de otros servicios).
-                                        const cidVal = i.cid.toString().trim();
-                                        url = /^[a-fA-F0-9]{40}$/.test(cidVal) ? 'acestream://' + cidVal : cidVal;
+                                        // 'cid' es ambiguo (puede ser de otro servicio): se usa tal cual, sin asumir Acestream
+                                        url = i.cid;
                                     }
                                 }
                                 
