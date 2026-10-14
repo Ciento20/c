@@ -1,349 +1,182 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
+<html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Editor M3U + probador</title>
+<title>Actualizar lista M3U</title>
 <style>
-:root{--bg:#f3f5f4;--panel:#fff;--ink:#16211d;--mute:#6a7771;--line:#d9e0dc;--acc:#0f7a5c;--acc-ink:#fff;--warn:#b3321f;--sel:#e3f3ec;
-box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10171b;--panel:#182126;--ink:#e6efeb;--mute:#8a9b94;--line:#2a373d;--acc:#3ecf9f;--acc-ink:#07261c;--warn:#ff8a75;--sel:#1d3a31}}
-:root[data-theme="dark"]{--bg:#10171b;--panel:#182126;--ink:#e6efeb;--mute:#8a9b94;--line:#2a373d;--acc:#3ecf9f;--acc-ink:#07261c;--warn:#ff8a75;--sel:#1d3a31}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif}
-button,input,select,textarea{font:inherit;color:inherit}
-button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 11px;cursor:pointer}
-button:hover{border-color:var(--acc)}
-button.p{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
-button.d{color:var(--warn)}
-button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%}
-header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-h1{font-size:18px;margin:0 auto 0 0;font-weight:700;letter-spacing:-.01em}
-.stat{color:var(--mute);font-size:13px}
-main{display:grid;grid-template-columns:260px 1fr;gap:14px;padding:14px;max-width:1300px;margin:0 auto}
-@media(max-width:760px){main{grid-template-columns:1fr}}
-aside,.box{background:var(--panel);border:1px solid var(--line);border-radius:10px}
-aside{padding:10px;align-self:start;max-height:80vh;overflow:auto}
-.g{display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:6px;cursor:pointer}
-.g:hover{background:var(--bg)}
-.g.on{background:var(--sel);font-weight:600}
-.g span.n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.g small{color:var(--mute)}
-.g button{padding:2px 6px;border:0;background:none;font-size:13px}
-.bar{display:flex;flex-wrap:wrap;gap:8px;padding:10px;border-bottom:1px solid var(--line);align-items:center}
-.bar input[type=search]{flex:1;min-width:140px;width:auto}
-.bar select{width:auto;max-width:200px}
-.row{display:grid;grid-template-columns:26px 44px minmax(120px,1fr) minmax(100px,170px) auto;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line)}
-.row.sel{background:var(--sel)}
-@media(max-width:760px){.row{grid-template-columns:24px 40px 1fr auto}.row .grp{grid-column:3/5;grid-row:2}}
-.logo{width:40px;height:40px;border-radius:6px;background:var(--bg);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:700;color:var(--mute)}
-.logo img{max-width:100%;max-height:100%;object-fit:contain}
-.acts{display:flex;gap:2px;align-items:center}.hd{cursor:grab;color:var(--mute);padding:3px 6px;user-select:none;font-size:16px}.row.over{box-shadow:inset 0 3px 0 var(--acc)}
-.acts button{padding:3px 7px}
-.empty{padding:40px 20px;text-align:center;color:var(--mute)}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:14px;z-index:20}
-.modal .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;width:100%;max-width:520px;max-height:90vh;overflow:auto}
-.card h2{margin:0 0 10px;font-size:17px}
-.card label{display:block;margin:8px 0 3px;font-size:13px;color:var(--mute)}
-.card .f{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:14px}
-.big{display:flex;gap:12px;align-items:center}
-.big .logo{width:64px;height:64px;flex:none}
-textarea{min-height:240px;font-family:ui-monospace,Consolas,monospace;font-size:12px}
-#toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;z-index:30;display:none}
-.drop{border:2px dashed var(--line);border-radius:10px;padding:30px;text-align:center;color:var(--mute)}
-</style>
-</head>
-<body>
-<header>
-  <h1>Editor M3U</h1>
-  <span class="stat" id="stat"></span>
-  <button id="bOpen">Abrir archivo</button>
-  <button id="bPaste">Pegar lista</button>
-  <button id="bDedup">Quitar duplicados</button>
-  <button id="bTest">Probar canales</button>
-  <button id="bExport" class="p">Exportar M3U</button>
-  <input type="file" id="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl" hidden>
-</header>
-<main>
-  <aside>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 6px 8px"><strong>Grupos</strong><button id="bNewG" class="p">+ Nuevo</button></div>
-    <div id="groups"></div>
-  </aside>
-  <section class="box">
-    <div class="bar">
-      <input type="search" id="q" placeholder="Buscar por nombre o URL">
-      <select id="st"><option value="all">Estado: todos</option><option value="ok">Funcionan</option><option value="fail">No funcionan</option><option value="new">Sin probar</option></select>
-      <select id="bulkG"></select>
-      <button id="bMove">Mover selección</button>
-      <button id="bDel" class="d">Borrar selección</button>
-      <button id="bAdd">+ Canal</button>
-      <button id="bSort">Ordenar…</button>
-    </div>
-    <div class="bar" style="padding:6px 10px"><label><input type="checkbox" id="all" style="width:auto"> Seleccionar todos los visibles</label><span class="stat" id="selN"></span></div>
-    <div id="list"></div>
-  </section>
-</main>
-<div id="toast"></div>
-<div id="modal"></div>
+:root{--bg:#f3f5f4;--panel:#fff;--ink:#16211d;--mute:#6a7771;--line:#d9e0dc;--acc:#0f7a5c;--acc-ink:#fff;--warn:#b3321f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#10171b;--panel:#182126;--ink:#e6efeb;--mute:#8a9b94;--line:#2a373d;--acc:#3ecf9f;--acc-ink:#07261c;--warn:#ff8a75}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:14px}h1{font-size:20px;margin:6px 0 12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}label.c{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin:8px 0}
+input,select{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}input[type=checkbox]{width:auto}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+#go{width:100%;background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:700;font-size:17px;padding:15px}
+#go:disabled{opacity:.6}details summary{cursor:pointer;font-weight:600}
+.bar{height:10px;background:var(--bg);border-radius:6px;overflow:hidden;margin:10px 0}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+#log{font:12px/1.5 ui-monospace,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--mute)}
+#log b{color:var(--ink)}#log .e{color:var(--warn);font-weight:700}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}a{color:var(--acc);word-break:break-all}
+</style></head><body><main>
+<h1>Actualizar lista M3U</h1>
+<div class="card">
+  <button id="go">▶ Actualizar todo</button>
+  <div class="bar"><i id="pb"></i></div>
+  <div id="st" style="font-weight:600">Listo para empezar.</div>
+  <div class="row"><button id="stop" style="display:none">Detener</button></div>
+  <div id="res" style="margin-top:10px"></div>
+</div>
+<div class="card"><div id="log"></div></div>
+<div class="card"><details open><summary>Ajustes</summary>
+  <label>Fuente de la lista</label><select id="mode"><option value="ipns">ERA (IPNS / IPFS)</option><option value="url">Enlace directo</option></select>
+  <label>Identificador IPNS</label><input id="ipk" value="k2k4r8lm8tkmuxbc8lkmq1in3v0oya1p6pe9o5bu0hu30br5ko08k2gb">
+  <label>Subruta del archivo</label><input id="ipp" value="/data/listas/listaplana.txt">
+  <label>Pasarela propia (opcional)</label><input id="ipg" placeholder="http://127.0.0.1:8080">
+  <p style="margin:6px 0"><a id="ipo" href="#" target="_blank" rel="noopener">Abrir la fuente en una pestaña</a></p>
+  <label>Pegar contenido de la lista (si la descarga falla)</label><textarea id="paste" rows="3" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
+  <label>Motor Ace Stream</label><input id="engine" value="http://127.0.0.1:6878">
+  <label>Enlace de la lista (solo si la fuente es «Enlace directo»)</label><input id="src" placeholder="https://…/lista.m3u">
+  <label>…o archivo (si el enlace da error CORS)</label><input id="lfile" type="file">
+  <label>Token de GitHub (permiso «gist»)</label><input id="token" type="password" autocomplete="off">
+  <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
+  <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
+  <label>URL de la guía EPG (opcional)</label><input id="epg" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml">
+  <label class="c"><input type="checkbox" id="hash" checked> Nombre = 10 primeros caracteres del hash</label>
+  <label class="c"><input type="checkbox" id="tvg" checked> tvg-id y tvg-name = nombre del grupo</label>
+  <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
+  <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
+  <div><label>Espera (s)</label><input id="timeout" type="number" min="5" max="90" value="25"></div>
+  <div><label>Reintentos</label><input id="retries" type="number" min="0" max="3" value="1"></div></div>
+  <div class="g3"><div style="grid-column:span 2"><label>Canales caídos</label><select id="dead"><option value="remove">Quitarlos</option><option value="move">Grupo «Caídos»</option><option value="keep">Al final de su grupo</option></select></div>
+  <div><label>Mínimo OK</label><input id="minok" type="number" min="1" value="1"></div></div>
+  <div class="row"><button id="chkE">Comprobar motor</button><button id="chkG">Comprobar GitHub</button></div>
+  <p style="font-size:12px;color:var(--mute)">Los ajustes (incluido el token) se guardan solo en este navegador. Si no funcionan las conexiones, abre este archivo desde tu PWA o servidor local.</p>
+</details></div>
 <script>
-const S={st:'all',ch:[],extraG:[],head:'#EXTM3U',filter:'__all',q:'',sel:new Set(),limit:100,uid:1};
-const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2200)}
-
-/* ---------- parse / build ---------- */
-function parse(text){
-  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);const out=[];let cur=null,head='#EXTM3U';
-  for(const raw of lines){const l=raw.trim();if(!l)continue;
-    if(l.startsWith('#EXTM3U')){head=l;continue}
-    if(l.startsWith('#EXTINF')){
-      const c=l.indexOf(',',l.lastIndexOf('"')>-1?l.lastIndexOf('"'):0);
-      const meta=c>-1?l.slice(0,c):l,name=c>-1?l.slice(c+1).trim():'';
-      const a={};meta.replace(/([\w-]+)="([^"]*)"/g,(_,k,v)=>{a[k]=v;return ''});
-      const dur=(meta.match(/#EXTINF:\s*(-?[\d.]+)/)||[])[1]??'-1';
-      cur={id:S.uid++,name:name||a['tvg-name']||'',logo:a['tvg-logo']||'',group:a['group-title']||'',tvgId:a['tvg-id']||'',tvgName:a['tvg-name']||'',dur,attrs:Object.fromEntries(Object.entries(a).filter(([k])=>!['tvg-logo','group-title','tvg-id','tvg-name'].includes(k))),extra:[],url:''};
-    }else if(l.startsWith('#')){if(cur)cur.extra.push(l)}
-    else if(cur){cur.url=l;out.push(cur);cur=null}
-    else out.push({id:S.uid++,name:l,logo:'',group:'',tvgId:'',tvgName:'',dur:'-1',attrs:{},extra:[],url:l});
-  }
-  return {out,head};
-}
-function build(){
-  let s=S.head+'\n';
-  const order=[],seen=new Set();S.ch.forEach(c=>{if(!seen.has(c.group)){seen.add(c.group);order.push(c.group)}});
-  for(const c of order.flatMap(g=>S.ch.filter(x=>x.group===g))){
-    let m='#EXTINF:'+c.dur;
-    if(c.tvgId)m+=` tvg-id="${c.tvgId}"`;
-    m+=` tvg-name="${(c.tvgName||c.name).replace(/"/g,"'")}"`;
-    if(c.logo)m+=` tvg-logo="${c.logo}"`;
-    for(const[k,v]of Object.entries(c.attrs))m+=` ${k}="${v}"`;
-    if(c.group)m+=` group-title="${c.group.replace(/"/g,"'")}"`;
-    s+=m+','+c.name+'\n'+c.extra.map(e=>e+'\n').join('')+c.url+'\n';
-  }
-  return s;
-}
-
-/* ---------- groups ---------- */
-function groupList(){
-  const set=new Set(S.extraG);S.ch.forEach(c=>c.group&&set.add(c.group));
-  return [...set].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
-}
-const count=g=>S.ch.filter(c=>c.group===g).length;
-
-function renderGroups(){
-  const gs=groupList();const nog=S.ch.filter(c=>!c.group).length;
-  let h=`<div class="g ${S.filter==='__all'?'on':''}" data-g="__all"><span class="n">Todos</span><small>${S.ch.length}</small></div>`;
-  if(nog)h+=`<div class="g ${S.filter==='__none'?'on':''}" data-g="__none"><span class="n">Sin grupo</span><small>${nog}</small></div>`;
-  h+=gs.map(g=>`<div class="g ${S.filter===g?'on':''}" data-g="${esc(g)}"><span class="n" title="${esc(g)}">${esc(g)}</span><small>${count(g)}</small><button data-a="ren" title="Renombrar">✎</button><button data-a="del" title="Eliminar" class="d">✕</button></div>`).join('');
-  $('#groups').innerHTML=h;
-  const opts=['<option value="">Mover a…</option>','<option value="__none">(Sin grupo)</option>',...gs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`),'<option value="__new">+ Grupo nuevo…</option>'];
-  $('#bulkG').innerHTML=opts.join('');
-}
-$('#groups').onclick=async e=>{
-  const row=e.target.closest('.g');if(!row)return;const g=row.dataset.g;const a=e.target.dataset.a;
-  if(a==='ren'){const n=await ask('Renombrar grupo',g);if(n&&n!==g)renameGroup(g,n)}
-  else if(a==='del'){deleteGroup(g)}
-  else{S.filter=g;S.limit=100;render()}
-};
-function renameGroup(o,n){
-  S.ch.forEach(c=>{if(c.group===o)c.group=n});
-  S.extraG=S.extraG.filter(x=>x!==o);if(S.filter===o)S.filter=n;
-  render();toast(`Grupo renombrado (se fusiona si «${n}» ya existía)`);
-}
-async function deleteGroup(g){
-  const n=count(g);
-  const r=await choose(`Eliminar «${g}»`,n?`Tiene ${n} canales. ¿Qué hacemos con ellos?`:'Grupo vacío.',n?[['keep','Dejar sin grupo'],['all','Borrar canales']]:[['keep','Eliminar']]);
-  if(!r)return;
-  if(r==='all')S.ch=S.ch.filter(c=>c.group!==g);else S.ch.forEach(c=>{if(c.group===g)c.group=''});
-  S.extraG=S.extraG.filter(x=>x!==g);if(S.filter===g)S.filter='__all';render();
-}
-$('#bNewG').onclick=async()=>{const n=await ask('Nombre del grupo nuevo','');if(n){if(!S.extraG.includes(n))S.extraG.push(n);S.filter=n;render()}};
-
-/* ---------- list ---------- */
-function visible(){
-  const q=S.q.toLowerCase();
-  return S.ch.filter(c=>(S.filter==='__all'||(S.filter==='__none'?!c.group:c.group===S.filter))&&(S.st==='all'||(S.st==='ok'?c.test==='ok':S.st==='fail'?c.test==='fail':!c.test))&&(!q||c.name.toLowerCase().includes(q)||c.url.toLowerCase().includes(q)));
-}
-function logoHtml(c){return `<div class="logo" title="${esc(c.logo)}">${c.logo?`<img src="${esc(c.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:''}<span>${esc((c.name||'?')[0]||'?').toUpperCase()}</span></div>`}
-function render(){
-  renderGroups();
-  const v=visible();const show=v.slice(0,S.limit);
-  $('#stat').textContent=`${S.ch.length} canales · ${groupList().length} grupos`;
-  $('#selN').textContent=S.sel.size?`${S.sel.size} seleccionados`:'';
-  if(!S.ch.length){$('#list').innerHTML=`<div class="empty"><div class="drop">Abre un archivo .m3u / .m3u8, arrástralo aquí o pega el contenido de tu lista.</div></div>`;return}
-  if(!v.length){$('#list').innerHTML='<div class="empty">Sin resultados.</div>';return}
-  $('#list').innerHTML=show.map(c=>`<div class="row ${S.sel.has(c.id)?'sel':''}" data-id="${c.id}">
-    <input type="checkbox" class="ck" style="width:auto" ${S.sel.has(c.id)?'checked':''}>
-    ${logoHtml(c)}
-    <input class="nm" value="${esc(c.name)}" aria-label="Nombre">
-    <input class="grp" list="dl" value="${esc(c.group)}" placeholder="Sin grupo" aria-label="Grupo">
-    <div class="acts">${c.test==='ok'?'<span title="Funciona" style="color:var(--acc);font-weight:700">✓</span>':c.test==='fail'?`<span title="${esc(c.why||'No funciona')}" style="color:var(--warn);font-weight:700">✕</span>`:''}<span class="hd" draggable="true" title="Arrastrar para ordenar">⠿</span><button data-a="top" title="Poner el primero">⤒</button><button data-a="up" title="Subir">↑</button><button data-a="dn" title="Bajar">↓</button><button data-a="ed" title="Editar todo">✎</button><button data-a="rm" class="d" title="Borrar">✕</button></div>
-  </div>`).join('')+(v.length>show.length?`<div class="empty"><button id="more">Mostrar más (${v.length-show.length} restantes)</button></div>`:'')+`<datalist id="dl">${groupList().map(g=>`<option value="${esc(g)}">`).join('')}</datalist>`;
-  const m=$('#more');if(m)m.onclick=()=>{S.limit+=200;render()};
-  $('#all').checked=show.length>0&&show.every(c=>S.sel.has(c.id));
-}
-const byId=id=>S.ch.find(c=>c.id===+id);
-$('#list').addEventListener('change',e=>{
-  const r=e.target.closest('.row');if(!r)return;const c=byId(r.dataset.id);
-  if(e.target.classList.contains('ck')){e.target.checked?S.sel.add(c.id):S.sel.delete(c.id);r.classList.toggle('sel',e.target.checked);$('#selN').textContent=S.sel.size?`${S.sel.size} seleccionados`:''}
-  else if(e.target.classList.contains('nm'))c.name=e.target.value;
-  else if(e.target.classList.contains('grp')){c.group=e.target.value.trim();render()}
-});
-$('#list').addEventListener('click',async e=>{
-  const b=e.target.closest('button[data-a]');if(!b)return;const r=b.closest('.row');const c=byId(r.dataset.id);const a=b.dataset.a;
-  if(a==='rm'){S.ch=S.ch.filter(x=>x!==c);S.sel.delete(c.id);render()}
-  else if(a==='ed')editModal(c);
-  else if(a==='top'){const first=visible()[0];if(first===c)return;S.ch.splice(S.ch.indexOf(c),1);S.ch.splice(S.ch.indexOf(first),0,c);render();toast('Movido al principio')}
-  else{const v=visible();const i=v.indexOf(c);const o=v[a==='up'?i-1:i+1];if(!o)return;
-    const x=S.ch.indexOf(c),y=S.ch.indexOf(o);[S.ch[x],S.ch[y]]=[S.ch[y],S.ch[x]];render()}
-});
-$('#q').oninput=e=>{S.q=e.target.value;S.limit=100;render()};
-let dragId=null;
-$('#list').addEventListener('dragstart',e=>{const r=e.target.closest('.row');if(!r)return;dragId=+r.dataset.id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','x');r.style.opacity=.5});
-$('#list').addEventListener('dragend',()=>{dragId=null;render()});
-$('#list').addEventListener('dragover',e=>{if(dragId===null)return;e.preventDefault();document.querySelectorAll('.row.over').forEach(x=>x.classList.remove('over'));const r=e.target.closest('.row');if(r)r.classList.add('over')});
-$('#list').addEventListener('drop',e=>{if(dragId===null)return;e.preventDefault();e.stopPropagation();const r=e.target.closest('.row');if(!r)return;const t=byId(r.dataset.id),c=byId(dragId);if(!t||c===t)return;const from=S.ch.indexOf(c),to=S.ch.indexOf(t);S.ch.splice(from,1);S.ch.splice(S.ch.indexOf(t)+(from<to?1:0),0,c);dragId=null;render()});
-$('#bSort').onclick=async()=>{
-  const v=visible();if(v.length<2)return toast('Nada que ordenar');
-  const m=await choose('Ordenar canales',`Se ordenan los ${v.length} canales visibles (grupo o búsqueda actual).`,[['az','A-Z'],['za','Z-A'],['q','Mejor calidad primero']]);
-  if(!m)return;
-  const rank=c=>{const t=(c.name+' '+c.url).toLowerCase();return /4k|uhd|2160/.test(t)?0:/fhd|1080/.test(t)?1:/\bhd\b|720/.test(t)?2:/\bsd\b|480|360/.test(t)?4:3};
-  const s=[...v].sort((a,b)=>m==='az'?a.name.localeCompare(b.name,'es',{numeric:true}):m==='za'?b.name.localeCompare(a.name,'es',{numeric:true}):rank(a)-rank(b));
-  const idx=v.map(c=>S.ch.indexOf(c)).sort((a,b)=>a-b);
-  idx.forEach((p,i)=>S.ch[p]=s[i]);render();toast('Orden aplicado');
-};
-$('#all').onchange=e=>{const v=visible().slice(0,S.limit);v.forEach(c=>e.target.checked?S.sel.add(c.id):S.sel.delete(c.id));render()};
-$('#bMove').onclick=async()=>{
-  let g=$('#bulkG').value;if(!g)return toast('Elige un grupo destino');if(!S.sel.size)return toast('Selecciona canales primero');
-  if(g==='__new'){g=await ask('Nombre del grupo nuevo','');if(!g)return}
-  if(g==='__none')g='';
-  S.ch.forEach(c=>{if(S.sel.has(c.id))c.group=g});toast(`${S.sel.size} canales movidos`);S.sel.clear();render();
-};
-$('#bDel').onclick=async()=>{
-  if(!S.sel.size)return toast('Selecciona canales primero');
-  if(await choose('Borrar canales',`¿Borrar ${S.sel.size} canales seleccionados?`,[['y','Borrar']])){S.ch=S.ch.filter(c=>!S.sel.has(c.id));S.sel.clear();render()}
-};
-$('#bAdd').onclick=()=>{const c={id:S.uid++,name:'Canal nuevo',logo:'',group:['__all','__none'].includes(S.filter)?'':S.filter,tvgId:'',tvgName:'',dur:'-1',attrs:{},extra:[],url:'http://'};S.ch.unshift(c);render();editModal(c)};
-$('#bDedup').onclick=()=>{const seen=new Set();const n=S.ch.length;S.ch=S.ch.filter(c=>{const k=c.url;if(seen.has(k))return false;seen.add(k);return true});render();toast(`${n-S.ch.length} duplicados eliminados`)};
-
-/* ---------- modals ---------- */
-function modal(html){const m=$('#modal');m.innerHTML=`<div class="modal"><div class="card">${html}</div></div>`;return m}
-function close(){$('#modal').innerHTML=''}
-function ask(title,val){return new Promise(res=>{const m=modal(`<h2>${esc(title)}</h2><input id="mi" value="${esc(val)}"><div class="f"><button id="mc">Cancelar</button><button id="mo" class="p">Aceptar</button></div>`);const i=$('#mi');i.focus();i.select();
-  const ok=()=>{const v=i.value.trim();close();res(v)};$('#mo').onclick=ok;$('#mc').onclick=()=>{close();res(null)};i.onkeydown=e=>{if(e.key==='Enter')ok();if(e.key==='Escape'){close();res(null)}}})}
-function choose(title,msg,opts){return new Promise(res=>{modal(`<h2>${esc(title)}</h2><p>${esc(msg)}</p><div class="f"><button id="mc">Cancelar</button>${opts.map(o=>`<button class="p" data-v="${o[0]}">${esc(o[1])}</button>`).join('')}</div>`);
-  $('#mc').onclick=()=>{close();res(null)};document.querySelectorAll('.f [data-v]').forEach(b=>b.onclick=()=>{close();res(b.dataset.v)})})}
-function editModal(c){
-  modal(`<h2>Editar canal</h2><div class="big">${logoHtml(c).replace('class="logo"','class="logo" id="pv"')}<div style="flex:1"><label>Nombre</label><input id="e_n" value="${esc(c.name)}"></div></div>
-  <label>URL del icono (tvg-logo)</label><input id="e_l" value="${esc(c.logo)}" placeholder="https://…/logo.png">
-  <label>Grupo (group-title)</label><input id="e_g" list="dl2" value="${esc(c.group)}"><datalist id="dl2">${groupList().map(g=>`<option value="${esc(g)}">`).join('')}</datalist>
-  <label>tvg-id</label><input id="e_i" value="${esc(c.tvgId)}">
-  <label>tvg-name</label><input id="e_t" value="${esc(c.tvgName)}">
-  <label>URL del stream</label><textarea id="e_u" style="min-height:70px">${esc(c.url)}</textarea>
-  <div class="f"><button id="mc">Cancelar</button><button id="mo" class="p">Guardar</button></div>`);
-  $('#e_l').oninput=e=>{const p=$('#pv');const u=e.target.value.trim();p.innerHTML=(u?`<img src="${esc(u)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:'')+`<span>${esc((c.name||'?')[0]).toUpperCase()}</span>`};
-  $('#mc').onclick=close;
-  $('#mo').onclick=()=>{c.name=$('#e_n').value.trim();c.logo=$('#e_l').value.trim();c.group=$('#e_g').value.trim();c.tvgId=$('#e_i').value.trim();c.tvgName=$('#e_t').value.trim();c.url=$('#e_u').value.trim();close();render()};
-}
-
-/* ---------- import / export ---------- */
-function load(text,append){
-  const {out,head}=parse(text);if(!out.length)return toast('No se encontraron canales en ese texto');
-  S.ch=append?S.ch.concat(out):out;if(!append)S.head=head;S.sel.clear();S.filter='__all';S.extraG=[];render();toast(`${out.length} canales cargados`);
-}
-$('#bOpen').onclick=()=>$('#file').click();
-$('#file').onchange=async e=>{const f=e.target.files[0];if(!f)return;load(await f.text(),false);e.target.value=''};
-document.addEventListener('dragover',e=>e.preventDefault());
-document.addEventListener('drop',async e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)load(await f.text(),false)});
-$('#bPaste').onclick=()=>{
-  modal(`<h2>Pegar lista M3U</h2><textarea id="pt" placeholder="#EXTM3U&#10;#EXTINF:-1 tvg-logo=&quot;…&quot; group-title=&quot;…&quot;,Canal&#10;http://…"></textarea><div class="f"><button id="mc">Cancelar</button><button id="ma">Añadir a la actual</button><button id="mo" class="p">Reemplazar</button></div>`);
-  $('#mc').onclick=close;$('#mo').onclick=()=>{const t=$('#pt').value;close();load(t,false)};$('#ma').onclick=()=>{const t=$('#pt').value;close();load(t,true)};
-};
-$('#bExport').onclick=()=>{
-  if(!S.ch.length)return toast('No hay canales');
-  const txt=build();
-  modal(`<h2>Exportar M3U</h2><p class="stat">${S.ch.length} canales. Descarga el archivo o copia el texto.</p><textarea id="ex" readonly>${esc(txt)}</textarea><div class="f"><button id="mc">Cerrar</button><button id="cp">Copiar</button><button id="dl" class="p">Descargar .m3u</button></div>`);
-  $('#mc').onclick=close;
-  $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('Copiado')}catch(e){$('#ex').select();toast('Selecciona y copia manualmente')}};
-  $('#dl').onclick=async()=>{
-    try{const d=window.claude&&await claude.use('downloads');
-      if(d){await d.save({filename:'lista-editada.m3u',data:txt});return}}catch(e){}
-    try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'audio/x-mpegurl'}));a.download='lista-editada.m3u';a.click();toast('Descarga iniciada')}catch(e){toast('Usa «Copiar»')}
-  };
-};
-/* ---------- probador ---------- */
+/*CORE*/
+const ACE=/^(https?:\/\/[^/]+)\/ace\/getstream\?(?:[^#]*&)?id=([0-9a-fA-F]{20,})/i;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const aceRe=/^(https?:\/\/[^/]+)\/ace\/getstream\?(?:[^#]*&)?id=([0-9a-f]{20,})/i;
-let ctl=null,running=false,answer=null;
-$('#st').onchange=e=>{S.st=e.target.value;S.limit=100;render()};
-const cnt=()=>`✓ ${S.ch.filter(c=>c.test==='ok').length} · ✕ ${S.ch.filter(c=>c.test==='fail').length} · sin probar ${S.ch.filter(c=>!c.test).length}`;
-const setMsg=t=>{const e=$('#pm');if(e)e.textContent=t};
-async function testOne(c,tmo,sig){
-  const m=c.url.match(aceRe);
-  try{
-    if(!m){const a=new AbortController();sig.addEventListener('abort',()=>a.abort());const t=setTimeout(()=>a.abort(),tmo*1000);try{await fetch(c.url,{mode:'no-cors',signal:a.signal});return{ok:true,why:'responde'}}finally{clearTimeout(t);a.abort()}}
-    const base=m[1],id=m[2],pid='p'+Math.random().toString(36).slice(2,10);
-    const r=await (await fetch(`${base}/ace/getstream?id=${id}&format=json&pid=${pid}`,{signal:sig})).json();
-    if(!r.response)return{ok:false,why:r.error||'el motor no lo acepta'};
-    const {stat_url,command_url}=r.response,t0=Date.now();
-    try{
-      while(Date.now()-t0<tmo*1000&&!sig.aborted){
-        await sleep(1500);
-        const s=(await (await fetch(stat_url,{signal:sig})).json()).response||{};
-        if(s.status==='dl'||(s.peers>0&&s.speed_down>0))return{ok:true,why:(s.peers||0)+' peers'};
-      }
-      return{ok:false,why:'sin datos a tiempo'};
-    }finally{fetch(command_url+'?method=stop').catch(()=>{})}
-  }catch(e){return{ok:false,why:e.name==='AbortError'?'cancelado':String(e.message||e)}}
-}
-function pick(){const s=$('#sc').value;return (s==='vis'?visible():s==='sel'?S.ch.filter(c=>S.sel.has(c.id)):s==='new'?S.ch.filter(c=>!c.test):S.ch).slice()}
-async function startAuto(){
-  if(running)return;const list=pick();if(!list.length)return setMsg('No hay canales que probar con esa selección.');
-  setMsg('Comprobando conexión con el motor…');
-  const first=list.find(c=>aceRe.test(c.url));
-  if(first){const base=first.url.match(aceRe)[1];try{await fetch(`${base}/webui/api/service?method=get_version`,{signal:AbortSignal.timeout(5000)})}catch(e){return setMsg(`❌ No hay conexión con el motor Ace Stream en ${base} (${e.name}: ${e.message}). Si Ace Stream está abierto, el navegador está bloqueando la petición: prueba el modo semiautomático.`)}}
-  running=true;ctl=new AbortController();let i=0,done=0;
-  const cc=Math.max(1,Math.min(10,+$('#cc').value||4)),to=Math.max(5,+$('#to').value||25);
-  const w=async()=>{while(!ctl.signal.aborted&&i<list.length){const c=list[i++];const r=await testOne(c,to,ctl.signal);if(ctl.signal.aborted)break;c.test=r.ok?'ok':'fail';c.why=r.why;done++;setMsg(`Probando ${done}/${list.length} · `+cnt());if(done%15===0)render()}};
-  await Promise.all(Array.from({length:cc},w));
-  const stopped=ctl.signal.aborted;running=false;setMsg((stopped?'Detenido. ':'Terminado. ')+cnt());render();
-}
-async function startSemi(){
-  if(running)return;const list=pick();if(!list.length)return setMsg('No hay canales que probar con esa selección.');
-  if(!window.mpegts)await new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/mpegts.js/1.7.3/mpegts.js';s.onload=ok;s.onerror=ko;document.head.appendChild(s)}).catch(()=>{});
-  if(!window.mpegts||!mpegts.isSupported())return setMsg('No se pudo cargar el reproductor (mpegts.js). Comprueba tu conexión a internet.');
-  running=true;$('#tv').style.display='block';$('#sb').style.display='flex';const v=$('#tv');
-  for(let i=0;i<list.length;i++){
-    const c=list[i];setMsg(`${i+1}/${list.length} · ${c.group} · `+cnt());
-    const p=mpegts.createPlayer({type:'mpegts',isLive:true,url:c.url});p.attachMediaElement(v);p.load();p.play().catch(()=>{});
-    const r=await new Promise(res=>{answer=res});
-    try{p.destroy()}catch(e){}
-    if(r==='stop')break;if(r==='ok'||r==='fail')c.test=r;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function parseM3U(text,base){let head='#EXTM3U',entries=[],cur=null;const conv=u=>base?u.replace(/^acestream:\/\/([0-9a-f]{40}).*/i,(m,h)=>`${base}/ace/getstream?id=${h.toLowerCase()}`):u;
+  for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){const l=raw.trim();if(!l)continue;
+    if(l.startsWith('#EXTM3U')){head=l;continue}
+    if(l.startsWith('#EXTINF')){cur={lines:[l],url:null};continue}
+    if(l.startsWith('#')){if(cur)cur.lines.push(l);continue}
+    if(cur){const u=conv(l);cur.lines.push(u);cur.url=u;entries.push(cur);cur=null}else entries.push({lines:['#EXTINF:-1,'+l,conv(l)],url:conv(l)})}
+  return{head,entries}}
+const groupOf=e=>{const m=e.lines[0].match(/group-title="([^"]*)"/);return m?m[1]:''};
+function setAttr(l,k,v){v=v.replace(/"/g,"'");const re=new RegExp('\\b'+k+'="[^"]*"');
+  return re.test(l)?l.replace(re,()=>`${k}="${v}"`):l.replace(/^(#EXTINF:\S+)/,(m,a)=>`${a} ${k}="${v}"`)}
+function setName(l,n){const i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return (c>-1?l.slice(0,c):l)+','+n}
+async function fj(u,ms,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
+  try{const r=await fetch(u,{signal:a.signal});return await r.json()}finally{clearTimeout(t);sig&&sig.removeEventListener('abort',f)}}
+async function testAce(m,tmo,sig){const base=m[1],id=m[2],pid='p'+Math.random().toString(36).slice(2,10);let r;
+  try{r=await fj(`${base}/ace/getstream?id=${id}&format=json&pid=${pid}`,15000,sig)}catch(e){return{ok:false,why:'motor: '+e.message}}
+  if(!r.response)return{ok:false,why:String(r.error||'rechazado').slice(0,60)};
+  const {stat_url,command_url}=r.response,t0=Date.now();
+  try{while(Date.now()-t0<tmo*1000&&!sig.aborted){await sleep(1500);let s;
+      try{s=(await fj(stat_url,8000,sig)).response||{}}catch(e){continue}
+      if(s.status==='dl'||(s.peers>0&&s.speed_down>0)){await sleep(3000);
+        try{s=(await fj(stat_url,8000,sig)).response||s}catch(e){}
+        return{ok:true,speed:s.speed_down||0,peers:s.peers||0}}}
+    return{ok:false,why:'sin datos a tiempo'}}
+  finally{fetch(command_url+'?method=stop').catch(()=>{})}}
+async function testHttp(u,tmo,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,Math.min(tmo,15)*1000);sig.addEventListener('abort',f);
+  try{await fetch(u,{mode:'no-cors',signal:a.signal});return{ok:true,speed:0}}catch(e){return{ok:false,why:e.message}}finally{clearTimeout(t);a.abort();sig.removeEventListener('abort',f)}}
+async function testOne(u,tmo,sig){try{const m=u.match(ACE);return m?await testAce(m,tmo,sig):await testHttp(u,tmo,sig)}catch(e){return{ok:false,why:e.message}}}
+const HASH40=/(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/i;
+const isValidEra=t=>t&&(t.includes('#EXTINF')||HASH40.test(t));
+function parseEra(text,base){
+  if(text.includes('#EXTINF'))return parseM3U(text,base);
+  const entries=[];
+  for(const raw of text.split(/\r?\n/)){const l=raw.trim(),m=l.match(HASH40);if(!m)continue;
+    let name=l.replace(/acestream:\/\//ig,'').replace(m[0],'').replace(/^[\s,;|:=\-–—]+|[\s,;|:=\-–—]+$/g,'').replace(/"/g,"'")||m[0].slice(0,10);
+    entries.push({lines:[`#EXTINF:-1 group-title="${name}",${name}`,`${base}/ace/getstream?id=${m[0].toLowerCase()}`],url:`${base}/ace/getstream?id=${m[0].toLowerCase()}`})}
+  return{head:'#EXTM3U',entries}}
+async function fetchIpns(key,sub,sig,log,custom){
+  if(!key)throw new Error('Falta el identificador IPNS.');if(!sub.startsWith('/'))sub='/'+sub;
+  const hosts=['https://ipfs.io','https://dweb.link','https://w3s.link','https://gateway.pinata.cloud','https://4everland.io','https://nftstorage.link','https://gateway.lighthouse.storage','https://trustless-gateway.link','https://ipfs.filebase.io'];
+  const gws=[...(custom?[custom.replace(/\/$/,'')+`/ipns/${key}${sub}`]:[]),...hosts.map(h=>`${h}/ipns/${key}${sub}`),`https://${key}.ipns.dweb.link${sub}`];
+  for(let ronda=1;ronda<=3;ronda++){
+    if(sig&&sig.aborted)throw new Error('Detenido.');
+    if(ronda>1){log(`Reintentando (${ronda}/3)… las pasarelas a veces tardan en resolver el IPNS la primera vez.`);await sleep(4000)}
+    const master=new AbortController();sig&&sig.addEventListener('abort',()=>master.abort());
+    const one=async u=>{const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,40000),h=new URL(u).host.replace(key+'.','');master.signal.addEventListener('abort',f);
+      try{const r=await fetch(u,{signal:a.signal});if(!r.ok)throw new Error('HTTP '+r.status);const tx=await r.text();if(!isValidEra(tx))throw new Error('contenido no válido');log('✓ pasarela '+esc(h)+' ('+tx.length+' bytes)');return tx}
+      catch(e){if(!master.signal.aborted)log('✕ '+esc(h)+': '+esc(e.message==='Failed to fetch'?'sin respuesta (bloqueada, caída o sin CORS)':e.message));throw e}finally{clearTimeout(t)}};
+    try{return await Promise.any(gws.map(one))}catch(e){}finally{master.abort()}
   }
-  running=false;if($('#tv')){$('#tv').style.display='none';$('#sb').style.display='none'}setMsg('Terminado. '+cnt());render();
-}
-function stopAll(){if(ctl)ctl.abort();if(answer)answer('stop')}
-function okFirst(){const rk=c=>c.test==='ok'?0:c.test==='fail'?2:1;[...new Set(S.ch.map(c=>c.group))].forEach(g=>{const v=S.ch.filter(c=>c.group===g);const idx=v.map(c=>S.ch.indexOf(c));const s=[...v].sort((a,b)=>rk(a)-rk(b));idx.forEach((p,i)=>S.ch[p]=s[i])});render();toast('Los que funcionan van primero en cada grupo')}
-$('#bTest').onclick=()=>{
-  modal(`<h2>Probar canales</h2>
-  <label>Qué probar</label><select id="sc"><option value="vis">Visibles (grupo o búsqueda actual)</option><option value="sel">Seleccionados</option><option value="new">Solo sin probar</option><option value="all">Todos</option></select>
-  <div style="display:flex;gap:8px"><div style="flex:1"><label>A la vez</label><input id="cc" type="number" min="1" max="10" value="4"></div><div style="flex:1"><label>Espera por canal (s)</label><input id="to" type="number" min="5" max="90" value="25"></div></div>
-  <p id="pm" style="font-weight:600;min-height:3.6em;margin:10px 0;word-break:break-word">${cnt()}</p>
-  <video id="tv" muted autoplay playsinline controls style="width:100%;max-height:190px;background:#000;border-radius:8px;display:none"></video>
-  <div id="sb" style="display:none;gap:8px;margin-top:8px"><button class="p" id="sOk" style="flex:1">Funciona</button><button class="d" id="sNo" style="flex:1">No funciona</button><button id="sSk" style="flex:1">Saltar</button></div>
-  <div class="f" style="justify-content:flex-start"><button class="p" id="bA">Automático</button><button id="bS">Semiautomático</button><button id="bX" class="d">Detener</button></div>
-  <div class="f" style="justify-content:flex-start"><button id="bF">Funcionan primero</button><button id="bC">Caídos → grupo «Caídos»</button><button id="bR" class="d">Borrar caídos</button></div>
-  <div class="f"><button id="bK">Cerrar</button></div>`);
-  $('#bA').onclick=()=>{setMsg('Iniciando…');startAuto().catch(e=>setMsg('❌ Error: '+e.message))};$('#bS').onclick=()=>{setMsg('Cargando reproductor…');startSemi().catch(e=>setMsg('❌ Error: '+e.message))};$('#bX').onclick=stopAll;
-  $('#sOk').onclick=()=>answer&&answer('ok');$('#sNo').onclick=()=>answer&&answer('fail');$('#sSk').onclick=()=>answer&&answer('skip');
-  $('#bF').onclick=okFirst;
-  $('#bC').onclick=()=>{const n=S.ch.filter(c=>c.test==='fail').length;S.ch.forEach(c=>{if(c.test==='fail')c.group='Caídos'});render();setMsg(`${n} canales movidos al grupo «Caídos».`)};
-  $('#bR').onclick=async()=>{const n=S.ch.filter(c=>c.test==='fail').length;if(!n)return setMsg('No hay canales caídos.');const keep=$('#modal').innerHTML;if(await choose('Borrar caídos',`¿Borrar ${n} canales marcados como no funcionales?`,[['y','Borrar']])){S.ch=S.ch.filter(c=>c.test!=='fail');render();toast(`${n} canales borrados`)}};
-  $('#bK').onclick=()=>{stopAll();close();render()};
-};
-render();
-</script>
-</body>
-</html>
+  throw new Error('Ninguna pasarela devolvió el archivo. Abre el enlace de la fuente en una pestaña, copia el contenido y pégalo en el recuadro «Pegar contenido».');}
+async function upload(cfg,content){if(!cfg.token)throw new Error('Falta el token de GitHub');
+  const files={[cfg.file]:{content}},id=cfg.gistId;
+  const r=await fetch(id?`${cfg.api}/gists/${id}`:`${cfg.api}/gists`,{method:id?'PATCH':'POST',
+    headers:{Authorization:'token '+cfg.token,Accept:'application/vnd.github+json','Content-Type':'application/json'},
+    body:JSON.stringify(id?{files}:{description:'Lista M3U',public:cfg.pub,files})});
+  if(!r.ok)throw new Error(`GitHub respondió ${r.status}: `+(await r.text()).slice(0,140));
+  const j=await r.json();return{id:j.id,link:`https://gist.githubusercontent.com/${j.owner.login}/${j.id}/raw/${cfg.file}`}}
+async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
+  const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
+  log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
+  for(const e of entries){let l=e.lines[0];const g=groupOf(e),m=e.url.match(ACE);
+    if(cfg.hash&&m)l=setName(l,m[2].slice(0,10));if(cfg.tvg&&g)l=setAttr(setAttr(l,'tvg-id',g),'tvg-name',g);e.lines[0]=l}
+  const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
+  if(fm){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
+    throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
+  step('3/4 Probando enlaces…');const res=new Map();
+  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=ronda?urls.filter(u=>!res.get(u).ok):urls;if(!todo.length)break;
+    log(ronda?`<b>Reintento ${ronda}: ${todo.length} enlaces</b>`:`<b>Probando ${todo.length} enlaces (${cfg.workers} a la vez)</b>`);let i=0,done=0;
+    const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig);if(sig.aborted)return;
+      res.set(u,r);done++;log(`${r.ok?'✓':'✕'} …${esc(u.slice(-12))} ${r.ok?Math.round(r.speed)+' KB/s':esc(r.why)}`);
+      prog(done,todo.length,[...res.values()].filter(x=>x.ok).length)}};
+    await Promise.all(Array.from({length:cfg.workers},w));if(sig.aborted)throw new Error('Detenido. No se sube nada.')}
+  const ok=e=>res.get(e.url)&&res.get(e.url).ok,nOk=entries.filter(ok).length;
+  log(`<b>Funcionan ${nOk} de ${entries.length}.</b>`);
+  if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
+  let good=[],dead=[];
+  for(const g of new Set(entries.map(groupOf))){const es=entries.filter(e=>groupOf(e)===g);
+    good.push(...es.filter(ok).sort((a,b)=>(res.get(b.url).speed||0)-(res.get(a.url).speed||0)));
+    const bad=es.filter(e=>!ok(e));
+    if(cfg.dead==='keep')good.push(...bad);
+    else{if(cfg.dead==='move')for(const e of bad){const l=e.lines[0];e.lines[0]=/group-title="/.test(l)?l.replace(/group-title="[^"]*"/,'group-title="Caídos"'):setAttr(l,'group-title','Caídos')}dead.push(...bad)}}
+  if(cfg.dead==='move')good.push(...dead);
+  const out=(cfg.epg?`#EXTM3U url-tvg="${cfg.epg}"`:head)+'\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
+  step('4/4 Subiendo al Gist…');const up=await upload(cfg,out);
+  return{out,nOk,total:entries.length,...up}}
+/*ENDCORE*/
+const $=s=>document.querySelector(s);
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','epg','workers','timeout','retries','dead','minok'],CB=['hash','tvg','pub'];
+try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
+const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
+const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
+document.addEventListener('input',()=>{save();upo()});upo();
+const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',epg:$('#epg').value.trim(),
+  hash:$('#hash').checked,tvg:$('#tvg').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),api:'https://api.github.com'});
+const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
+const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
+const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ✓ ${ok} funcionan`};
+let ctl=null;
+function busy(b){$('#go').disabled=b;$('#stop').style.display=b?'inline-block':'none'}
+$('#stop').onclick=()=>ctl&&ctl.abort();
+$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
+  try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
+    step('1/4 Descargando lista…');let text;const f=$('#lfile').files[0];
+    if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
+      try{const r=await fetch(cfg.src);if(!r.ok)throw new Error('HTTP '+r.status);text=await r.text()}
+      catch(e){throw new Error(`No se pudo descargar (${e.message}). Si es un bloqueo CORS, descarga la lista y elígela en «archivo».`)}}
+    log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
+    const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
+    $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
+    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div>`;
+    $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);$('#cp').textContent='Copiado'}catch(e){}};
+    $('#dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.out],{type:'audio/x-mpegurl'}));a.download=cfg.file;a.click()};
+  }catch(e){$('#st').textContent='❌ '+e.message;log('❌ '+esc(e.message),'e')}
+  finally{try{wl&&wl.release()}catch(e){}ctl=null;busy(false)}};
+$('#chkE').onclick=async()=>{const u=($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,'');
+  try{const j=await fj(u+'/webui/api/service?method=get_version',5000);log('✅ Motor responde en '+u+': '+JSON.stringify(j.result||j).slice(0,80))}
+  catch(e){log(`❌ Sin conexión con ${u} (${e.name}: ${e.message}). ¿Ace Stream abierto? Si lo está, el navegador lo bloquea.`,'e')}};
+$('#chkG').onclick=async()=>{const t=$('#token').value.trim();if(!t)return log('Pon el token primero','e');
+  try{const r=await fetch('https://api.github.com/user',{headers:{Authorization:'token '+t}});const j=await r.json();log(r.ok?'✅ Token válido: '+j.login:'❌ GitHub respondió '+r.status+' (token incorrecto o sin permiso)',r.ok?'':'e')}
+  catch(e){log('❌ '+e.message,'e')}};
+</script></main></body></html>
