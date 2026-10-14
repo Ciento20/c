@@ -87,14 +87,34 @@ async function testHttp(u,tmo,sig){const a=new AbortController(),f=()=>a.abort()
 async function testOne(u,tmo,sig){try{const m=u.match(ACE);return m?await testAce(m,tmo,sig):await testHttp(u,tmo,sig)}catch(e){return{ok:false,why:e.message}}}
 const HASH40=/(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/i;
 const isValidEra=t=>t&&(t.includes('#EXTINF')||HASH40.test(t));
+function sanitizeName(n){return String(n||'')
+  .replace(/\bshickat(?:\.[a-z]+)*\b/gi,' ')
+  .replace(/acestream:\/\/\S*/gi,' ')
+  .replace(/\b(?:id|hash|content_id|infohash)\s*[=:]\s*\S*/gi,' ')
+  .replace(/[a-f0-9]{8,}/gi,m=>(m.length>=20||(/\d/.test(m)&&/[a-f]/i.test(m)))?' ':m)
+  .replace(/[\(\[\{]\s*[\)\]\}]/g,' ')
+  .replace(/(?:\s*\|\s*){2,}/g,' | ')
+  .replace(/^[\s\-–|,:;=>]+|[\s\-–|,:;=>]+$/g,'')
+  .replace(/\s{2,}/g,' ').replace(/"/g,"'").trim()}
+const eraName=n=>sanitizeName(String(n).split('-->')[0].replace(/\b(HDP|SDP|FHDP)\b/gi,'').trim());
 function parseEra(text,base){
-  if(text.includes('#EXTINF'))return parseM3U(text,base);
-  const entries=[],clean=t=>t.replace(/acestream:\/\//ig,'').replace(/\s*-+>.*$/,'').replace(/^[\s,;|:=\-–—]+|[\s,;|:=\-–—]+$/g,'').replace(/"/g,"'").trim();
-  let pend='';
-  for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){const l=raw.trim();if(!l||l[0]==='#')continue;const m=l.match(HASH40);
-    if(!m){pend=clean(l)||pend;continue}
-    const name=clean(l.replace(m[0],''))||pend||m[0].slice(0,10),u=`${base}/ace/getstream?id=${m[0].toLowerCase()}`;pend='';
-    entries.push({lines:[`#EXTINF:-1 group-title="${name}",${name}`,u],url:u})}
+  if(text.includes('#EXTINF')){
+    const r=parseM3U(text,base);
+    for(const e of r.entries){let l=e.lines[0];const i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
+      const nm=c>-1?eraName(l.slice(c+1)):'';
+      if(nm){l=setName(l,nm);if(!groupOf(e))l=setAttr(l,'group-title',nm)}e.lines[0]=l}
+    return r}
+  let lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);
+  if(/<\/?(?:html|body|pre|div|p|br|span)\b/i.test(text)){
+    const doc=new DOMParser().parseFromString(text.replace(/<br\s*\/?>/gi,'\n').replace(/<\/(?:p|div|li|tr)>/gi,'\n'),'text/html');
+    doc.querySelectorAll('script,style').forEach(n=>n.remove());lines=(doc.body.textContent||'').split(/\r?\n/)}
+  const entries=[],seen=new Set();let last='';
+  for(const raw of lines){const l=raw.trim();if(!l)continue;
+    const m=l.includes('-->')?null:l.match(HASH40);
+    if(!m){last=eraName(l);continue}
+    const id=m[0].toLowerCase();if(!last||seen.has(id))continue;seen.add(id);
+    const u=`${base}/ace/getstream?id=${id}`;
+    entries.push({lines:[`#EXTINF:-1 group-title="${last}",${last}`,u],url:u})}
   return{head:'#EXTM3U',entries}}
 async function fetchIpns(key,sub,sig,log,custom){
   if(!key)throw new Error('Falta el identificador IPNS.');if(!sub.startsWith('/'))sub='/'+sub;
