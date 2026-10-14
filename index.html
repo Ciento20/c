@@ -42,7 +42,7 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
   <label>URL de la guía EPG (opcional)</label><input id="epg" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml">
-  <label class="c"><input type="checkbox" id="hash" checked> Nombre = 10 primeros caracteres del hash</label>
+  <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
   <label class="c"><input type="checkbox" id="tvg" checked> tvg-id y tvg-name = nombre del grupo</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
@@ -89,10 +89,12 @@ const HASH40=/(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/i;
 const isValidEra=t=>t&&(t.includes('#EXTINF')||HASH40.test(t));
 function parseEra(text,base){
   if(text.includes('#EXTINF'))return parseM3U(text,base);
-  const entries=[];
-  for(const raw of text.split(/\r?\n/)){const l=raw.trim(),m=l.match(HASH40);if(!m)continue;
-    let name=l.replace(/acestream:\/\//ig,'').replace(m[0],'').replace(/^[\s,;|:=\-–—]+|[\s,;|:=\-–—]+$/g,'').replace(/"/g,"'")||m[0].slice(0,10);
-    entries.push({lines:[`#EXTINF:-1 group-title="${name}",${name}`,`${base}/ace/getstream?id=${m[0].toLowerCase()}`],url:`${base}/ace/getstream?id=${m[0].toLowerCase()}`})}
+  const entries=[],clean=t=>t.replace(/acestream:\/\//ig,'').replace(/\s*-+>.*$/,'').replace(/^[\s,;|:=\-–—]+|[\s,;|:=\-–—]+$/g,'').replace(/"/g,"'").trim();
+  let pend='';
+  for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){const l=raw.trim();if(!l||l[0]==='#')continue;const m=l.match(HASH40);
+    if(!m){pend=clean(l)||pend;continue}
+    const name=clean(l.replace(m[0],''))||pend||m[0].slice(0,10),u=`${base}/ace/getstream?id=${m[0].toLowerCase()}`;pend='';
+    entries.push({lines:[`#EXTINF:-1 group-title="${name}",${name}`,u],url:u})}
   return{head:'#EXTM3U',entries}}
 async function fetchIpns(key,sub,sig,log,custom){
   if(!key)throw new Error('Falta el identificador IPNS.');if(!sub.startsWith('/'))sub='/'+sub;
@@ -119,7 +121,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
   for(const e of entries){let l=e.lines[0];const g=groupOf(e),m=e.url.match(ACE);
-    if(cfg.hash&&m)l=setName(l,m[2].slice(0,10));if(cfg.tvg&&g)l=setAttr(setAttr(l,'tvg-id',g),'tvg-name',g);e.lines[0]=l}
+    if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));if(cfg.tvg&&g)l=setAttr(setAttr(l,'tvg-id',g),'tvg-name',g);e.lines[0]=l}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   if(fm){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
     throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
@@ -145,13 +147,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','epg','workers','timeout','retries','dead','minok'],CB=['hash','tvg','pub'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','epg','workers','timeout','retries','dead','minok'],CB=['hashn','tvg','pub'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',epg:$('#epg').value.trim(),
-  hash:$('#hash').checked,tvg:$('#tvg').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  hashn:$('#hashn').checked,tvg:$('#tvg').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
