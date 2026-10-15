@@ -49,6 +49,8 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Motor Ace Stream</label><input id="engine" value="http://127.0.0.1:6878">
   <label>Enlace de la lista (solo si la fuente es «Enlace directo»)</label><input id="src" placeholder="https://…/lista.m3u">
   <label>…o archivo (si el enlace da error CORS)</label><input id="lfile" type="file">
+  <label class="c"><input type="checkbox" id="epg" checked> Poner tvg-id y tvg-name del EPG</label>
+  <label>URL del EPG (XML)</label><input id="epgu" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml">
   <label>Token de GitHub (permiso «gist»)</label><input id="token" type="password" autocomplete="off">
   <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
@@ -199,6 +201,22 @@ function parseLogoXml(text){const xml={};
     if(names.some(n=>/\bBAR\b/i.test(n)))continue;const u=unxml(ic[1]);
     for(const n of names){const k=cleanKey(n);if(k&&!xml[k])xml[k]=u}}
   return xml}
+function parseEpgChannels(text){const m=new Map();
+  for(const b of text.match(/<channel\b[\s\S]*?<\/channel>/g)||[]){const id=unxml((b.match(/<channel\b[^>]*\bid="([^"]*)"/)||[])[1]||'').trim();if(!id)continue;
+    const names=[...b.matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x=>unxml(x[1]).trim()).filter(Boolean);
+    if(!names.length||names.some(n=>/\bBAR\b/i.test(n)))continue;
+    const ch={id,name:names[0]};for(const n of [id,...names]){const k=cleanKey(n);if(k&&!m.has(k))m.set(k,ch)}}
+  return m}
+async function fetchEpgChannels(u,ms,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
+  try{const r=await fetch(u,{signal:a.signal});if(!r.ok)throw new Error('HTTP '+r.status);
+    let txt='';if(r.body&&r.body.getReader){const rd=r.body.getReader(),dec=new TextDecoder();
+      for(;;){const {done,value}=await rd.read();if(done)break;txt+=dec.decode(value,{stream:true});const i=txt.indexOf('<programme');if(i>=0){txt=txt.slice(0,i);rd.cancel().catch(()=>{});break}}}
+    else{txt=await r.text();const i=txt.indexOf('<programme');if(i>=0)txt=txt.slice(0,i)}
+    return parseEpgChannels(txt)}
+  finally{clearTimeout(t);sig&&sig.removeEventListener('abort',f)}}
+function epgMatch(epg,B,g){const k=cleanKey(g);if(!k)return null;const c=B.canon[k]||k;
+  const cand=[k,c];for(const a in B.canon)if(B.canon[a]===c)cand.push(a);
+  for(const x of cand)if(epg.has(x))return epg.get(x);return null}
 const BUILTIN_LOGOS=`DAZN1
 DAZN 1 HD
 DAZN 1: M1SD
@@ -407,6 +425,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
   if(cfg.logo)await addLogos(cfg,entries,log);
   if(cfg.logo){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
+  if(cfg.epg){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
+    let n=0;const miss=new Set();
+    for(const e of entries){const g=groupOf(e),h=epgMatch(epg,B,g);let l=e.lines[0];
+      if(h){l=setAttr(l,'tvg-id',h.id);l=setAttr(l,'tvg-name',h.name);n++}else miss.add(g);e.lines[0]=l}
+    log(`<b>EPG: ${n} de ${entries.length} enlaces con tvg-id.</b>`);
+    if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
+  catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   if(fm){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
     throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
@@ -437,13 +462,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu'],CB=['hashn','pub','logo','ec','as'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu'],CB=['hashn','pub','logo','ec','as','epg'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  epg:$('#epg').checked,epgu:$('#epgu').value.trim()||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
