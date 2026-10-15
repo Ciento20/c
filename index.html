@@ -51,8 +51,11 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
   <label class="c"><input type="checkbox" id="logo" checked> Solo canales de la lista, con icono de Movistar+ (el resto se descarta)</label>
   <label>Logos a cuadrar (wsrv.nl): canales o IDs separados por coma o línea. Vacío = ninguno, * = todos</label><textarea id="sqlist" rows="2" placeholder="CPDEP, MLIGA, M+ Golf" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
-  <div class="g3"><div><label>Tamaño del cuadrado (px)</label><input id="sqs" type="number" min="16" max="1024" value="256"></div>
+  <div class="g3"><div><label>Tamaño del cuadrado (px; 216 = lado mayor de los logos de Movistar)</label><input id="sqs" type="number" min="16" max="1024" value="216"></div>
   <div style="grid-column:span 2"><label>Ajuste</label><select id="sqf"><option value="contain">Entero, con margen transparente (sin ampliar)</option><option value="cover">Rellenar el cuadrado (recorta)</option><option value="fill">Estirar</option></select></div></div>
+  <label>Parámetros extra de wsrv.nl (opcional, ej. q=100&amp;output=webp; ponle =off a uno para quitarlo, ej. we=off)</label><input id="sqx" placeholder="q=100&amp;output=webp">
+  <div class="g3"><div style="grid-column:span 2"><label>ID de canal para probar</label><input id="sqid" value="CPDEP"></div><div><label>&nbsp;</label><button id="sqp" style="width:100%">Previsualizar</button></div></div>
+  <div id="sqpv" style="margin:8px 0"></div>
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
@@ -351,10 +354,14 @@ Eurosport 1: ESP
 EUROSPORT21080
 EUROSPORT2720
 Eurosport 2: ESP2`;
+function sqUrl(cfg,u){const P=[['url',u],['w',cfg.sqs],['h',cfg.sqs],['fit',cfg.sqf]];if(cfg.sqf==='contain')P.push(['we','']);P.push(['cbg','0000'],['output','png']);
+  const ex=String(cfg.sqx||'').replace(/^[?&]+/,'').split('&').map(x=>x.trim()).filter(Boolean).map(x=>{const i=x.indexOf('=');return i<0?[x,'']:[x.slice(0,i),x.slice(i+1)]});
+  for(const [k,v] of ex){const j=P.findIndex(q=>q[0]===k);if(j>=0)P.splice(j,1);if(v!=='off')P.push([k,v])}
+  return 'https://wsrv.nl/?'+P.map(([k,v])=>k==='url'?'url='+encodeURIComponent(v):v===''?k:k+'='+v).join('&')}
 async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);log(`Logos integrados: ${Object.keys(B.logo).length}`);
   const toks=(cfg.sqlist||'').split(/[,\n;]+/).map(x=>x.trim()).filter(Boolean),all=toks.includes('*'),idset=new Set(toks.map(x=>x.toUpperCase())),keyset=new Set(toks.map(cleanKey).filter(Boolean));
   let n=0,nSq=0;for(const e of entries){const k=cleanKey(groupOf(e));let u=B.logo[B.canon[k]||k];
-    if(u){if(all||idset.has(((u.match(/\/([^\/]+?)\.png$/i)||[])[1]||'').toUpperCase())||keyset.has(k)||keyset.has(B.canon[k]||k)){nSq++;u=`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${cfg.sqs}&h=${cfg.sqs}&fit=${cfg.sqf}${cfg.sqf==='contain'?'&we':''}&cbg=0000&output=png`}e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
+    if(u){if(all||idset.has(((u.match(/\/([^\/]+?)\.png$/i)||[])[1]||'').toUpperCase())||keyset.has(k)||keyset.has(B.canon[k]||k)){nSq++;u=sqUrl(cfg,u)}e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}. Cuadrados: ${nSq}.</b>`)}
@@ -402,13 +409,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist'],CB=['hashn','pub','logo'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid'],CB=['hashn','pub','logo'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||256)),sqf:$('#sqf').value,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
@@ -452,6 +459,8 @@ $('#rvdel').onclick=async()=>{const sel=[...document.querySelectorAll('#rvl inpu
 $('#blv').onclick=e=>{const b=e.target.closest('button[data-j]');if(!b)return;const BL=loadBL(),k=Object.keys(BL)[+b.dataset.j];delete BL[k];saveBL(BL);renderBL();$('#rvs').textContent='Restaurado: volverá a entrar en la próxima actualización.'};
 $('#blall').onclick=()=>{if(confirm('¿Restaurar todos los descartados?')){saveBL({});renderBL()}};
 renderRv(false);
+$('#sqp').onclick=()=>{const cfg=getCfg(),id=($('#sqid').value.trim()||'CPDEP').replace(/\.png$/i,''),o=MOV+id+'.png',n=sqUrl(cfg,o),bg='background:repeating-conic-gradient(#8884 0 25%,transparent 0 50%) 0 0/16px 16px';
+  $('#sqpv').innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap">${[['Original',o],['Con wsrv.nl',n]].map(([t,u])=>`<div style="text-align:center;font-size:12px;color:var(--mute)">${t}<br><img src="${esc(u)}" style="${bg};min-width:64px;min-height:64px;max-width:160px;image-rendering:auto;border:1px solid var(--line)"><br><img src="${esc(u)}" style="${bg};width:48px;border:1px solid var(--line);margin-top:4px"></div>`).join('')}</div><div style="font-size:11px;color:var(--mute);word-break:break-all;margin-top:6px">${esc(n)}</div>`};
 $('#chkE').onclick=async()=>{const u=($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,'');
   try{const j=await fj(u+'/webui/api/service?method=get_version',5000);log('✅ Motor responde en '+u+': '+JSON.stringify(j.result||j).slice(0,80))}
   catch(e){log(`❌ Sin conexión con ${u} (${e.name}: ${e.message}). ¿Ace Stream abierto? Si lo está, el navegador lo bloquea.`,'e')}};
