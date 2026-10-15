@@ -140,16 +140,17 @@ async function upload(cfg,content){if(!cfg.token)throw new Error('Falta el token
     body:JSON.stringify(id?{files}:{description:'Lista M3U',public:cfg.pub,files})});
   if(!r.ok)throw new Error(`GitHub respondió ${r.status}: `+(await r.text()).slice(0,140));
   const j=await r.json();return{id:j.id,link:`https://gist.githubusercontent.com/${j.owner.login}/${j.id}/raw/${cfg.file}`}}
-const cleanKey=n=>n?String(n).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\b(HD|FHD|4K|1080P|1080|720|720P|SD|TVE|ES|SOLO EVENTOS|PLUS|BAR)\b/g,'').replace(/[\(\)\[\]\*]/g,' ').replace(/\s+/g,' ').trim():'';
+const cleanKey=n=>n?String(n).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[_|\-–—·•◉●]+/g,' ').replace(/(?<![A-Z0-9])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{2,3} ?FPS|4K|1080P?|720P?|576P?|HD|SD|TVE|ES|SOLO EVENTOS|PLUS|BAR)\+?(?![A-Z0-9])/g,' ').replace(/[\(\)\[\]\*]/g,' ').replace(/\s+/g,' ').trim():'';
 const unxml=t=>t.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
 const MOV='https://www.movistarplus.es/recorte/m-DP/canal/';
 async function getTxt(u,ms,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
   try{const r=await fetch(u,{signal:a.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.text()}finally{clearTimeout(t);sig&&sig.removeEventListener('abort',f)}}
 function parseLogoGist(text){const logo={},canon={};let al=[];
-  for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){const l=raw.trim();if(!l||l[0]==='@')continue;let c=null,u=null;
-    if(l.includes(': http')){const p=l.split(': http');c=cleanKey(p[0]);u='http'+p[1].trim()}
-    else{const i=l.lastIndexOf(':'),m=i>0?l.slice(i+1).trim().match(/^([A-Za-z0-9_-]{2,40})(?:\.png)?$/i):null;if(m){c=cleanKey(l.slice(0,i));u=MOV+m[1]+'.png'}}
-    if(c!==null){if(/^https?:\/\/[^\s"'<>]+$/i.test(u))logo[c]=u;canon[c]=c;al.forEach(a=>canon[cleanKey(a)]=c);al=[]}else al.push(l)}
+  for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){const l=raw.trim();if(!l||l[0]==='@'||/^https?:/i.test(l))continue;let c=null,u='',m;
+    if(m=l.match(/^(.+?):\s*(https?:.*)$/i)){c=cleanKey(m[1]);u=m[2].trim()}
+    else if(m=l.match(/^(.+):\s*([A-Za-z0-9_-]{2,40})(?:\.png)?$/i)){c=cleanKey(m[1]);u=MOV+m[2]+'.png'}
+    else if(m=l.match(/^(.+):\s*$/)){c=cleanKey(m[1])}
+    if(c!==null){if(/^https?:\/\/[^\s"'<>]+$/i.test(u))logo[c]=u;canon[c]=c;al.forEach(x=>canon[cleanKey(x)]=c);al=[]}else al.push(l)}
   return{logo,canon}}
 function parseLogoXml(text){const xml={};
   for(const b of text.match(/<channel\b[\s\S]*?<\/channel>/g)||[]){const ic=b.match(/<icon\b[^>]*\bsrc="([^"]+)"/);if(!ic)continue;
@@ -162,6 +163,8 @@ async function addLogos(cfg,entries,log,sig){let G={logo:{},canon:{}},X={};
   if(cfg.lxml){try{X=parseLogoXml(await getTxt(cfg.lxml,60000,sig));log(`Logos del XML: ${Object.keys(X).length}`)}catch(e){log('⚠ XML de logos: '+esc(e.message))}}
   let n=0;for(const e of entries){const k=cleanKey(groupOf(e)),c=G.canon[k]||k,u=G.logo[c]||X[k]||X[c];
     if(u){e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
+  const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
+  if(miss.length)log('Sin icono ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}.</b>`)}
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
