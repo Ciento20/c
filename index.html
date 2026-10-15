@@ -158,10 +158,192 @@ function parseLogoXml(text){const xml={};
     if(names.some(n=>/\bBAR\b/i.test(n)))continue;const u=unxml(ic[1]);
     for(const n of names){const k=cleanKey(n);if(k&&!xml[k])xml[k]=u}}
   return xml}
+const BUILTIN_LOGOS=`DAZN1
+DAZN 1 HD
+DAZN 1: M1SD
+DAZN 2 HD
+DAZN 2: M2SD
+DAZN 3: DAZN3
+DAZN 4: DAZN4
+DAZN LA LIGA
+DAZNLIGA
+DAZN LA LIGA 1
+DAZN LALIGA: DAZNLI
+DAZN LA LIGA 2
+DAZN LALIGA 5
+DAZN LALIGA 2: DAZNL2
+ACB EVENTO 02
+DAZN ACB 2
+DAZN BALONCESTO 2: DAZB2
+ACB EVENTO 03
+DAZN BALONCESTO 3: DAZB3
+DAZN MOTOGP: DAZMOT
+F1
+F1 2
+F1 3
+DAZN F1: MVF1
+
+MOVISTAR LA LIGA
+MOVISTAR LALIGA
+M+ LALIGA: MLIGA
+M+ LALIGA 2: MLIG1
+M+ LALIGA 3: MLIG2
+M+ LALIGA 4: MLIG3
+M+ LALIGA 5: MLIG4
+CAMPEONES
+LIGA DE CAMPEONES
+M+ Liga de Campeones: CHAPIO
+CAMPEONES 2
+LIGA DE CAMPEONES 2
+M+ Liga de Campeones 2: CHAP1
+CAMPEONES 3
+LIGA DE CAMPEONES 3
+M+ Liga de Campeones 3: CHAP2
+CAMPEONES 4
+LIGA DE CAMPEONES 4
+M+ Liga de Campeones 4: CHAP3
+CAMPEONES 5
+LIGA DE CAMPEONES 5
+M+ Liga de Campeones 5: CHAP4
+CAMPEONES 6
+LIGA DE CAMPEONES 6
+M+ Liga de Campeones 6: CHAP5
+CAMPEONES 7
+LIGA DE CAMPEONES 7
+M+ Liga de Campeones 7: CHAP6
+CAMPEONES 8
+LIGA DE CAMPEONES 8
+M+ Liga de Campeones 8: CHAP7
+LIGA DE CAMPEONES 9
+M+ Liga de Campeones 9: CHAP8
+LIGA DE CAMPEONES 10
+M+ Liga de Campeones 10: CHAP9
+LIGA DE CAMPEONES 11
+M+ Liga de Campeones 11: CHAP10
+LIGA DE CAMPEONES 12
+M+ Liga de Campeones 12: CHAP11
+M+ Liga de Campeones 13: CHAP12
+LALIGA HYPERMOTION
+LALIGA HYPERMOTION 1
+LALIGA TV HYPERMOTION720
+LALIGA TV HYPERMOTION1080
+HYPERMOTION
+LALIGA TV HYPERMOTION: MLIGS
+LALIGA HYPERMOTION 2
+LALIGA TV HYPERMOTION21080
+HYPERMOTION 2
+LALIGA TV HYPERMOTION 2: MLIGS2
+LALIGA TV HYPERMOTION 10
+LALIGA TV HYPERMOTION31080
+HYPERMOTION 3
+LALIGA TV HYPERMOTION 3: MLIGS3
+
+M+ BALONCESTO: MBALCT
+M+ BALONCESTO 2: MBALC2
+M+ BALONCESTO 3: MBALC3
+M+ BALONCESTO 4: MBALC4
+M+ BALONCESTO 5: MBALC5
+
+VAMOS1080
+VAMOS720
+VAMOS
+M+ Vamos
+MOVISTAR VAMOS: VAMSD
+MOVISTAR FANZONE
+M+ FANZONE
+MOVISTAR VAMOS 2
+VAMOS 2
+M+ VAMOS 2: VAM2SD
+MOVISTAR ELLAS
+M+ ELLAS VAMOS
+M+ VAMOS 3: MELLAV
+
+M+
+MOVISTAR+
+MOVISTARPLUS1080
+MOVISTAR 2
+MOVISTAR PLUS+ 2
+M+ PLUS 2
+MOVISTAR PLUS+
+M+ PLUS
+MOVISTAR: MPLUS
+
+DEPORTES
+DEPORTE
+MOVISTAR DEPORTES
+M. DEPORTES
+M+ DEPORTES: CPDEP
+DEPORTE2
+DEPORTES 2
+MOVISTAR DEPORTES 2
+M+ DEPORTES 2: ARTHUR
+DEPORTE3
+MOVISTAR DEPORTES 3
+M+ DEPORTES 3: USOP2
+DEPORTE4
+MOVISTAR DEPORTES 4
+M+ DEPORTES 4: USOP3
+DEPORTE5
+MOVISTAR DEPORTES 5
+M+ DEPORTES 5: USOP11
+DEPORTE 6
+MOVISTAR DEPORTES 6
+M+ DEPORTES 6: MULTI8
+MOVISTAR DEPORTES 7
+M+ DEPORTES 7: MULTI6
+MOVISTAR DEPORTES 8
+M+ DEPORTES 8: MULTI9
+
+MOVISTAR GOLF
+M+ GOLF: https://www.movistarplus.es/recorte/m-DP/canal/GOLF+.png
+Movistar Golf 2
+M+ GOLF 2: GOLF2
+
+MOVISTAR ESTRENOS
+M+ ESTRENOS SPAIN
+ESTRENOS
+M+ ESTRENOS: MV1
+M+ COMEDIA SPAIN
+MOVISTAR COMEDIA
+M+ Comedia: CPCOME
+ACCION
+MOVISTAR ACCION
+M+ Accion: CPACCI
+MOVISTAR ORIGINALES
+M+ ORIGINALES SPAIN
+M+ ORIGINALES: MORIG
+M+ INDIE SPAIN
+M+ INDIE: MINDI
+MOVISTAR DOCUMENTALES
+M+ DOCUMENTALES SPAIN
+M+ DOCUMENTALES: MDOC
+MOVISTAR HITS
+M+ HITS SPAIN
+M+ HITS: MHITS
+M+ TERROR SPAIN
+M+ TERROR: TERROR
+M+ DRAMA SPAIN
+M+ DRAMA: CPCOLE
+M+ ROMANCE SPAIN
+M+ ROMANCE: MROMA
+MOVISTAR CINE ESPANOL
+M+ CINE ESPANOL SPAIN
+M+ CINE ESPANOL: DCESP
+M+ WESTERN SPAIN
+M+ WESTERN: MWEST
+
+EUROSPORT1080
+EUROSPORT720
+EUROSPORT
+Eurosport 1: ESP
+EUROSPORT21080
+EUROSPORT2720
+Eurosport 2: ESP2`;
 async function addLogos(cfg,entries,log,sig){let G={logo:{},canon:{}},X={};
   if(cfg.logos){try{G=parseLogoGist(await getTxt(cfg.logos+(cfg.logos.includes('?')?'&':'?')+'t='+Math.floor(Date.now()/60000),15000,sig));log(`Logos del gist: ${Object.keys(G.logo).length}`)}catch(e){log('⚠ Gist de logos: '+esc(e.message))}}
   if(cfg.lxml){try{X=parseLogoXml(await getTxt(cfg.lxml,60000,sig));log(`Logos del XML: ${Object.keys(X).length}`)}catch(e){log('⚠ XML de logos: '+esc(e.message))}}
-  let n=0;for(const e of entries){const k=cleanKey(groupOf(e)),c=G.canon[k]||k,u=G.logo[c]||X[k]||X[c];
+  const B=parseLogoGist(BUILTIN_LOGOS);log(`Logos integrados: ${Object.keys(B.logo).length}`);
+  let n=0;for(const e of entries){const k=cleanKey(groupOf(e)),c=G.canon[k]||k,u=B.logo[B.canon[k]||k]||G.logo[c]||X[k]||X[c];
     if(u){e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Sin icono ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
