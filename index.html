@@ -23,7 +23,7 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
 <h1>Actualizar lista M3U</h1>
 <div class="card">
   <button id="go">▶ Actualizar todo</button>
-  <button id="goc" title="Usa los resultados del último test y solo prueba los enlaces nuevos">⚡ Actualizar con caché (sin retestear)</button>
+  <button id="goc" title="Reutiliza la última lista y su test: sin descargar, sin motor y sin probar">⚡ Actualizar con caché (sin conexión)</button>
   <div class="bar"><i id="pb"></i></div>
   <div id="st" style="font-weight:600">Listo para empezar.</div>
   <div class="row"><button id="stop" style="display:none">Detener</button></div>
@@ -420,11 +420,11 @@ async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);lo
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}. Pósters: ${nSq}.</b>`)}
 const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
-const RSK='m3ures',loadRes=()=>{try{return JSON.parse(localStorage.getItem(RSK)||'{}')}catch(e){return{}}},saveRes=o=>{try{localStorage.setItem(RSK,JSON.stringify(o))}catch(e){}};
 const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
-  const {head,entries}=parseEra(text,cfg.engine);
-  for(const x of (cfg.extras||[])){const have=new Set(entries.map(e=>keyOf(e.url)));let n=0,tot=0;for(const e of parseEra(x.text,cfg.engine).entries){tot++;const k=keyOf(e.url);if(!have.has(k)){have.add(k);entries.push(e);n++}}log(`Fuente ${x.label}: ${tot} enlaces, ${n} nuevos añadidos.`)}
+  if(cfg.reuse&&!(cfg.prev||[]).length)throw new Error('No hay ninguna lista guardada en este navegador. Usa antes «Actualizar todo». No se toca el Gist.');
+  const {head,entries}=cfg.reuse?{head:'#EXTM3U',entries:cfg.prev.map(x=>({lines:[...x.lines],url:x.lines[x.lines.length-1]}))}:parseEra(text,cfg.engine);
+  for(const x of (cfg.reuse?[]:(cfg.extras||[]))){const have=new Set(entries.map(e=>keyOf(e.url)));let n=0,tot=0;for(const e of parseEra(x.text,cfg.engine).entries){tot++;const k=keyOf(e.url);if(!have.has(k)){have.add(k);entries.push(e);n++}}log(`Fuente ${x.label}: ${tot} enlaces, ${n} nuevos añadidos.`)}
   if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
   {const BL=loadBL(),k=entries.filter(e=>!(keyOf(e.url) in BL)),q=entries.length-k.length;if(q){entries.splice(0,entries.length,...k);log(`Descartados para siempre: ${q} enlaces.`)}if(!entries.length)throw new Error('Todos los enlaces están descartados. No se toca el Gist.')}
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
@@ -432,11 +432,11 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
     const raw=stripQ(c>-1?l.slice(c+1).trim():''),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
-    l=l.replace(/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
+    l=l.replace(cfg.reuse?/\s(?:tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
     if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
   if(cfg.logo)await addLogos(cfg,entries,log);
   if(cfg.logo){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
-  if(cfg.epg){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
+  if(cfg.epg&&!cfg.reuse){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
     let n=0;const miss=new Set();
     for(const e of entries){const g=groupOf(e),h=epgMatch(epg,B,g);let l=e.lines[0];
       if(h){l=setAttr(l,'tvg-id',h.id);l=setAttr(l,'tvg-name',h.name);n++}else miss.add(g);e.lines[0]=l}
@@ -444,18 +444,16 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
   catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
-  const RC=cfg.reuse?loadRes():{},cached=new Set(urls.filter(u=>RC[keyOf(u)]));
-  if(cfg.reuse)log(`<b>Resultados guardados reutilizados: ${cached.size} de ${urls.length}. Se probarán ${urls.length-cached.size} enlaces nuevos.</b>`);
-  if(fm&&cached.size<urls.length){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
+  const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
+  if(fm&&!cfg.reuse){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
     throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
-  step('3/4 Probando enlaces…');const res=new Map();for(const u of cached)res.set(u,RC[keyOf(u)]);
-  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=ronda?urls.filter(u=>!cached.has(u)&&!res.get(u).ok):urls.filter(u=>!cached.has(u));if(!todo.length)break;
+  step('3/4 Probando enlaces…');const res=new Map();for(const [u,x] of prevRes)res.set(u,{ok:!!x.ok,speed:x.speed||0});
+  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=cfg.reuse?[]:ronda?urls.filter(u=>!res.get(u).ok):urls;if(!todo.length)break;
     log(ronda?`<b>Reintento ${ronda}: ${todo.length} enlaces</b>`:`<b>Probando ${todo.length} enlaces (${cfg.workers} a la vez)</b>`);let i=0,done=0;
     const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig,cfg.minspd);if(sig.aborted)return;
       res.set(u,r);done++;log(`${r.ok?'✓':'✕'} …${esc(u.slice(-12))} ${r.ok?Math.round(r.speed)+' KB/s':esc(r.why)}`);
       prog(done,todo.length,[...res.values()].filter(x=>x.ok).length)}};
     await Promise.all(Array.from({length:cfg.workers},w));if(sig.aborted)throw new Error('Detenido. No se sube nada.')}
-  {const C=loadRes();for(const [u,r] of res)C[keyOf(u)]={ok:!!r.ok,speed:r.speed||0,why:r.why||''};saveRes(C)}
   const ok=e=>res.get(e.url)&&res.get(e.url).ok,nOk=entries.filter(ok).length;
   log(`<b>Funcionan ${nOk} de ${entries.length}.</b>`);
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
@@ -493,15 +491,15 @@ function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#stop').style.displ
 $('#stop').onclick=()=>ctl&&ctl.abort();
 let REUSE=false;
 $('#goc').onclick=()=>{if(ctl)return;REUSE=true;$('#go').click()};
-$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
+$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;if(cfg.reuse)cfg.prev=loadLast();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
   try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
-    step('1/4 Descargando lista…');let text='';const f=$('#lfile').files[0];
-    try{if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
+    step(cfg.reuse?'1/4 Usando la lista guardada (sin conexión)…':'1/4 Descargando lista…');let text='';const f=$('#lfile').files[0];
+    try{if(cfg.reuse){}else if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
       try{const r=await fetch(cfg.src);if(!r.ok)throw new Error('HTTP '+r.status);text=await r.text()}
       catch(e){throw new Error(`No se pudo descargar (${e.message}). Si es un bloqueo CORS, descarga la lista y elígela en «archivo».`)}}}catch(e){if(!(cfg.ec||cfg.as))throw e;log('⚠ Fuente principal: '+esc(e.message),'e');text=''}
     const extras=[];
-    if(cfg.ec){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,cfg.ipnsGw))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
-    if(cfg.as){try{log('AS: leyendo '+esc(cfg.asu));const ra=await fetch(cfg.asu,{signal:ctl.signal});if(!ra.ok)throw new Error('HTTP '+ra.status);extras.push({label:'AS',text:asToM3U(await ra.text())})}catch(e){log('✕ AS: '+esc(e.message==='Failed to fetch'?'sin respuesta (¿está abierto el motor AceStream?)':e.message),'e')}}
+    if(cfg.ec&&!cfg.reuse){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,cfg.ipnsGw))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
+    if(cfg.as&&!cfg.reuse){try{log('AS: leyendo '+esc(cfg.asu));const ra=await fetch(cfg.asu,{signal:ctl.signal});if(!ra.ok)throw new Error('HTTP '+ra.status);extras.push({label:'AS',text:asToM3U(await ra.text())})}catch(e){log('✕ AS: '+esc(e.message==='Failed to fetch'?'sin respuesta (¿está abierto el motor AceStream?)':e.message),'e')}}
     cfg.extras=extras;
     log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
