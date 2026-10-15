@@ -395,7 +395,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
     const raw=stripQ(c>-1?l.slice(c+1).trim():''),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
-    l=l.replace(/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);
+    l=l.replace(/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
     if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
   if(cfg.logo)await addLogos(cfg,entries,log);
   if(cfg.logo){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
