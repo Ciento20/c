@@ -62,6 +62,78 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Parámetros extra de wsrv.nl (opcional, ej. q=100&amp;output=webp; ponle =off a uno para quitarlo, ej. we=off)</label><input id="sqx" placeholder="q=100&amp;output=webp">
   <div class="g3"><div style="grid-column:span 2"><label>ID de canal para probar</label><input id="sqid" value="CPDEP"></div><div><label>&nbsp;</label><button id="sqp" style="width:100%">Previsualizar</button></div></div>
   <div id="sqpv" style="margin:8px 0"></div>
+  <label>Orden de canales (uno por línea; las líneas en blanco se ignoran; los canales que no estén aquí van después; vacío = orden automático). Después de todos ellos van los enlaces repetidos, en el mismo orden</label><textarea id="ord" rows="12" style="width:100%">DAZN F1
+DAZN 1
+DAZN 2
+DAZN 3
+DAZN 4
+DAZN LALIGA
+DAZN LALIGA 2
+DAZN BALONCESTO 2
+DAZN BALONCESTO 3
+DAZN MOTOGP
+
+M+ LALIGA
+M+ LALIGA 2
+M+ LALIGA 3
+M+ LALIGA 4
+M+ LALIGA 5
+M+ Liga de Campeones
+M+ Liga de Campeones 2
+M+ Liga de Campeones 3
+M+ Liga de Campeones 4
+M+ Liga de Campeones 5
+M+ Liga de Campeones 6
+M+ Liga de Campeones 7
+M+ Liga de Campeones 8
+M+ Liga de Campeones 9
+M+ Liga de Campeones 10
+M+ Liga de Campeones 11
+M+ Liga de Campeones 12
+M+ Liga de Campeones 13
+
+M+ BALONCESTO
+M+ BALONCESTO 2
+M+ BALONCESTO 3
+M+ BALONCESTO 4
+M+ BALONCESTO 5
+
+M+ DEPORTES
+M+ DEPORTES 2
+M+ DEPORTES 3
+M+ DEPORTES 4
+M+ DEPORTES 5
+M+ DEPORTES 6
+M+ DEPORTES 7
+M+ DEPORTES 8
+
+MOVISTAR PLUS
+MOVISTAR VAMOS
+M+ VAMOS 2
+M+ VAMOS 3
+
+LALIGA TV HYPERMOTION
+LALIGA TV HYPERMOTION 2
+LALIGA TV HYPERMOTION 3
+
+M+ ESTRENOS
+M+ COMEDIA
+M+ ACCION
+M+ ORIGINALES
+M+ INDIE
+M+ DOCUMENTALES
+M+ HITS
+M+ TERROR
+M+ DRAMA
+M+ ROMANCE
+M+ CINE ESPANOL
+M+ WESTERN
+
+M+ GOLF
+M+ GOLF 2
+
+EUROSPORT 1
+EUROSPORT 2</textarea>
   <label>Servidor del addon (ej. https://tu-addon.example.com; sin barra final)</label><input id="adh" value="https://stiptv.ddns.me" placeholder="https://…">
   <label>Instance ID del addon</label><input id="adi" value="8afd3454-6629-4ba7-a7ec-077ef79e350c">
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
@@ -459,7 +531,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
   let good=[],dead=[];const firsts=[],rest=[];
   const isF1=g=>{const e=entries.find(x=>groupOf(x)===g);return /MVF1\.png/.test(e.lines[0])||cleanKey(g)==='DAZN F1'?0:1};
-  const groups=[...new Set(entries.map(groupOf))].sort((a,b)=>isF1(a)-isF1(b));
+  const okey=n=>cleanKey(n).replace(/^MOVISTAR(?= )/,'M+').replace(/[^A-Z0-9+]/g,''),
+    ordL=String(cfg.ord||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),ordK=ordL.map(okey),
+    rank=g=>{const i=ordK.indexOf(okey(g));return i<0?1e6:i};
+  if(ordL.length){const have=new Set(entries.map(e=>okey(groupOf(e)))),miss=ordL.filter((x,i)=>!have.has(ordK[i]));
+    log(`<b>Orden personalizado: ${ordL.length-miss.length} de ${ordL.length} canales de tu lista encontrados.</b>`);
+    if(miss.length)log('No encontrados (se saltan): '+esc(miss.join(' · ')),'e')}
+  const groups=[...new Set(entries.map(groupOf))].sort((a,b)=>ordL.length?(rank(a)-rank(b)||isF1(a)-isF1(b)):isF1(a)-isF1(b));
   for(const g of groups){const es=entries.filter(e=>groupOf(e)===g);
     const gs=es.filter(ok).sort((a,b)=>(res.get(b.url).speed||0)-(res.get(a.url).speed||0));
     if(gs.length)firsts.push(gs[0]);rest.push(...gs.slice(1));
@@ -474,14 +552,14 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','adh','adi'],CB=['hashn','pub','logo','ec','as','epg'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','adh','adi','ord'],CB=['hashn','pub','logo','ec','as','epg'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 if(['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml','https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz'].includes($('#epgu').value))$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),sqbg:$('#sqbg').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),sqbg:$('#sqbg').value.trim(),ord:$('#ord').value,ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
