@@ -50,17 +50,19 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Enlace de la lista (solo si la fuente es «Enlace directo»)</label><input id="src" placeholder="https://…/lista.m3u">
   <label>…o archivo (si el enlace da error CORS)</label><input id="lfile" type="file">
   <label class="c"><input type="checkbox" id="epg" checked> Poner tvg-id y tvg-name del EPG</label>
-  <label>URL del EPG (XML o XML.GZ)</label><input id="epgu" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz">
+  <label>URL del EPG (XML o XML.GZ)</label><input id="epgu" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml">
   <label>Token de GitHub (permiso «gist»)</label><input id="token" type="password" autocomplete="off">
   <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
   <label class="c"><input type="checkbox" id="logo" checked> Solo canales de la lista, con icono de Movistar+ (el resto se descarta)</label>
-  <label>Logos a cuadrar (wsrv.nl): canales o IDs separados por coma o línea. Vacío = ninguno, * = todos</label><textarea id="sqlist" rows="2" placeholder="CPDEP, MLIGA, M+ Golf" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
-  <div class="g3"><div><label>Tamaño del cuadrado (px; 216 = lado mayor de los logos de Movistar)</label><input id="sqs" type="number" min="16" max="1024" value="216"></div>
-  <div style="grid-column:span 2"><label>Ajuste</label><select id="sqf"><option value="contain">Entero, con margen transparente (sin ampliar)</option><option value="cover">Rellenar el cuadrado (recorta)</option><option value="fill">Estirar</option></select></div></div>
+  <label>Logos a convertir en póster (wsrv.nl): canales o IDs separados por coma o línea. Vacío = ninguno, * = todos</label><textarea id="sqlist" rows="2" placeholder="*" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
+  <div class="g3"><div><label>Ancho del póster (px; alto = ancho × 1,5; 216 = ancho de los logos de Movistar)</label><input id="sqs" type="number" min="16" max="1024" value="216"></div>
+  <div><label>Ajuste</label><select id="sqf"><option value="contain">Entero, centrado en el póster (sin ampliar)</option><option value="cover">Rellenar el póster (recorta)</option><option value="fill">Estirar</option></select></div><div><label>Fondo (hex, vacío = transparente)</label><input id="sqbg" placeholder="101820"></div></div>
   <label>Parámetros extra de wsrv.nl (opcional, ej. q=100&amp;output=webp; ponle =off a uno para quitarlo, ej. we=off)</label><input id="sqx" placeholder="q=100&amp;output=webp">
   <div class="g3"><div style="grid-column:span 2"><label>ID de canal para probar</label><input id="sqid" value="CPDEP"></div><div><label>&nbsp;</label><button id="sqp" style="width:100%">Previsualizar</button></div></div>
   <div id="sqpv" style="margin:8px 0"></div>
+  <label>Servidor del addon (ej. https://tu-addon.example.com; sin barra final)</label><input id="adh" value="https://stiptv.ddns.me" placeholder="https://…">
+  <label>Instance ID del addon</label><input id="adi" value="8afd3454-6629-4ba7-a7ec-077ef79e350c">
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
@@ -175,7 +177,8 @@ const tick=()=>{en--;if(en==0){en=2**nb;nb++}};
 const out=()=>{if(H(dc,w)){const ch=w.charCodeAt(0);if(ch<256){bits(nb,0);bits(8,ch)}else{bits(nb,1);bits(16,ch)}tick();delete dc[w]}else bits(nb,d[w]);tick()};
 for(let i=0;i<s.length;i++){c=s.charAt(i);if(!H(d,c)){d[c]=ds++;dc[c]=true}wc=w+c;if(H(d,wc))w=wc;else{out();d[wc]=ds++;w=String(c)}}
 if(w!==""){out()}bits(nb,2);for(;;){val<<=1;if(pos==5){o.push(K.charAt(val));break}else pos++}return o.join('')}
-const bridgeUrl=m3u=>'https://iptvbridge.vercel.app/'+lzEnc(JSON.stringify({type:'m3u',host:'',username:'',password:'',m3uUrl:m3u,tmdbApiKey:'',includeLive:true,includeMovies:false,includeSeries:false,includedCategories:[]}))+'/manifest.json';
+const b64u=t=>{let b='';new TextEncoder().encode(t).forEach(c=>b+=String.fromCharCode(c));return btoa(b).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+const bridgeUrl=(m3u,host,iid,n)=>(host||'').replace(/\/+$/,'')+'/'+b64u(JSON.stringify({provider:'direct',m3uUrl:m3u,enableEpg:false,prescan:{entries:n||0,approxTv:n||0,approxMovies:0,epgProgrammes:0,epgChannels:0},instanceId:iid}))+'/manifest.json';
 async function upload(cfg,content){if(!cfg.token)throw new Error('Falta el token de GitHub');
   const files={[cfg.file]:{content}},id=cfg.gistId;
   const r=await fetch(id?`${cfg.api}/gists/${id}`:`${cfg.api}/gists`,{method:id?'PATCH':'POST',
@@ -404,7 +407,7 @@ Eurosport 1: ESP
 EUROSPORT21080
 EUROSPORT2720
 Eurosport 2: ESP2`;
-function sqUrl(cfg,u){const P=[['url',u],['w',cfg.sqs],['h',cfg.sqs],['fit',cfg.sqf]];if(cfg.sqf==='contain')P.push(['we','']);P.push(['cbg','0000'],['output','png']);
+function sqUrl(cfg,u){const P=[['url',u],['w',cfg.sqs],['h',Math.round(cfg.sqs*1.5)],['fit',cfg.sqf]];if(cfg.sqf==='contain')P.push(['we','']);P.push(['cbg',(String(cfg.sqbg||'').replace(/[^0-9a-f]/gi,'')||'0000')],['output','png']);
   const ex=String(cfg.sqx||'').replace(/^[?&]+/,'').split('&').map(x=>x.trim()).filter(Boolean).map(x=>{const i=x.indexOf('=');return i<0?[x,'']:[x.slice(0,i),x.slice(i+1)]});
   for(const [k,v] of ex){const j=P.findIndex(q=>q[0]===k);if(j>=0)P.splice(j,1);if(v!=='off')P.push([k,v])}
   return 'https://wsrv.nl/?'+P.map(([k,v])=>k==='url'?'url='+encodeURIComponent(v):v===''?k:k+'='+v).join('&')}
@@ -414,7 +417,7 @@ async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);lo
     if(u){if(all||idset.has(((u.match(/\/([^\/]+?)\.png$/i)||[])[1]||'').toUpperCase())||keyset.has(k)||keyset.has(B.canon[k]||k)){nSq++;u=sqUrl(cfg,u)}e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
-  log(`<b>Iconos puestos: ${n} de ${entries.length}. Cuadrados: ${nSq}.</b>`)}
+  log(`<b>Iconos puestos: ${n} de ${entries.length}. Pósters: ${nSq}.</b>`)}
 const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
 const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
@@ -468,14 +471,14 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu'],CB=['hashn','pub','logo','ec','as','epg'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','adh','adi'],CB=['hashn','pub','logo','ec','as','epg'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
-if($('#epgu').value==='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml')$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz';
+if(['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml','https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz'].includes($('#epgu').value))$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),sqbg:$('#sqbg').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
@@ -496,10 +499,10 @@ $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();ctl=new Abort
     log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
     $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
-    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon para Anubio (manifest):<br><a href="${bridgeUrl(r.link)}" target="_blank" rel="noopener">${bridgeUrl(r.link)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
+    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon (manifest):<br><a href="${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0)}" target="_blank" rel="noopener">${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),LIST&&LIST.length||0)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
     LIST=r.list;saveLast(LIST);renderRv(true);
     $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);$('#cp').textContent='Copiado'}catch(e){}};
-    $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link));$('#cpa').textContent='Copiado'}catch(e){}};
+    $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0));$('#cpa').textContent='Copiado'}catch(e){}};
     $('#dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.out],{type:'audio/x-mpegurl'}));a.download=cfg.file;a.click()};
   }catch(e){$('#st').textContent='❌ '+e.message;log('❌ '+esc(e.message),'e')}
   finally{try{wl&&wl.release()}catch(e){}ctl=null;busy(false)}};
