@@ -49,6 +49,7 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <div><label>Reintentos</label><input id="retries" type="number" min="0" max="3" value="1"></div></div>
   <div class="g3"><div style="grid-column:span 2"><label>Canales caídos</label><select id="dead"><option value="remove">Quitarlos</option><option value="move">Grupo «Caídos»</option><option value="keep">Al final de su grupo</option></select></div>
   <div><label>Mínimo OK</label><input id="minok" type="number" min="1" value="1"></div></div>
+  <label>Velocidad mínima (KB/s) para dar un canal por bueno</label><input id="minspd" type="number" min="0" value="1000">
   <div class="row"><button id="chkE">Comprobar motor</button><button id="chkG">Comprobar GitHub</button></div>
   <p style="font-size:12px;color:var(--mute)">Los ajustes (incluido el token) se guardan solo en este navegador. Si no funcionan las conexiones, abre este archivo desde tu PWA o servidor local.</p>
 </details></div>
@@ -70,23 +71,27 @@ function setAttr(l,k,v){v=v.replace(/"/g,"'");const re=new RegExp('\\b'+k+'="[^"
 function setName(l,n){const i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return (c>-1?l.slice(0,c):l)+','+n}
 async function fj(u,ms,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
   try{const r=await fetch(u,{signal:a.signal});return await r.json()}finally{clearTimeout(t);sig&&sig.removeEventListener('abort',f)}}
-async function testAce(m,tmo,sig){const base=m[1],id=m[2],pid='p'+Math.random().toString(36).slice(2,10);let r;
+async function testAce(m,tmo,sig,minSpd){const base=m[1],id=m[2],pid='p'+Math.random().toString(36).slice(2,10);let r;
   try{r=await fj(`${base}/ace/getstream?id=${id}&format=json&pid=${pid}`,15000,sig)}catch(e){return{ok:false,why:'motor: '+e.message}}
   if(!r.response)return{ok:false,why:String(r.error||'rechazado').slice(0,60)};
   const {stat_url,command_url}=r.response,t0=Date.now();
   try{while(Date.now()-t0<tmo*1000&&!sig.aborted){await sleep(1500);let s;
       try{s=(await fj(stat_url,8000,sig)).response||{}}catch(e){continue}
       if(s.status==='dl'||(s.peers>0&&s.speed_down>0)){await sleep(3000);
-        try{s=(await fj(stat_url,8000,sig)).response||s}catch(e){}
-        return{ok:true,speed:s.speed_down||0,peers:s.peers||0}}}
+        const v=[];let peers=s.peers||0;
+        for(let k=0;k<3&&!sig.aborted;k++){try{const x=(await fj(stat_url,8000,sig)).response||{};v.push(x.speed_down||0);peers=x.peers||peers}catch(e){}if(k<2)await sleep(1500)}
+        const avg=v.length?v.reduce((a,b)=>a+b,0)/v.length:0;
+        if(avg<(minSpd||0))return{ok:false,why:'velocidad baja '+Math.round(avg)+' KB/s (mín. '+minSpd+')'};
+        return{ok:true,speed:avg,peers}}}
     return{ok:false,why:'sin datos a tiempo'}}
   finally{fetch(command_url+'?method=stop').catch(()=>{})}}
 async function testHttp(u,tmo,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,Math.min(tmo,15)*1000);sig.addEventListener('abort',f);
   try{await fetch(u,{mode:'no-cors',signal:a.signal});return{ok:true,speed:0}}catch(e){return{ok:false,why:e.message}}finally{clearTimeout(t);a.abort();sig.removeEventListener('abort',f)}}
-async function testOne(u,tmo,sig){try{const m=u.match(ACE);return m?await testAce(m,tmo,sig):await testHttp(u,tmo,sig)}catch(e){return{ok:false,why:e.message}}}
+async function testOne(u,tmo,sig,minSpd){try{const m=u.match(ACE);return m?await testAce(m,tmo,sig,minSpd):await testHttp(u,tmo,sig)}catch(e){return{ok:false,why:e.message}}}
 const HASH40=/(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/i;
 const isValidEra=t=>t&&(t.includes('#EXTINF')||HASH40.test(t));
 function sanitizeName(n){return String(n||'')
+  .replace(/\*+/g,' ')
   .replace(/\bshickat(?:\.[a-z]+)*\b/gi,' ')
   .replace(/acestream:\/\/\S*/gi,' ')
   .replace(/\b(?:id|hash|content_id|infohash)\s*[=:]\s*\S*/gi,' ')
@@ -341,7 +346,7 @@ async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);lo
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}.</b>`)}
-const stripQ=n=>{const r=String(n||'').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();return r||String(n||'').trim()};
+const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
@@ -359,7 +364,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   step('3/4 Probando enlaces…');const res=new Map();
   for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=ronda?urls.filter(u=>!res.get(u).ok):urls;if(!todo.length)break;
     log(ronda?`<b>Reintento ${ronda}: ${todo.length} enlaces</b>`:`<b>Probando ${todo.length} enlaces (${cfg.workers} a la vez)</b>`);let i=0,done=0;
-    const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig);if(sig.aborted)return;
+    const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig,cfg.minspd);if(sig.aborted)return;
       res.set(u,r);done++;log(`${r.ok?'✓':'✕'} …${esc(u.slice(-12))} ${r.ok?Math.round(r.speed)+' KB/s':esc(r.why)}`);
       prog(done,todo.length,[...res.values()].filter(x=>x.ok).length)}};
     await Promise.all(Array.from({length:cfg.workers},w));if(sig.aborted)throw new Error('Detenido. No se sube nada.')}
@@ -367,7 +372,9 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   log(`<b>Funcionan ${nOk} de ${entries.length}.</b>`);
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
   let good=[],dead=[];
-  for(const g of new Set(entries.map(groupOf))){const es=entries.filter(e=>groupOf(e)===g);
+  const isF1=g=>{const e=entries.find(x=>groupOf(x)===g);return /\/MVF1\.png/.test(e.lines[0])||cleanKey(g)==='DAZN F1'?0:1};
+  const groups=[...new Set(entries.map(groupOf))].sort((a,b)=>isF1(a)-isF1(b));
+  for(const g of groups){const es=entries.filter(e=>groupOf(e)===g);
     good.push(...es.filter(ok).sort((a,b)=>(res.get(b.url).speed||0)-(res.get(a.url).speed||0)));
     const bad=es.filter(e=>!ok(e));
     if(cfg.dead==='keep')good.push(...bad);
@@ -378,14 +385,14 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok'],CB=['hashn','pub','logo'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd'],CB=['hashn','pub','logo'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
   hashn:$('#hashn').checked,logo:$('#logo').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
-  retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),api:'https://api.github.com'});
+  retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
 const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ✓ ${ok} funcionan`};
