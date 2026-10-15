@@ -385,14 +385,17 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const ok=e=>res.get(e.url)&&res.get(e.url).ok,nOk=entries.filter(ok).length;
   log(`<b>Funcionan ${nOk} de ${entries.length}.</b>`);
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
-  let good=[],dead=[];
+  let good=[],dead=[];const firsts=[],rest=[];
   const isF1=g=>{const e=entries.find(x=>groupOf(x)===g);return /MVF1\.png/.test(e.lines[0])||cleanKey(g)==='DAZN F1'?0:1};
   const groups=[...new Set(entries.map(groupOf))].sort((a,b)=>isF1(a)-isF1(b));
   for(const g of groups){const es=entries.filter(e=>groupOf(e)===g);
-    good.push(...es.filter(ok).sort((a,b)=>(res.get(b.url).speed||0)-(res.get(a.url).speed||0)));
+    const gs=es.filter(ok).sort((a,b)=>(res.get(b.url).speed||0)-(res.get(a.url).speed||0));
+    if(gs.length)firsts.push(gs[0]);rest.push(...gs.slice(1));
     const bad=es.filter(e=>!ok(e));
-    if(cfg.dead==='keep')good.push(...bad);
+    if(cfg.dead==='keep')rest.push(...bad);
     else{if(cfg.dead==='move')for(const e of bad){const l=e.lines[0];e.lines[0]=/group-title="/.test(l)?l.replace(/group-title="[^"]*"/,'group-title="Caídos"'):setAttr(l,'group-title','Caídos')}dead.push(...bad)}}
+  good=[...firsts,...rest];
+  log(`<b>Orden: ${firsts.length} canales (mejor enlace de cada uno) y después ${rest.length} enlaces restantes.</b>`);
   if(cfg.dead==='move')good.push(...dead);
   const out='#EXTM3U\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
   step('4/4 Subiendo al Gist…');const up=await upload(cfg,out);
@@ -433,8 +436,8 @@ let LIST=loadLast();
 const nameOf=e=>{const l=e.lines[0],i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return c>-1?l.slice(c+1).trim():'?'},grpOf=e=>{const m=e.lines[0].match(/group-title="([^"]*)"/);return m?m[1]:''};
 function renderBL(){const BL=loadBL(),ks=Object.keys(BL);$('#bln').textContent=ks.length;
   $('#blv').innerHTML=ks.map((k,j)=>`<div class="rv"><span>${esc(BL[k])}<small>…${esc(k.slice(-10))}</small></span><button data-j="${j}">Restaurar</button></div>`).join('')||'<p style="color:var(--mute)">Ninguno.</p>'}
-function renderRv(open){let h='',lastG=null,k=0;
-  LIST.forEach((e,i)=>{const g=grpOf(e)||nameOf(e);if(g!==lastG){h+=`<div class="gh">${esc(g)}</div>`;lastG=g;k=0}k++;
+function renderRv(open){let h='',lastG=null;const cnt={};
+  LIST.forEach((e,i)=>{const g=grpOf(e)||nameOf(e);if(g!==lastG){h+=`<div class="gh">${esc(g)}</div>`;lastG=g}const k=cnt[g]=(cnt[g]||0)+1;
     h+=`<label class="rv"><input type="checkbox" value="${i}"><span class="n">${i+1}</span><span>${esc(nameOf(e))} · enlace ${k}<small>…${esc(String(e.key).slice(-10))} · ${e.ok?Math.round(e.speed)+' KB/s':'no comprobado'}</small></span></label>`});
   $('#rvl').innerHTML=h||'<p style="color:var(--mute)">Aún no hay lista guardada. Pulsa «Actualizar todo».</p>';
   $('#rvn').textContent=LIST.length;if(open)$('#rvd').open=true;renderBL()}
