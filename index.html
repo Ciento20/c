@@ -166,15 +166,16 @@ async function addLogos(cfg,entries,log,sig){let G={logo:{},canon:{}},X={};
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Sin icono ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}.</b>`)}
+const stripQ=n=>{const r=String(n||'').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();return r||String(n||'').trim()};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
   const first=new Map();
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
-    const raw=c>-1?l.slice(c+1).trim():'',key=raw.toLowerCase().replace(/\s+/g,' ');
+    const raw=stripQ(c>-1?l.slice(c+1).trim():''),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
     if(g){l=setAttr(l,'group-title',g);if(cfg.tvg)l=setAttr(setAttr(l,'tvg-id',g),'tvg-name',g)}
-    if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));e.lines[0]=l}
+    if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
   if(cfg.logo)await addLogos(cfg,entries,log,sig);
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   if(fm){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
