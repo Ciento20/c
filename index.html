@@ -50,7 +50,7 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Enlace de la lista (solo si la fuente es «Enlace directo»)</label><input id="src" placeholder="https://…/lista.m3u">
   <label>…o archivo (si el enlace da error CORS)</label><input id="lfile" type="file">
   <label class="c"><input type="checkbox" id="epg" checked> Poner tvg-id y tvg-name del EPG</label>
-  <label>URL del EPG (XML)</label><input id="epgu" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml">
+  <label>URL del EPG (XML o XML.GZ)</label><input id="epgu" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz">
   <label>Token de GitHub (permiso «gist»)</label><input id="token" type="password" autocomplete="off">
   <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
@@ -207,12 +207,18 @@ function parseEpgChannels(text){const m=new Map();
     if(!names.length||names.some(n=>/\bBAR\b/i.test(n)))continue;
     const ch={id,name:names[0]};for(const n of [id,...names]){const k=cleanKey(n);if(k&&!m.has(k))m.set(k,ch)}}
   return m}
-async function fetchEpgChannels(u,ms,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
+const cleanUrl=u=>{const m=String(u||'').match(/https?:\/\/[^\s\]\)\[\(<>"']+/);return m?m[0]:String(u||'').trim()};
+async function fetchEpgChannels(u,ms,sig){u=cleanUrl(u);const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
   try{const r=await fetch(u,{signal:a.signal});if(!r.ok)throw new Error('HTTP '+r.status);
-    let txt='';if(r.body&&r.body.getReader){const rd=r.body.getReader(),dec=new TextDecoder();
-      for(;;){const {done,value}=await rd.read();if(done)break;txt+=dec.decode(value,{stream:true});const i=txt.indexOf('<programme');if(i>=0){txt=txt.slice(0,i);rd.cancel().catch(()=>{});break}}}
-    else{txt=await r.text();const i=txt.indexOf('<programme');if(i>=0)txt=txt.slice(0,i)}
-    return parseEpgChannels(txt)}
+    const raw=r.body.getReader(),f0=await raw.read();let src,gz=!!(f0.value&&f0.value[0]===0x1f&&f0.value[1]===0x8b);
+    if(gz){if(typeof DecompressionStream==='undefined')throw new Error('Este navegador no puede descomprimir .gz');
+      const ds=new DecompressionStream('gzip'),w=ds.writable.getWriter();
+      (async()=>{try{await w.write(f0.value);for(;;){const x=await raw.read();if(x.done)break;await w.write(x.value)}await w.close()}catch(e){}})();src=ds.readable.getReader()}
+    else{let first=f0;src={read:async()=>{if(first){const x=first;first=null;return x}return raw.read()},cancel:()=>raw.cancel()}}
+    const dec=new TextDecoder();let txt='';
+    for(;;){const {done,value}=await src.read();if(done)break;txt+=dec.decode(value,{stream:true});const i=txt.indexOf('<programme');if(i>=0){txt=txt.slice(0,i);break}}
+    try{src.cancel().catch(()=>{});raw.cancel().catch(()=>{})}catch(e){}
+    const m=parseEpgChannels(txt);if(!m.size)throw new Error('No se encontraron canales en el XML');return m}
   finally{clearTimeout(t);sig&&sig.removeEventListener('abort',f)}}
 function epgMatch(epg,B,g){const k=cleanKey(g);if(!k)return null;const c=B.canon[k]||k;
   const cand=[k,c];for(const a in B.canon)if(B.canon[a]===c)cand.push(a);
@@ -464,11 +470,12 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
 const $=s=>document.querySelector(s);
 const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu'],CB=['hashn','pub','logo','ec','as','epg'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
+if($('#epgu').value==='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml')$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  epg:$('#epg').checked,epgu:$('#epgu').value.trim()||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
