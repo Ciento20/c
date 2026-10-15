@@ -51,8 +51,8 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
   <label class="c"><input type="checkbox" id="logo" checked> Solo canales de la lista, con icono de Movistar+ (el resto se descarta)</label>
   <label>Logos a cuadrar (wsrv.nl): canales o IDs separados por coma o línea. Vacío = ninguno, * = todos</label><textarea id="sqlist" rows="2" placeholder="CPDEP, MLIGA, M+ Golf" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
-  <div class="g3"><div><label>Tamaño (px)</label><input id="sqs" type="number" min="32" max="1024" value="256"></div>
-  <div style="grid-column:span 2"><label>Ajuste</label><select id="sqf"><option value="contain">Entero, con margen transparente</option><option value="cover">Rellenar el cuadrado (recorta)</option><option value="fill">Estirar</option></select></div></div>
+  <div class="g3"><div><label>Tamaño del cuadrado (px)</label><input id="sqs" type="number" min="16" max="1024" value="256"></div>
+  <div style="grid-column:span 2"><label>Ajuste</label><select id="sqf"><option value="contain">Entero, con margen transparente (sin ampliar)</option><option value="cover">Rellenar el cuadrado (recorta)</option><option value="fill">Estirar</option></select></div></div>
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
@@ -354,7 +354,7 @@ Eurosport 2: ESP2`;
 async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);log(`Logos integrados: ${Object.keys(B.logo).length}`);
   const toks=(cfg.sqlist||'').split(/[,\n;]+/).map(x=>x.trim()).filter(Boolean),all=toks.includes('*'),idset=new Set(toks.map(x=>x.toUpperCase())),keyset=new Set(toks.map(cleanKey).filter(Boolean));
   let n=0,nSq=0;for(const e of entries){const k=cleanKey(groupOf(e));let u=B.logo[B.canon[k]||k];
-    if(u){if(all||idset.has(((u.match(/\/([^\/]+?)\.png$/i)||[])[1]||'').toUpperCase())||keyset.has(k)||keyset.has(B.canon[k]||k)){nSq++;u=`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${cfg.sqs}&h=${cfg.sqs}&fit=${cfg.sqf}&cbg=0000&output=png`}e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
+    if(u){if(all||idset.has(((u.match(/\/([^\/]+?)\.png$/i)||[])[1]||'').toUpperCase())||keyset.has(k)||keyset.has(B.canon[k]||k)){nSq++;u=`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${cfg.sqs}&h=${cfg.sqs}&fit=${cfg.sqf}${cfg.sqf==='contain'?'&we':''}&cbg=0000&output=png`}e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}. Cuadrados: ${nSq}.</b>`)}
@@ -408,7 +408,7 @@ const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(32,Math.min(1024,+$('#sqs').value||256)),sqf:$('#sqf').value,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||256)),sqf:$('#sqf').value,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
