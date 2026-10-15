@@ -41,12 +41,8 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>Token de GitHub (permiso «gist»)</label><input id="token" type="password" autocomplete="off">
   <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
-  <label>URL de la guía EPG (opcional)</label><input id="epg" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml">
-  <label class="c"><input type="checkbox" id="logo" checked> Añadir iconos de los canales (tvg-logo)</label>
-  <label>Gist de logos (Nombre: URL, o Nombre: ID de Movistar+)</label><input id="logos" value="https://gist.githubusercontent.com/Ciento20/5580f05d8ecab2a3de797d7ef4365406/raw/">
-  <label>XML con logos (EPG)</label><input id="lxml" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml">
+  <label class="c"><input type="checkbox" id="logo" checked> Solo canales de la lista, con icono de Movistar+ (el resto se descarta)</label>
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
-  <label class="c"><input type="checkbox" id="tvg" checked> tvg-id y tvg-name = nombre del grupo</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
   <div><label>Espera (s)</label><input id="timeout" type="number" min="5" max="90" value="25"></div>
@@ -339,14 +335,11 @@ Eurosport 1: ESP
 EUROSPORT21080
 EUROSPORT2720
 Eurosport 2: ESP2`;
-async function addLogos(cfg,entries,log,sig){let G={logo:{},canon:{}},X={};
-  if(cfg.logos){try{G=parseLogoGist(await getTxt(cfg.logos+(cfg.logos.includes('?')?'&':'?')+'t='+Math.floor(Date.now()/60000),15000,sig));log(`Logos del gist: ${Object.keys(G.logo).length}`)}catch(e){log('⚠ Gist de logos: '+esc(e.message))}}
-  if(cfg.lxml){try{X=parseLogoXml(await getTxt(cfg.lxml,60000,sig));log(`Logos del XML: ${Object.keys(X).length}`)}catch(e){log('⚠ XML de logos: '+esc(e.message))}}
-  const B=parseLogoGist(BUILTIN_LOGOS);log(`Logos integrados: ${Object.keys(B.logo).length}`);
-  let n=0;for(const e of entries){const k=cleanKey(groupOf(e)),c=G.canon[k]||k,u=B.logo[B.canon[k]||k]||G.logo[c]||X[k]||X[c];
+async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);log(`Logos integrados: ${Object.keys(B.logo).length}`);
+  let n=0;for(const e of entries){const k=cleanKey(groupOf(e)),u=B.logo[B.canon[k]||k];
     if(u){e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
-  if(miss.length)log('Sin icono ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
+  if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}.</b>`)}
 const stripQ=n=>{const r=String(n||'').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();return r||String(n||'').trim()};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
@@ -356,9 +349,10 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
     const raw=stripQ(c>-1?l.slice(c+1).trim():''),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
-    if(g){l=setAttr(l,'group-title',g);if(cfg.tvg)l=setAttr(setAttr(l,'tvg-id',g),'tvg-name',g)}
+    l=l.replace(/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);
     if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
-  if(cfg.logo)await addLogos(cfg,entries,log,sig);
+  if(cfg.logo)await addLogos(cfg,entries,log);
+  if(cfg.logo){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   if(fm){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
     throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
@@ -379,18 +373,18 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     if(cfg.dead==='keep')good.push(...bad);
     else{if(cfg.dead==='move')for(const e of bad){const l=e.lines[0];e.lines[0]=/group-title="/.test(l)?l.replace(/group-title="[^"]*"/,'group-title="Caídos"'):setAttr(l,'group-title','Caídos')}dead.push(...bad)}}
   if(cfg.dead==='move')good.push(...dead);
-  const out=(cfg.epg?`#EXTM3U url-tvg="${cfg.epg}"`:head)+'\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
+  const out='#EXTM3U\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
   step('4/4 Subiendo al Gist…');const up=await upload(cfg,out);
   return{out,nOk,total:entries.length,...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','epg','workers','timeout','retries','dead','minok','logos','lxml'],CB=['hashn','tvg','pub','logo'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok'],CB=['hashn','pub','logo'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
-const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',epg:$('#epg').value.trim(),
-  hashn:$('#hashn').checked,logo:$('#logo').checked,logos:$('#logos').value.trim(),lxml:$('#lxml').value.trim(),tvg:$('#tvg').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
+  hashn:$('#hashn').checked,logo:$('#logo').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
