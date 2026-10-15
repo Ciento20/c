@@ -38,6 +38,9 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
 </details></div>
 <div class="card"><details open><summary>Ajustes</summary>
   <label>Fuente de la lista</label><select id="mode"><option value="ipns">ERA (IPNS / IPFS)</option><option value="url">Enlace directo</option></select>
+  <label class="c"><input type="checkbox" id="ec"> Añadir fuente EC (Elcano)</label>
+  <label class="c"><input type="checkbox" id="as"> Añadir fuente AS (lista de tu motor AceStream local)</label>
+  <label>URL de la lista AS</label><input id="asu" value="http://127.0.0.1:6878/pl.m3u">
   <label>Identificador IPNS</label><input id="ipk" value="k2k4r8lm8tkmuxbc8lkmq1in3v0oya1p6pe9o5bu0hu30br5ko08k2gb">
   <label>Subruta del archivo</label><input id="ipp" value="/data/listas/listaplana.txt">
   <label>Pasarela propia (opcional)</label><input id="ipg" placeholder="http://127.0.0.1:8080">
@@ -134,6 +137,21 @@ function parseEra(text,base){
     const u=`${base}/ace/getstream?id=${id}`;
     entries.push({lines:[`#EXTINF:-1 group-title="${last}",${last}`,u],url:u})}
   return{head:'#EXTM3U',entries}}
+const EC_KEY='k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs';
+const m3uName=n=>String(n||'').replace(/["\r\n]/g,' ').replace(/\s+/g,' ').trim();
+function elcanoToM3U(json){let d;try{d=JSON.parse(json)}catch(e){return''}
+  return '#EXTM3U\n'+(d.hashes||[]).filter(i=>i&&i.title&&i.hash&&HASH40.test(String(i.hash))).map(i=>{const n=m3uName(i.title);return n?`#EXTINF:-1 group-title="${n}",${n}\nacestream://${String(i.hash).trim().toLowerCase()}\n`:''}).join('')}
+function asToM3U(text){if(!String(text).includes('#EXTINF'))return text;const L=String(text).split(/\r?\n/);let out='#EXTM3U\n',seen=new Set();
+  for(let i=0;i<L.length;i++){const l=L[i].trim();if(!l.startsWith('#EXTINF'))continue;
+    const noA=l.replace(/="[^"]*"/g,'=""'),c=noA.lastIndexOf(','),n=m3uName(c>-1?noA.slice(c+1):'');
+    let u='';for(let j=i+1;j<L.length&&!L[j].trim().startsWith('#EXTINF');j++){const x=L[j].trim();if(x&&!x.startsWith('#')){u=x;break}}
+    const m=(u||l).match(HASH40);if(!n||!m||/[?&]infohash=/i.test(u))continue;const id=m[0].toLowerCase();if(seen.has(id))continue;seen.add(id);
+    out+=`#EXTINF:-1 group-title="${n}",${n}\nacestream://${id}\n`}
+  return out}
+async function fetchElcano(sig,log,gw){
+  try{const r=await fetch(`https://tokyo.elcano-ipfs.workers.dev/${EC_KEY}/hashes.json`,{signal:sig});if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text();JSON.parse(t);log('✓ EC directo ('+t.length+' bytes)');return t}
+  catch(e){log('✕ EC directo: '+esc(e.message==='Failed to fetch'?'sin respuesta':e.message)+'. Pruebo pasarelas IPFS…')}
+  return fetchIpns(EC_KEY,'/hashes.json',sig,log,gw)}
 async function fetchIpns(key,sub,sig,log,custom){
   if(!key)throw new Error('Falta el identificador IPNS.');if(!sub.startsWith('/'))sub='/'+sub;
   const hosts=['https://ipfs.io','https://dweb.link','https://w3s.link','https://gateway.pinata.cloud','https://4everland.io','https://nftstorage.link','https://gateway.lighthouse.storage','https://trustless-gateway.link','https://ipfs.filebase.io'];
@@ -263,12 +281,12 @@ VAMOS1080
 VAMOS720
 VAMOS
 M+ Vamos
-MOVISTAR VAMOS: VAMSD
+MOVISTAR VAMOS: VAMOHD
 MOVISTAR FANZONE
 M+ FANZONE
 MOVISTAR VAMOS 2
 VAMOS 2
-M+ VAMOS 2: VAM2SD
+M+ VAMOS 2: VAMO2SD
 MOVISTAR ELLAS
 M+ ELLAS VAMOS
 M+ VAMOS 3: MELLAV
@@ -368,7 +386,9 @@ async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);lo
 const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
 const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
-  const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
+  const {head,entries}=parseEra(text,cfg.engine);
+  for(const x of (cfg.extras||[])){const have=new Set(entries.map(e=>keyOf(e.url)));let n=0,tot=0;for(const e of parseEra(x.text,cfg.engine).entries){tot++;const k=keyOf(e.url);if(!have.has(k)){have.add(k);entries.push(e);n++}}log(`Fuente ${x.label}: ${tot} enlaces, ${n} nuevos añadidos.`)}
+  if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
   {const BL=loadBL(),k=entries.filter(e=>!(keyOf(e.url) in BL)),q=entries.length-k.length;if(q){entries.splice(0,entries.length,...k);log(`Descartados para siempre: ${q} enlaces.`)}if(!entries.length)throw new Error('Todos los enlaces están descartados. No se toca el Gist.')}
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
   const first=new Map();
@@ -409,13 +429,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid'],CB=['hashn','pub','logo'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu'],CB=['hashn','pub','logo','ec','as'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
@@ -425,10 +445,14 @@ function busy(b){$('#go').disabled=b;$('#stop').style.display=b?'inline-block':'
 $('#stop').onclick=()=>ctl&&ctl.abort();
 $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
   try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
-    step('1/4 Descargando lista…');let text;const f=$('#lfile').files[0];
-    if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
+    step('1/4 Descargando lista…');let text='';const f=$('#lfile').files[0];
+    try{if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
       try{const r=await fetch(cfg.src);if(!r.ok)throw new Error('HTTP '+r.status);text=await r.text()}
-      catch(e){throw new Error(`No se pudo descargar (${e.message}). Si es un bloqueo CORS, descarga la lista y elígela en «archivo».`)}}
+      catch(e){throw new Error(`No se pudo descargar (${e.message}). Si es un bloqueo CORS, descarga la lista y elígela en «archivo».`)}}}catch(e){if(!(cfg.ec||cfg.as))throw e;log('⚠ Fuente principal: '+esc(e.message),'e');text=''}
+    const extras=[];
+    if(cfg.ec){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,cfg.ipnsGw))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
+    if(cfg.as){try{log('AS: leyendo '+esc(cfg.asu));const ra=await fetch(cfg.asu,{signal:ctl.signal});if(!ra.ok)throw new Error('HTTP '+ra.status);extras.push({label:'AS',text:asToM3U(await ra.text())})}catch(e){log('✕ AS: '+esc(e.message==='Failed to fetch'?'sin respuesta (¿está abierto el motor AceStream?)':e.message),'e')}}
+    cfg.extras=extras;
     log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
     $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
