@@ -23,6 +23,7 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
 <h1>Actualizar lista M3U</h1>
 <div class="card">
   <button id="go">▶ Actualizar todo</button>
+  <button id="goc" title="Usa los resultados del último test y solo prueba los enlaces nuevos">⚡ Actualizar con caché (sin retestear)</button>
   <div class="bar"><i id="pb"></i></div>
   <div id="st" style="font-weight:600">Listo para empezar.</div>
   <div class="row"><button id="stop" style="display:none">Detener</button></div>
@@ -419,6 +420,7 @@ async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);lo
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}. Pósters: ${nSq}.</b>`)}
 const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
+const RSK='m3ures',loadRes=()=>{try{return JSON.parse(localStorage.getItem(RSK)||'{}')}catch(e){return{}}},saveRes=o=>{try{localStorage.setItem(RSK,JSON.stringify(o))}catch(e){}};
 const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const {head,entries}=parseEra(text,cfg.engine);
@@ -442,15 +444,18 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
   catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
-  if(fm){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
+  const RC=cfg.reuse?loadRes():{},cached=new Set(urls.filter(u=>RC[keyOf(u)]));
+  if(cfg.reuse)log(`<b>Resultados guardados reutilizados: ${cached.size} de ${urls.length}. Se probarán ${urls.length-cached.size} enlaces nuevos.</b>`);
+  if(fm&&cached.size<urls.length){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
     throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
-  step('3/4 Probando enlaces…');const res=new Map();
-  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=ronda?urls.filter(u=>!res.get(u).ok):urls;if(!todo.length)break;
+  step('3/4 Probando enlaces…');const res=new Map();for(const u of cached)res.set(u,RC[keyOf(u)]);
+  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=ronda?urls.filter(u=>!cached.has(u)&&!res.get(u).ok):urls.filter(u=>!cached.has(u));if(!todo.length)break;
     log(ronda?`<b>Reintento ${ronda}: ${todo.length} enlaces</b>`:`<b>Probando ${todo.length} enlaces (${cfg.workers} a la vez)</b>`);let i=0,done=0;
     const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig,cfg.minspd);if(sig.aborted)return;
       res.set(u,r);done++;log(`${r.ok?'✓':'✕'} …${esc(u.slice(-12))} ${r.ok?Math.round(r.speed)+' KB/s':esc(r.why)}`);
       prog(done,todo.length,[...res.values()].filter(x=>x.ok).length)}};
     await Promise.all(Array.from({length:cfg.workers},w));if(sig.aborted)throw new Error('Detenido. No se sube nada.')}
+  {const C=loadRes();for(const [u,r] of res)C[keyOf(u)]={ok:!!r.ok,speed:r.speed||0,why:r.why||''};saveRes(C)}
   const ok=e=>res.get(e.url)&&res.get(e.url).ok,nOk=entries.filter(ok).length;
   log(`<b>Funcionan ${nOk} de ${entries.length}.</b>`);
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
@@ -484,9 +489,11 @@ const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.inn
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
 const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ✓ ${ok} funcionan`};
 let ctl=null;
-function busy(b){$('#go').disabled=b;$('#stop').style.display=b?'inline-block':'none'}
+function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#stop').style.display=b?'inline-block':'none'}
 $('#stop').onclick=()=>ctl&&ctl.abort();
-$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
+let REUSE=false;
+$('#goc').onclick=()=>{if(ctl)return;REUSE=true;$('#go').click()};
+$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
   try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
     step('1/4 Descargando lista…');let text='';const f=$('#lfile').files[0];
     try{if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
@@ -499,7 +506,7 @@ $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();ctl=new Abort
     log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
     $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
-    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon (manifest):<br><a href="${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0)}" target="_blank" rel="noopener">${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),LIST&&LIST.length||0)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
+    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon (manifest):<br><a href="${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0)}" target="_blank" rel="noopener">${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
     LIST=r.list;saveLast(LIST);renderRv(true);
     $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);$('#cp').textContent='Copiado'}catch(e){}};
     $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0));$('#cpa').textContent='Copiado'}catch(e){}};
