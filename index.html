@@ -18,6 +18,7 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
 #log{font:12px/1.5 ui-monospace,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--mute)}
 #log b{color:var(--ink)}#log .e{color:var(--warn);font-weight:700}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}a{color:var(--acc);word-break:break-all}
+.rv{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.rv input{width:auto;margin-top:4px}.rv .n{min-width:30px;color:var(--mute)}.rv small{display:block;color:var(--mute);font-size:12px}.rv button{margin-left:auto;padding:5px 10px}.gh{font-weight:700;margin:12px 0 2px;color:var(--acc)}#rvl{max-height:55vh;overflow:auto}
 </style></head><body><main>
 <h1>Actualizar lista M3U</h1>
 <div class="card">
@@ -28,6 +29,13 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <div id="res" style="margin-top:10px"></div>
 </div>
 <div class="card"><div id="log"></div></div>
+<div class="card"><details id="rvd"><summary>Revisar enlaces y descartar (<span id="rvn">0</span>)</summary>
+  <p style="font-size:13px;color:var(--mute)">Mismo orden que en la lista. Marca los que no te funcionen en el reproductor y descártalos para siempre: se quitan del Gist y no volverán a entrar en futuras actualizaciones.</p>
+  <div id="rvl"></div>
+  <div class="row"><button id="rvdel" style="background:var(--warn);color:#fff;border-color:var(--warn)">Descartar marcados para siempre</button></div>
+  <div id="rvs" style="margin-top:8px"></div>
+  <details style="margin-top:12px"><summary>Descartados (<span id="bln">0</span>)</summary><div id="blv"></div><div class="row"><button id="blall">Restaurar todos</button></div></details>
+</details></div>
 <div class="card"><details open><summary>Ajustes</summary>
   <label>Fuente de la lista</label><select id="mode"><option value="ipns">ERA (IPNS / IPFS)</option><option value="url">Enlace directo</option></select>
   <label>Identificador IPNS</label><input id="ipk" value="k2k4r8lm8tkmuxbc8lkmq1in3v0oya1p6pe9o5bu0hu30br5ko08k2gb">
@@ -42,6 +50,9 @@ button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid va
   <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
   <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
   <label class="c"><input type="checkbox" id="logo" checked> Solo canales de la lista, con icono de Movistar+ (el resto se descarta)</label>
+  <label>Logos a cuadrar (wsrv.nl): canales o IDs separados por coma o línea. Vacío = ninguno, * = todos</label><textarea id="sqlist" rows="2" placeholder="CPDEP, MLIGA, M+ Golf" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
+  <div class="g3"><div><label>Tamaño (px)</label><input id="sqs" type="number" min="32" max="1024" value="256"></div>
+  <div style="grid-column:span 2"><label>Ajuste</label><select id="sqf"><option value="contain">Entero, con margen transparente</option><option value="cover">Rellenar el cuadrado (recorta)</option><option value="fill">Estirar</option></select></div></div>
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
@@ -341,14 +352,17 @@ EUROSPORT21080
 EUROSPORT2720
 Eurosport 2: ESP2`;
 async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);log(`Logos integrados: ${Object.keys(B.logo).length}`);
-  let n=0;for(const e of entries){const k=cleanKey(groupOf(e)),u=B.logo[B.canon[k]||k];
-    if(u){e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
+  const toks=(cfg.sqlist||'').split(/[,\n;]+/).map(x=>x.trim()).filter(Boolean),all=toks.includes('*'),idset=new Set(toks.map(x=>x.toUpperCase())),keyset=new Set(toks.map(cleanKey).filter(Boolean));
+  let n=0,nSq=0;for(const e of entries){const k=cleanKey(groupOf(e));let u=B.logo[B.canon[k]||k];
+    if(u){if(all||idset.has(((u.match(/\/([^\/]+?)\.png$/i)||[])[1]||'').toUpperCase())||keyset.has(k)||keyset.has(B.canon[k]||k)){nSq++;u=`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${cfg.sqs}&h=${cfg.sqs}&fit=${cfg.sqf}&cbg=0000&output=png`}e.lines[0]=setAttr(e.lines[0],'tvg-logo',u);n++}}
   const miss=[...new Set(entries.filter(e=>!/tvg-logo="[^"]+"/.test(e.lines[0])).map(e=>groupOf(e)))];
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
-  log(`<b>Iconos puestos: ${n} de ${entries.length}.</b>`)}
+  log(`<b>Iconos puestos: ${n} de ${entries.length}. Cuadrados: ${nSq}.</b>`)}
 const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
+const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const {head,entries}=parseEra(text,cfg.engine);if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
+  {const BL=loadBL(),k=entries.filter(e=>!(keyOf(e.url) in BL)),q=entries.length-k.length;if(q){entries.splice(0,entries.length,...k);log(`Descartados para siempre: ${q} enlaces.`)}if(!entries.length)throw new Error('Todos los enlaces están descartados. No se toca el Gist.')}
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
   const first=new Map();
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
@@ -372,7 +386,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   log(`<b>Funcionan ${nOk} de ${entries.length}.</b>`);
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
   let good=[],dead=[];
-  const isF1=g=>{const e=entries.find(x=>groupOf(x)===g);return /\/MVF1\.png/.test(e.lines[0])||cleanKey(g)==='DAZN F1'?0:1};
+  const isF1=g=>{const e=entries.find(x=>groupOf(x)===g);return /MVF1\.png/.test(e.lines[0])||cleanKey(g)==='DAZN F1'?0:1};
   const groups=[...new Set(entries.map(groupOf))].sort((a,b)=>isF1(a)-isF1(b));
   for(const g of groups){const es=entries.filter(e=>groupOf(e)===g);
     good.push(...es.filter(ok).sort((a,b)=>(res.get(b.url).speed||0)-(res.get(a.url).speed||0)));
@@ -382,16 +396,16 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   if(cfg.dead==='move')good.push(...dead);
   const out='#EXTM3U\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
   step('4/4 Subiendo al Gist…');const up=await upload(cfg,out);
-  return{out,nOk,total:entries.length,...up}}
+  return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd'],CB=['hashn','pub','logo'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist'],CB=['hashn','pub','logo'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  hashn:$('#hashn').checked,logo:$('#logo').checked,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(32,Math.min(1024,+$('#sqs').value||256)),sqf:$('#sqf').value,pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
@@ -409,10 +423,32 @@ $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();ctl=new Abort
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
     $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
     $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div>`;
+    LIST=r.list;saveLast(LIST);renderRv(true);
     $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);$('#cp').textContent='Copiado'}catch(e){}};
     $('#dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.out],{type:'audio/x-mpegurl'}));a.download=cfg.file;a.click()};
   }catch(e){$('#st').textContent='❌ '+e.message;log('❌ '+esc(e.message),'e')}
   finally{try{wl&&wl.release()}catch(e){}ctl=null;busy(false)}};
+const LK='m3ulast',loadLast=()=>{try{return JSON.parse(localStorage.getItem(LK)||'[]')}catch(e){return[]}},saveLast=l=>{try{localStorage.setItem(LK,JSON.stringify(l))}catch(e){log('⚠ No se pudo guardar la lista en el navegador.','e')}};
+let LIST=loadLast();
+const nameOf=e=>{const l=e.lines[0],i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return c>-1?l.slice(c+1).trim():'?'},grpOf=e=>{const m=e.lines[0].match(/group-title="([^"]*)"/);return m?m[1]:''};
+function renderBL(){const BL=loadBL(),ks=Object.keys(BL);$('#bln').textContent=ks.length;
+  $('#blv').innerHTML=ks.map((k,j)=>`<div class="rv"><span>${esc(BL[k])}<small>…${esc(k.slice(-10))}</small></span><button data-j="${j}">Restaurar</button></div>`).join('')||'<p style="color:var(--mute)">Ninguno.</p>'}
+function renderRv(open){let h='',lastG=null,k=0;
+  LIST.forEach((e,i)=>{const g=grpOf(e)||nameOf(e);if(g!==lastG){h+=`<div class="gh">${esc(g)}</div>`;lastG=g;k=0}k++;
+    h+=`<label class="rv"><input type="checkbox" value="${i}"><span class="n">${i+1}</span><span>${esc(nameOf(e))} · enlace ${k}<small>…${esc(String(e.key).slice(-10))} · ${e.ok?Math.round(e.speed)+' KB/s':'no comprobado'}</small></span></label>`});
+  $('#rvl').innerHTML=h||'<p style="color:var(--mute)">Aún no hay lista guardada. Pulsa «Actualizar todo».</p>';
+  $('#rvn').textContent=LIST.length;if(open)$('#rvd').open=true;renderBL()}
+$('#rvdel').onclick=async()=>{const sel=[...document.querySelectorAll('#rvl input:checked')].map(x=>+x.value);if(!sel.length){$('#rvs').textContent='Marca primero algún enlace.';return}
+  const keys=new Set(sel.map(i=>LIST[i].key));if(!confirm(`¿Descartar ${keys.size} enlace(s) para siempre y actualizar el Gist?`))return;
+  const nl=LIST.filter(e=>!keys.has(e.key));if(!nl.length){$('#rvs').textContent='No puedes dejar la lista vacía.';return}
+  const cfg=getCfg(),out='#EXTM3U\n'+nl.map(e=>e.lines.join('\n')+'\n').join('');$('#rvdel').disabled=true;$('#rvs').textContent='Subiendo al Gist…';
+  try{const up=await upload(cfg,out),BL=loadBL();sel.forEach(i=>{BL[LIST[i].key]=nameOf(LIST[i])});saveBL(BL);LIST=nl;saveLast(LIST);$('#gist').value=up.id;save();renderRv(true);
+    $('#rvs').innerHTML=`✅ Descartados ${keys.size}. Gist actualizado (${LIST.length} enlaces). <a href="${up.link}" target="_blank" rel="noopener">Abrir lista</a>`}
+  catch(e){$('#rvs').textContent='❌ '+e.message+' No se ha descartado nada.'}
+  finally{$('#rvdel').disabled=false}};
+$('#blv').onclick=e=>{const b=e.target.closest('button[data-j]');if(!b)return;const BL=loadBL(),k=Object.keys(BL)[+b.dataset.j];delete BL[k];saveBL(BL);renderBL();$('#rvs').textContent='Restaurado: volverá a entrar en la próxima actualización.'};
+$('#blall').onclick=()=>{if(confirm('¿Restaurar todos los descartados?')){saveBL({});renderBL()}};
+renderRv(false);
 $('#chkE').onclick=async()=>{const u=($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,'');
   try{const j=await fj(u+'/webui/api/service?method=get_version',5000);log('✅ Motor responde en '+u+': '+JSON.stringify(j.result||j).slice(0,80))}
   catch(e){log(`❌ Sin conexión con ${u} (${e.name}: ${e.message}). ¿Ace Stream abierto? Si lo está, el navegador lo bloquea.`,'e')}};
