@@ -513,7 +513,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     log(`<b>EPG: ${n} de ${entries.length} enlaces con tvg-id.</b>`);
     if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
   catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
-  const upN=x=>x.toUpperCase().replace(/^M\+$/,'MOVISTAR PLUS').replace(/^M\+\s*/,'MOVISTAR ');
+  const upN=x=>x.toUpperCase().replace(/^M\+$/,'MOVISTAR PLUS').replace(/^M\+\s*/,'MOVISTAR+ ').replace(/^MOVISTAR\s+(GOLF)\b/,'MOVISTAR+ $1').replace(/\s+/g,' ').trim();
   for(const e of entries){let l=e.lines[0];const g=groupOf(e);
     if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
     if(!cfg.hashn){const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
@@ -534,7 +534,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   if(nOk<cfg.minok)throw new Error('Funcionan muy pocos: parece un fallo de conexión. No se sube nada.');
   let good=[],dead=[];const firsts=[],rest=[];
   const isF1=g=>{const e=entries.find(x=>groupOf(x)===g);return /MVF1\.png/.test(e.lines[0])||cleanKey(g)==='DAZN F1'?0:1};
-  const okey=n=>cleanKey(n).replace(/^MOVISTAR(?= )/,'M+').replace(/[^A-Z0-9+]/g,''),
+  const okey=n=>cleanKey(n).replace(/^MOVISTAR\+?(?= )/,'M+').replace(/[^A-Z0-9+]/g,''),
     ordL=String(cfg.ord||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),ordK=ordL.map(okey),
     rank=g=>{const i=ordK.indexOf(okey(g));return i<0?1e6:i};
   if(ordL.length){const have=new Set(entries.map(e=>okey(groupOf(e)))),miss=ordL.filter((x,i)=>!have.has(ordK[i]));
