@@ -134,8 +134,6 @@ M+ GOLF 2
 
 EUROSPORT 1
 EUROSPORT 2</textarea>
-  <label>Servidor del addon (ej. https://tu-addon.example.com; sin barra final)</label><input id="adh" value="https://stiptv.ddns.me" placeholder="https://…">
-  <label>Instance ID del addon</label><input id="adi" value="8afd3454-6629-4ba7-a7ec-077ef79e350c">
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
@@ -251,8 +249,7 @@ const tick=()=>{en--;if(en==0){en=2**nb;nb++}};
 const out=()=>{if(H(dc,w)){const ch=w.charCodeAt(0);if(ch<256){bits(nb,0);bits(8,ch)}else{bits(nb,1);bits(16,ch)}tick();delete dc[w]}else bits(nb,d[w]);tick()};
 for(let i=0;i<s.length;i++){c=s.charAt(i);if(!H(d,c)){d[c]=ds++;dc[c]=true}wc=w+c;if(H(d,wc))w=wc;else{out();d[wc]=ds++;w=String(c)}}
 if(w!==""){out()}bits(nb,2);for(;;){val<<=1;if(pos==5){o.push(K.charAt(val));break}else pos++}return o.join('')}
-const b64u=t=>{let b='';new TextEncoder().encode(t).forEach(c=>b+=String.fromCharCode(c));return btoa(b).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
-const bridgeUrl=(m3u,host,iid,n)=>(host||'').replace(/\/+$/,'')+'/'+b64u(JSON.stringify({provider:'direct',m3uUrl:m3u,enableEpg:false,prescan:{entries:n||0,approxTv:n||0,approxMovies:0,epgProgrammes:0,epgChannels:0},instanceId:iid}))+'/manifest.json';
+const bridgeUrl=m3u=>'https://iptvbridge.vercel.app/'+lzEnc(JSON.stringify({type:'m3u',host:'',username:'',password:'',m3uUrl:m3u,tmdbApiKey:'',includeLive:true,includeMovies:false,includeSeries:false,includedCategories:[]}))+'/manifest.json';
 async function upload(cfg,content){if(!cfg.token)throw new Error('Falta el token de GitHub');
   const files={[cfg.file]:{content}},id=cfg.gistId;
   const r=await fetch(id?`${cfg.api}/gists/${id}`:`${cfg.api}/gists`,{method:id?'PATCH':'POST',
@@ -516,9 +513,10 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     log(`<b>EPG: ${n} de ${entries.length} enlaces con tvg-id.</b>`);
     if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
   catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
+  const upN=x=>x.toUpperCase().replace(/^M\+$/,'MOVISTAR PLUS').replace(/^M\+\s*/,'MOVISTAR ');
   for(const e of entries){let l=e.lines[0];const g=groupOf(e);
-    if(g&&g!==g.toUpperCase())l=setAttr(l,'group-title',g.toUpperCase());
-    if(!cfg.hashn){const n=nameOfE(l);if(n&&n!==n.toUpperCase())l=setName(l,n.toUpperCase())}
+    if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
+    if(!cfg.hashn){const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
     e.lines[0]=l}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
@@ -557,7 +555,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','adh','adi','ord'],CB=['hashn','pub','logo','ec','as','epg'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','ord'],CB=['hashn','pub','logo','ec','as','epg'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 if(['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml','https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz'].includes($('#epgu').value))$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
@@ -587,10 +585,10 @@ $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REU
     log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
     $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
-    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon (manifest):<br><a href="${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0)}" target="_blank" rel="noopener">${bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
+    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon (manifest):<br><a href="${bridgeUrl(r.link)}" target="_blank" rel="noopener">${bridgeUrl(r.link)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
     LIST=r.list;saveLast(LIST);renderRv(true);
     $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);$('#cp').textContent='Copiado'}catch(e){}};
-    $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link,$('#adh').value.trim(),$('#adi').value.trim(),r.list&&r.list.length||0));$('#cpa').textContent='Copiado'}catch(e){}};
+    $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link));$('#cpa').textContent='Copiado'}catch(e){}};
     $('#dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.out],{type:'audio/x-mpegurl'}));a.download=cfg.file;a.click()};
   }catch(e){$('#st').textContent='❌ '+e.message;log('❌ '+esc(e.message),'e')}
   finally{try{wl&&wl.release()}catch(e){}ctl=null;busy(false)}};
