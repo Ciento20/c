@@ -159,6 +159,7 @@ function parseM3U(text,base){let head='#EXTM3U',entries=[],cur=null;const conv=u
     if(l.startsWith('#')){if(cur)cur.lines.push(l);continue}
     if(cur){const u=conv(l);cur.lines.push(u);cur.url=u;entries.push(cur);cur=null}else entries.push({lines:['#EXTINF:-1,'+l,conv(l)],url:conv(l)})}
   return{head,entries}}
+const nameOfE=l=>{const i=l.lastIndexOf('"'),k=l.indexOf(',',Math.max(i,0));return k>-1?l.slice(k+1).trim():''};
 const groupOf=e=>{const m=e.lines[0].match(/group-title="([^"]*)"/);return m?m[1]:''};
 function setAttr(l,k,v){v=v.replace(/"/g,"'");const re=new RegExp('\\b'+k+'="[^"]*"');
   return re.test(l)?l.replace(re,()=>`${k}="${v}"`):l.replace(/^(#EXTINF:\S+)/,(m,a)=>`${a} ${k}="${v}"`)}
@@ -515,6 +516,10 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     log(`<b>EPG: ${n} de ${entries.length} enlaces con tvg-id.</b>`);
     if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
   catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
+  for(const e of entries){let l=e.lines[0];const g=groupOf(e);
+    if(g&&g!==g.toUpperCase())l=setAttr(l,'group-title',g.toUpperCase());
+    if(!cfg.hashn){const n=nameOfE(l);if(n&&n!==n.toUpperCase())l=setName(l,n.toUpperCase())}
+    e.lines[0]=l}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
   if(fm&&!cfg.reuse){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
