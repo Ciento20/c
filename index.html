@@ -135,6 +135,7 @@ M+ GOLF 2
 EUROSPORT 1
 EUROSPORT 2</textarea>
   <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
+  <label class="c"><input type="checkbox" id="blankn"> Nombre en blanco (solo se ve el logo); se mantienen tvg-id y tvg-name para el EPG</label>
   <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
   <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
   <div><label>Espera (s)</label><input id="timeout" type="number" min="5" max="90" value="25"></div>
@@ -500,10 +501,10 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
   const first=new Map();
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
-    const raw=stripQ(c>-1?l.slice(c+1).trim():''),key=raw.toLowerCase().replace(/\s+/g,' ');
+    const gt0=(l.match(/group-title="([^"]*)"/)||[])[1],raw=stripQ(cfg.reuse&&gt0&&gt0!=='Caídos'?gt0:(c>-1?l.slice(c+1).trim():'')),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
     l=l.replace(cfg.reuse?/\s(?:tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
-    if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
+    if(cfg.blankn)l=setName(l,'\u2800');else if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
   if(cfg.logo)await addLogos(cfg,entries,log);
   if(cfg.logo){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
   if(cfg.epg&&!cfg.reuse){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
@@ -516,8 +517,9 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const upN=x=>x.toUpperCase().replace(/^(?:M\+|MOVISTAR\+?(?:\s+PLUS)?)$/,'MOVISTAR+ PLUS').replace(/^M\+\s*/,'MOVISTAR+ ').replace(/^MOVISTAR\s+PLUS\s+(?=\S)/,'MOVISTAR+ ').replace(/^MOVISTAR\s+(?!PLUS$)(?=\S)/,'MOVISTAR+ ').replace(/\s+/g,' ').trim().replace(/^MOVISTAR\+\s+(LIGA DE CAMPEONES\b)/,'$1');
   for(const e of entries){let l=e.lines[0];const g=groupOf(e);
     if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
-    if(!cfg.hashn){const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
+    if(!cfg.hashn&&!cfg.blankn){const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
     e.lines[0]=l}
+  if(cfg.hashn||cfg.blankn)for(const e of entries)if(!/ tvg-name="[^"]+"/.test(e.lines[0])&&groupOf(e))e.lines[0]=setAttr(e.lines[0],'tvg-name',groupOf(e));
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
   if(fm&&!cfg.reuse){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
@@ -555,14 +557,14 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','ord'],CB=['hashn','pub','logo','ec','as','epg'];
+const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','ord'],CB=['hashn','blankn','pub','logo','ec','as','epg'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 if(['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml','https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz'].includes($('#epgu').value))$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
 const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
 document.addEventListener('input',()=>{save();upo()});upo();
 const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',hashn:$('#hashn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),sqbg:$('#sqbg').value.trim(),ord:$('#ord').value,ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
+  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',hashn:$('#hashn').checked,blankn:$('#blankn').checked,logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),sqbg:$('#sqbg').value.trim(),ord:$('#ord').value,ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
   retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
