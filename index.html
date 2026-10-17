@@ -1,70 +1,64 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Actualizar lista M3U</title>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#006c4c"><title>Lista M3U</title>
 <style>
-:root{--bg:#f3f5f4;--panel:#fff;--ink:#16211d;--mute:#6a7771;--line:#d9e0dc;--acc:#0f7a5c;--acc-ink:#fff;--warn:#b3321f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media(prefers-color-scheme:dark){:root{--bg:#10171b;--panel:#182126;--ink:#e6efeb;--mute:#8a9b94;--line:#2a373d;--acc:#3ecf9f;--acc-ink:#07261c;--warn:#ff8a75}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:640px;margin:0 auto;padding:14px}h1{font-size:20px;margin:6px 0 12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
-label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}label.c{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin:8px 0}
-input,select{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}input[type=checkbox]{width:auto}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
-#go{width:100%;background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:700;font-size:17px;padding:15px}
-#go:disabled{opacity:.6}details summary{cursor:pointer;font-weight:600}
-.bar{height:10px;background:var(--bg);border-radius:6px;overflow:hidden;margin:10px 0}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
-#log{font:12px/1.5 ui-monospace,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--mute)}
-#log b{color:var(--ink)}#log .e{color:var(--warn);font-weight:700}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}a{color:var(--acc);word-break:break-all}
-.rv{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.rv input{width:auto;margin-top:4px}.rv .n{min-width:30px;color:var(--mute)}.rv small{display:block;color:var(--mute);font-size:12px}.rv button{margin-left:auto;padding:5px 10px}.gh{font-weight:700;margin:12px 0 2px;color:var(--acc)}#rvl{max-height:55vh;overflow:auto}
-</style></head><body><main>
-<h1>Actualizar lista M3U</h1>
-<div class="card">
-  <button id="go">▶ Actualizar todo</button>
-  <button id="goc" title="Reutiliza la última lista y su test: sin descargar, sin motor y sin probar">⚡ Actualizar con caché (sin conexión)</button>
-  <div class="bar"><i id="pb"></i></div>
-  <div id="st" style="font-weight:600">Listo para empezar.</div>
-  <div class="row"><button id="stop" style="display:none">Detener</button></div>
-  <div id="res" style="margin-top:10px"></div>
-</div>
-<div class="card"><div id="log"></div></div>
-<div class="card"><details id="rvd"><summary>Revisar enlaces y descartar (<span id="rvn">0</span>)</summary>
-  <p style="font-size:13px;color:var(--mute)">Mismo orden que en la lista. Marca los que no te funcionen en el reproductor y descártalos para siempre: se quitan del Gist y no volverán a entrar en futuras actualizaciones.</p>
-  <div id="rvl"></div>
-  <div class="row"><button id="rvdel" style="background:var(--warn);color:#fff;border-color:var(--warn)">Descartar marcados para siempre</button></div>
-  <div id="rvs" style="margin-top:8px"></div>
-  <details style="margin-top:12px"><summary>Descartados (<span id="bln">0</span>)</summary><div id="blv"></div><div class="row"><button id="blall">Restaurar todos</button></div></details>
-</details></div>
-<div class="card"><details open><summary>Ajustes</summary>
-  <label>Fuente de la lista</label><select id="mode"><option value="ipns">ERA (IPNS / IPFS)</option><option value="url">Enlace directo</option></select>
-  <label class="c"><input type="checkbox" id="ec"> Añadir fuente EC (Elcano)</label>
-  <label class="c"><input type="checkbox" id="as"> Añadir fuente AS (lista de tu motor AceStream local)</label>
-  <label>URL de la lista AS</label><input id="asu" value="http://127.0.0.1:6878/pl.m3u">
-  <label>Identificador IPNS</label><input id="ipk" value="k2k4r8lm8tkmuxbc8lkmq1in3v0oya1p6pe9o5bu0hu30br5ko08k2gb">
-  <label>Subruta del archivo</label><input id="ipp" value="/data/listas/listaplana.txt">
-  <label>Pasarela propia (opcional)</label><input id="ipg" placeholder="http://127.0.0.1:8080">
-  <p style="margin:6px 0"><a id="ipo" href="#" target="_blank" rel="noopener">Abrir la fuente en una pestaña</a></p>
-  <label>Pegar contenido de la lista (si la descarga falla)</label><textarea id="paste" rows="3" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
-  <label>Motor Ace Stream</label><input id="engine" value="http://127.0.0.1:6878">
-  <label>Enlace de la lista (solo si la fuente es «Enlace directo»)</label><input id="src" placeholder="https://…/lista.m3u">
-  <label>…o archivo (si el enlace da error CORS)</label><input id="lfile" type="file">
-  <label class="c"><input type="checkbox" id="epg" checked> Poner tvg-id y tvg-name del EPG</label>
-  <label class="c"><input type="checkbox" id="cleanid" checked> tvg-id = id del addon de Movistar Plus+ (prefijo + código, p. ej. movistar-plus:m1sd); sin código, nombre limpio (sin HD, FHD…)</label>
-  <label>Prefijo del id (déjalo vacío para usar solo el código)</label><input id="idpre" value="movistar-plus:">
-  <label>URL del EPG (XML o XML.GZ)</label><input id="epgu" value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml">
-  <label>Token de GitHub (permiso «gist»)</label><input id="token" type="password" autocomplete="off">
-  <label>ID del Gist (vacío = crea uno nuevo)</label><input id="gist">
-  <label>Nombre del archivo en el Gist</label><input id="file" value="canales.m3u">
-  <label class="c"><input type="checkbox" id="logo" checked> Solo canales de la lista, con icono de Movistar+ (el resto se descarta)</label>
-  <label>Logos a convertir en póster (wsrv.nl): canales o IDs separados por coma o línea. Vacío = ninguno, * = todos</label><textarea id="sqlist" rows="2" placeholder="*" style="width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:12px ui-monospace,monospace"></textarea>
-  <div class="g3"><div><label>Ancho del póster (px; alto = ancho × 1,5; 216 = ancho de los logos de Movistar)</label><input id="sqs" type="number" min="16" max="1024" value="216"></div>
-  <div><label>Ajuste</label><select id="sqf"><option value="contain">Entero, centrado en el póster (sin ampliar)</option><option value="cover">Rellenar el póster (recorta)</option><option value="fill">Estirar</option></select></div><div><label>Fondo (hex, vacío = transparente)</label><input id="sqbg" placeholder="101820"></div></div>
-  <label>Parámetros extra de wsrv.nl (opcional, ej. q=100&amp;output=webp; ponle =off a uno para quitarlo, ej. we=off)</label><input id="sqx" placeholder="q=100&amp;output=webp">
-  <div class="g3"><div style="grid-column:span 2"><label>ID de canal para probar</label><input id="sqid" value="CPDEP"></div><div><label>&nbsp;</label><button id="sqp" style="width:100%">Previsualizar</button></div></div>
-  <div id="sqpv" style="margin:8px 0"></div>
-  <label>Orden de canales (uno por línea; las líneas en blanco se ignoran; los canales que no estén aquí van después; vacío = orden automático). Después de todos ellos van los enlaces repetidos, en el mismo orden</label><textarea id="ord" rows="12" style="width:100%">DAZN F1
+:root{color-scheme:light dark;--bg:#f4f8f4;--card:#e8f0e9;--fld:#dce6dd;--ink:#171d19;--mute:#56625a;--pri:#006c4c;--onp:#fff;--pc:#bdf1d9;--onpc:#002114;--err:#ba1a1a;--errc:#ffdad6;--nav:76px}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1410;--card:#19211c;--fld:#242d27;--ink:#dfe5df;--mute:#9ba69e;--pri:#6bdbac;--onp:#003826;--pc:#00513a;--onpc:#bdf1d9;--err:#ffb4ab;--errc:#93000a}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Roboto,system-ui,-apple-system,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 0 calc(var(--nav) + env(safe-area-inset-bottom) + 24px)}
+button,input,select,textarea{font:inherit;color:inherit}main{max-width:640px;margin:0 auto;padding:0 16px}
+header{padding:30px 6px 10px}h1{margin:0;font-size:30px;font-weight:500;letter-spacing:-.3px}header p{margin:2px 0 0;color:var(--mute)}
+.i{width:24px;height:24px;fill:currentColor;flex:none}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}.row.s{flex-wrap:nowrap}.row.s .f{flex:1;margin:0}
+small,.h{color:var(--mute);font-size:12.5px}.h{margin:6px 4px 0}a{color:var(--pri);word-break:break-all}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 22px;border:0;border-radius:24px;font-weight:500;cursor:pointer;background:var(--pri);color:var(--onp);transition:filter .15s,transform .1s}
+.btn:active{transform:scale(.97);filter:brightness(.92)}.btn:disabled{opacity:.45}.btn.t{background:color-mix(in srgb,var(--pri) 15%,transparent);color:var(--pri)}.btn.e{background:var(--errc);color:var(--err)}.btn.x{background:none;color:var(--pri);padding:0 12px;height:36px}
+.hero{background:var(--pc);color:var(--onpc);border-radius:32px;padding:22px 20px;margin:8px 0 12px}.hero .s{font-size:21px;font-weight:500;line-height:1.3;min-height:28px}
+.bar{height:8px;border-radius:4px;background:color-mix(in srgb,var(--onpc) 15%,transparent);overflow:hidden;margin:16px 0}.bar i{display:block;height:100%;width:0;border-radius:4px;background:var(--pri);transition:width .25s}
+.hero .btn.t{background:color-mix(in srgb,var(--onpc) 12%,transparent);color:var(--onpc)}.hero .row{margin-top:0}#go{flex:1;min-width:180px;height:56px;font-size:16px;border-radius:28px}#go.run{opacity:.6}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.st{background:var(--card);border-radius:22px;padding:14px 8px;text-align:center}.st b{display:block;font-size:24px;font-weight:500}.st span{font-size:12px;color:var(--mute)}
+.card{background:var(--card);border-radius:28px;padding:18px;margin:12px 0}#res small{color:var(--mute)}#res a{display:block;margin-top:2px}
+details.sec,details.card{background:var(--card);border-radius:28px;margin:12px 0;overflow:hidden}details>summary{list-style:none;display:flex;align-items:center;gap:14px;padding:16px 18px;font-weight:500;font-size:16px;cursor:pointer}details>summary::-webkit-details-marker{display:none}
+details>summary .ch{margin-left:auto;transition:transform .2s;color:var(--mute)}details[open]>summary .ch{transform:rotate(180deg)}.bd{padding:0 18px 18px}.ic{width:40px;height:40px;border-radius:14px;background:var(--pc);color:var(--onpc);display:grid;place-items:center}
+#logd .bd{padding-top:0}#log{font:12px/1.55 ui-monospace,Consolas,monospace;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--mute)}#log b{color:var(--ink)}#log .e{color:var(--err);font-weight:700}
+.f{position:relative;margin:12px 0}.f input,.f select,.f textarea{width:100%;display:block;background:var(--fld);border:2px solid transparent;border-radius:16px;padding:22px 14px 8px;outline:0;appearance:none;resize:vertical;min-width:0}
+.f select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cpath d='M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:22px;padding-right:38px}
+.f textarea{font:13px/1.5 ui-monospace,Consolas,monospace}.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--pri)}
+.f label{position:absolute;left:16px;top:15px;color:var(--mute);pointer-events:none;transition:all .15s;max-width:calc(100% - 32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f input:focus+label,.f input:not(:placeholder-shown)+label,.f textarea:focus+label,.f textarea:not(:placeholder-shown)+label,.f select+label{top:5px;font-size:11.5px}.f input:focus+label,.f textarea:focus+label{color:var(--pri)}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.g2{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.sw{display:flex;align-items:center;gap:14px;padding:10px 4px;cursor:pointer;position:relative}.sw span{flex:1}.sw b{font-weight:500;display:block}.sw small{display:block}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}.sw i{width:52px;height:32px;border-radius:16px;border:2px solid var(--mute);position:relative;flex:none;transition:.2s}
+.sw i::after{content:"";position:absolute;top:50%;left:6px;width:16px;height:16px;margin-top:-8px;border-radius:50%;background:var(--mute);transition:.2s}
+.sw input:checked+i{background:var(--pri);border-color:var(--pri)}.sw input:checked+i::after{left:24px;width:24px;height:24px;margin-top:-12px;left:22px;background:var(--onp)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{position:relative}.chip input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}.chip span{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px;border-radius:12px;border:1px solid var(--mute);font-weight:500;transition:.15s}
+.chip input:checked+span{background:var(--pc);color:var(--onpc);border-color:transparent}.chip input:checked+span::before{content:"✓"}
+.gh{color:var(--pri);font-weight:500;padding:16px 4px 4px}.it{display:flex;align-items:center;gap:12px;padding:10px 4px;position:relative;cursor:pointer}.it input{position:absolute;opacity:0}.tx{flex:1;min-width:0}.tx b{display:block;font-weight:500}.tx small{display:block}
+.ck{width:24px;height:24px;border-radius:50%;border:2px solid var(--mute);display:grid;place-items:center;flex:none;transition:.15s}.ck .i{width:16px;height:16px;fill:var(--onp);opacity:0}.it input:checked+.ck{background:var(--pri);border-color:var(--pri)}.it input:checked+.ck .i{opacity:1}
+.tag{font-style:normal;font-size:11.5px;font-weight:500;background:var(--pc);color:var(--onpc);padding:3px 10px;border-radius:8px;white-space:nowrap}
+#rvl{max-height:none}.pv{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--mute);text-align:center}.pv img{min-width:64px;min-height:64px;max-width:150px;border-radius:8px}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;height:calc(var(--nav) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:color-mix(in srgb,var(--card) 94%,var(--ink))}
+nav button{flex:1;max-width:200px;background:none;border:0;color:var(--mute);display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:12px;font-size:12px;font-weight:500;cursor:pointer}
+nav .p{width:64px;height:32px;border-radius:16px;display:grid;place-items:center;transition:.2s}nav button.on{color:var(--ink)}nav button.on .p{background:var(--pc);color:var(--onpc)}
+#selbar,#toast{position:fixed;left:16px;right:16px;max-width:608px;margin:auto;bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 12px);background:var(--ink);color:var(--bg);border-radius:16px;z-index:6;box-shadow:0 4px 16px #0005}
+#selbar{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 6px 18px}#selbar .btn{height:40px;background:var(--errc);color:var(--err)}#toast{padding:14px 18px;pointer-events:none;bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 76px)}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><symbol id="i-home" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></symbol><symbol id="i-tv" viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></symbol><symbol id="i-set" viewBox="0 0 24 24"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.2h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.8 7.8 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.7h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></symbol><symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11z"/></symbol><symbol id="i-dl" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7zM5 18v2h14v-2z"/></symbol><symbol id="i-del" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></symbol><symbol id="i-exp" viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></symbol><symbol id="i-src" viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></symbol><symbol id="i-epg" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14z"/></symbol><symbol id="i-git" viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></symbol><symbol id="i-img" viewBox="0 0 24 24"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5z"/></symbol><symbol id="i-ord" viewBox="0 0 24 24"><path d="M3 18h6v-2H3zM3 6v2h18V6zm0 7h12v-2H3z"/></symbol><symbol id="i-test" viewBox="0 0 24 24"><path d="M13 2.1v2c3.9.5 7 3.8 7 7.9a8 8 0 1 1-9-7.9V2.1h2zM12 8v5l4 2-.8 1.6L11 14V8z"/></symbol></svg>
+<main>
+<header><h1>Lista M3U</h1><p>Descarga, prueba y publica tu lista</p></header>
+<section class="pg" id="pg-home">
+ <div class="hero"><div class="s" id="st">Listo para empezar</div><div class="bar"><i id="pb"></i></div>
+  <div class="row"><button class="btn" id="go"><svg class="i"><use href="#i-play"/></svg>Actualizar todo</button>
+  <button class="btn t" id="goc" title="Reutiliza la última lista y su test: sin descargar, sin motor y sin probar"><svg class="i"><use href="#i-bolt"/></svg>Última lista</button>
+  <button class="btn e" id="stop" hidden><svg class="i"><use href="#i-stop"/></svg>Detener</button></div></div>
+ <div class="stats"><div class="st"><b id="sCh">0</b><span>En la lista</span></div><div class="st"><b id="sCa">0</b><span>En caché 15 d</span></div><div class="st"><b id="sBl">0</b><span>Descartados</span></div></div>
+ <div class="card" id="res" hidden></div>
+ <details class="card" id="logd"><summary>Registro<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd" style="padding:0"><div id="log"></div></div></details>
+</section>
+<section class="pg" id="pg-ch" hidden>
+ <div class="card"><b>Revisar enlaces (<span id="rvn">0</span>)</b><p class="h" style="margin-left:0">Mismo orden que en la lista. Marca los que no te funcionen y descártalos para siempre: se quitan del Gist y no volverán a entrar. Los marcados «Caché» ya no aparecen en las fuentes.</p><div id="rvl"></div></div>
+ <details class="card"><summary>Descartados (<span id="bln">0</span>)<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div id="blv"></div><div class="row"><button class="btn t" id="blall">Restaurar todos</button></div></div></details>
+</section>
+<section class="pg" id="pg-set" hidden><details class="sec" open><summary><span class="ic"><svg class="i"><use href="#i-src"/></svg></span>Fuentes<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div class="chips"><label class="chip"><input type="checkbox" id="era" checked><span>ERA</span></label><label class="chip"><input type="checkbox" id="ec"><span>EC · Elcano</span></label><label class="chip"><input type="checkbox" id="as"><span>AS · AceStream local</span></label></div><p class="h">Se combinan todas las activas. AS lee la lista de tu motor local (127.0.0.1:6878). Los canales se guardan 15 días: si dejan de aparecer en las fuentes se siguen probando y al día 16 se eliminan.</p><div class="f"><input id="ipk" type="text" placeholder=" " value="k2k4r8lm8tkmuxbc8lkmq1in3v0oya1p6pe9o5bu0hu30br5ko08k2gb"><label for="ipk">Identificador IPNS (ERA)</label></div><p class="h"><a id="ipo" href="#" target="_blank" rel="noopener">Abrir la fuente en una pestaña</a></p><div class="f"><textarea id="paste" rows="3" placeholder=" "></textarea><label for="paste">Pegar contenido de la lista (si la descarga falla)</label></div><div class="row"><button class="btn e" id="clrc"><svg class="i"><use href="#i-del"/></svg>Vaciar caché de 15 días</button></div></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-epg"/></svg></span>EPG e identificadores<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><label class="sw"><span><b>Poner tvg-id y tvg-name del EPG</b></span><input type="checkbox" id="epg" checked><i></i></label><label class="sw"><span><b>tvg-id = id del addon de Movistar Plus+</b><small>Prefijo + código (p. ej. movistar-plus:m1sd); sin código, nombre limpio (sin HD, FHD…)</small></span><input type="checkbox" id="cleanid" checked><i></i></label><div class="f"><input id="idpre" type="text" placeholder=" " value="movistar-plus:"><label for="idpre">Prefijo del id (vacío = solo el código)</label></div><div class="f"><input id="epgu" type="text" placeholder=" " value="https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml"><label for="epgu">URL del EPG (XML o XML.GZ)</label></div></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-git"/></svg></span>GitHub Gist<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div class="f"><input id="token" type="password" placeholder=" " value="" autocomplete="off"><label for="token">Token de GitHub (permiso «gist»)</label></div><div class="f"><input id="gist" type="text" placeholder=" " value=""><label for="gist">ID del Gist (vacío = crea uno nuevo)</label></div><div class="f"><input id="file" type="text" placeholder=" " value="canales.m3u"><label for="file">Nombre del archivo en el Gist</label></div><div class="row"><button class="btn t" id="chkG"><svg class="i"><use href="#i-check"/></svg>Comprobar GitHub</button></div></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-img"/></svg></span>Logos y pósters<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><label class="sw"><span><b>Solo canales de la lista, con icono de Movistar+</b><small>El resto se descarta</small></span><input type="checkbox" id="logo" checked><i></i></label><div class="f"><textarea id="sqlist" rows="2" placeholder=" "></textarea><label for="sqlist">Logos a convertir en póster (wsrv.nl)</label></div><p class="h">Canales o IDs separados por coma o línea. Vacío = ninguno, * = todos.</p><div class="g3"><div class="f"><input id="sqs" type="number" placeholder=" " value="216" min="16" max="1024"><label for="sqs">Ancho (px)</label></div><div class="f"><select id="sqf"><option value="contain">Entero</option><option value="cover">Rellenar</option><option value="fill">Estirar</option></select><label>Ajuste</label></div><div class="f"><input id="sqbg" type="text" placeholder=" " value=""><label for="sqbg">Fondo (hex)</label></div></div><p class="h">Alto = ancho × 1,5 (216 = ancho de los logos de Movistar). Fondo vacío = transparente.</p><div class="row s"><div class="f"><input id="sqid" type="text" placeholder=" " value="CPDEP"><label for="sqid">ID de canal para probar</label></div><button class="btn t" id="sqp">Previsualizar</button></div><div id="sqpv"></div></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-ord"/></svg></span>Orden de canales<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div class="f"><textarea id="ord" rows="12" placeholder=" ">DAZN F1
 DAZN 1
 DAZN 2
 DAZN 3
@@ -135,21 +129,16 @@ M+ GOLF
 M+ GOLF 2
 
 EUROSPORT 1
-EUROSPORT 2</textarea>
-  <label class="c"><input type="checkbox" id="hashn"> Poner el hash (10 primeros caracteres) en vez del nombre</label>
-  <label class="c"><input type="checkbox" id="blankn"> Nombre en blanco (solo se ve el logo); se mantienen tvg-id y tvg-name para el EPG</label>
-  <label class="c"><input type="checkbox" id="pub"> Gist público (solo si lo crea nuevo)</label>
-  <div class="g3"><div><label>A la vez</label><input id="workers" type="number" min="1" max="10" value="4"></div>
-  <div><label>Espera (s)</label><input id="timeout" type="number" min="5" max="90" value="25"></div>
-  <div><label>Reintentos</label><input id="retries" type="number" min="0" max="3" value="1"></div></div>
-  <div class="g3"><div style="grid-column:span 2"><label>Canales caídos</label><select id="dead"><option value="remove">Quitarlos</option><option value="move">Grupo «Caídos»</option><option value="keep">Al final de su grupo</option></select></div>
-  <div><label>Mínimo OK</label><input id="minok" type="number" min="1" value="1"></div></div>
-  <label>Velocidad mínima (KB/s) para dar un canal por bueno</label><input id="minspd" type="number" min="0" value="1000">
-  <div class="row"><button id="chkE">Comprobar motor</button><button id="chkG">Comprobar GitHub</button></div>
-  <p style="font-size:12px;color:var(--mute)">Los ajustes (incluido el token) se guardan solo en este navegador. Si no funcionan las conexiones, abre este archivo desde tu PWA o servidor local.</p>
-</details></div>
+EUROSPORT 2</textarea><label for="ord">Un canal por línea</label></div><p class="h">Las líneas en blanco se ignoran; los canales que no estén aquí van después; vacío = orden automático. Después de todos ellos van los enlaces repetidos, en el mismo orden.</p></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-test"/></svg></span>Pruebas<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div class="g3"><div class="f"><input id="workers" type="number" placeholder=" " value="4" min="1" max="10"><label for="workers">A la vez</label></div><div class="f"><input id="timeout" type="number" placeholder=" " value="25" min="5" max="90"><label for="timeout">Espera (s)</label></div><div class="f"><input id="retries" type="number" placeholder=" " value="1" min="0" max="3"><label for="retries">Reintentos</label></div></div><div class="g2"><div class="f"><select id="dead"><option value="remove">Quitarlos</option><option value="move">Grupo «Caídos»</option><option value="keep">Al final de su grupo</option></select><label>Canales caídos</label></div><div class="f"><input id="minok" type="number" placeholder=" " value="1" min="1"><label for="minok">Mínimo OK</label></div></div><div class="f"><input id="minspd" type="number" placeholder=" " value="1000" min="0"><label for="minspd">Velocidad mínima (KB/s) para dar un canal por bueno</label></div><div class="row"><button class="btn t" id="chkE"><svg class="i"><use href="#i-check"/></svg>Comprobar motor</button></div></div></details>
+ <p class="h">Los ajustes (incluido el token) se guardan solo en este navegador. Si no funcionan las conexiones, abre este archivo desde tu PWA o servidor local.</p>
+</section>
+</main>
+<div id="selbar" hidden><span id="seln"></span><button class="btn" id="rvdel"><svg class="i"><use href="#i-del"/></svg>Descartar</button></div>
+<div id="toast" hidden></div>
+<nav><button data-t="home" class=on><span class="p"><svg class="i"><use href="#i-home"/></svg></span>Inicio</button><button data-t="ch"><span class="p"><svg class="i"><use href="#i-tv"/></svg></span>Canales</button><button data-t="set"><span class="p"><svg class="i"><use href="#i-set"/></svg></span>Ajustes</button></nav>
 <script>
 /*CORE*/
+const ENGINE='http://127.0.0.1:6878';
 const ACE=/^(https?:\/\/[^/]+)\/ace\/getstream\?(?:[^#]*&)?id=([0-9a-fA-F]{20,})/i;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -498,11 +487,19 @@ async function addLogos(cfg,entries,log){const B=parseLogoGist(BUILTIN_LOGOS);lo
   if(miss.length)log('Fuera de la lista ('+miss.length+'): '+esc(miss.slice(0,60).join(' · ')));
   log(`<b>Iconos puestos: ${n} de ${entries.length}. Pósters: ${nSq}.</b>`)}
 const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\s*[\)\]]/gi,' ').replace(/^\s*M\.\s*/i,'Movistar ').replace(/(?<![\p{L}\p{N}])(?:FULL ?HD|UHD|FHD|HDR|HEVC|H ?26[45]|\d{3,4}P|1080|720|4K|HD|SD|BAR)(?![\p{L}\p{N}])/giu,' ').replace(/[\(\[\{]\s*[\)\]\}]/g,' ').replace(/\s{2,}/g,' ').replace(/^[\s\-–|]+|[\s\-–|]+$/g,'').trim();const x=r||String(n||'').trim();return /^(?:movistar|m\+)\s*baloncesto/i.test(x)?x.toUpperCase():x};
+const SEENK='m3useen',TTL=15*864e5,loadSeen=()=>{try{return JSON.parse(localStorage.getItem(SEENK)||'{}')}catch(e){return{}}},saveSeen=o=>{try{localStorage.setItem(SEENK,JSON.stringify(o));return true}catch(e){return false}};
 const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   if(cfg.reuse&&!(cfg.prev||[]).length)throw new Error('No hay ninguna lista guardada en este navegador. Usa antes «Actualizar todo». No se toca el Gist.');
-  const {head,entries}=cfg.reuse?{head:'#EXTM3U',entries:cfg.prev.map(x=>({lines:[...x.lines],url:x.lines[x.lines.length-1]}))}:parseEra(text,cfg.engine);
+  const {head,entries}=cfg.reuse?{head:'#EXTM3U',entries:cfg.prev.map(x=>({lines:[...x.lines],url:x.lines[x.lines.length-1],cached:x.cached,t:x.t}))}:parseEra(text,cfg.engine);
   for(const x of (cfg.reuse?[]:(cfg.extras||[]))){const have=new Set(entries.map(e=>keyOf(e.url)));let n=0,tot=0;for(const e of parseEra(x.text,cfg.engine).entries){tot++;const k=keyOf(e.url);if(!have.has(k)){have.add(k);entries.push(e);n++}}log(`Fuente ${x.label}: ${tot} enlaces, ${n} nuevos añadidos.`)}
+  if(!cfg.reuse){const now=Date.now(),seen=loadSeen(),have=new Set(),nSrc=entries.length;let rec=0,exp=0;
+    for(const e of entries){const k=keyOf(e.url);have.add(k);e.t=now;seen[k]={l:[...e.lines],t:now}}
+    for(const k of Object.keys(seen)){if(have.has(k))continue;const s=seen[k];
+      if(now-s.t>TTL){if(nSrc){delete seen[k];exp++}continue}
+      entries.push({lines:[...s.l],url:s.l[s.l.length-1],cached:true,t:s.t});rec++}
+    if(!saveSeen(seen))log('⚠ No se pudo guardar la caché de 15 días en el navegador.','e');
+    log(`<b>Caché 15 días: ${Object.keys(seen).length} guardados · ${rec} recuperados (ya no están en las fuentes) · ${exp} caducados eliminados.</b>`)}
   if(!entries.length)throw new Error('La lista no tiene canales. No se toca el Gist.');
   {const BL=loadBL(),k=entries.filter(e=>!(keyOf(e.url) in BL)),q=entries.length-k.length;if(q){entries.splice(0,entries.length,...k);log(`Descartados para siempre: ${q} enlaces.`)}if(!entries.length)throw new Error('Todos los enlaces están descartados. No se toca el Gist.')}
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
@@ -511,7 +508,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     const gt0=(l.match(/group-title="([^"]*)"/)||[])[1],raw=stripQ(cfg.reuse&&gt0&&gt0!=='Caídos'?gt0:(c>-1?l.slice(c+1).trim():'')),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
     l=l.replace(cfg.reuse?/\s(?:tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
-    if(cfg.blankn)l=setName(l,'\u2800');else if(cfg.hashn&&m)l=setName(l,m[2].slice(0,10));else if(g)l=setName(l,g);e.lines[0]=l}
+    if(g)l=setName(l,g);e.lines[0]=l}
   if(cfg.logo)await addLogos(cfg,entries,log);
   if(cfg.logo){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
   if(cfg.epg&&!cfg.reuse){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
@@ -524,10 +521,9 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   const upN=x=>x.toUpperCase().replace(/^(?:M\+|MOVISTAR\+?(?:\s+PLUS)?)$/,'MOVISTAR+ PLUS').replace(/^M\+\s*/,'MOVISTAR+ ').replace(/^MOVISTAR\s+PLUS\s+(?=\S)/,'MOVISTAR+ ').replace(/^MOVISTAR\s+(?!PLUS$)(?=\S)/,'MOVISTAR+ ').replace(/\s+/g,' ').trim().replace(/^MOVISTAR\+\s+(LIGA DE CAMPEONES\b)/,'$1');
   for(const e of entries){let l=e.lines[0];const g=groupOf(e);
     if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
-    if(!cfg.hashn&&!cfg.blankn){const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
+    {const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
     e.lines[0]=l}
   if(cfg.cleanid)for(const e of entries){const id=e.mc?(cfg.idpre||'')+e.mc:cleanId(groupOf(e));if(id)e.lines[0]=setAttr(e.lines[0],'tvg-id',id)}
-  if(cfg.hashn||cfg.blankn)for(const e of entries)if(!/ tvg-name="[^"]+"/.test(e.lines[0])&&groupOf(e))e.lines[0]=setAttr(e.lines[0],'tvg-name',groupOf(e));
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
   if(fm&&!cfg.reuse){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
@@ -562,73 +558,73 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   if(cfg.dead==='move')good.push(...dead);
   const out='#EXTM3U\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
   step('4/4 Subiendo al Gist…');const up=await upload(cfg,out);
-  return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
+  return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),cached:!!e.cached,t:e.t||0,speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
+
 const $=s=>document.querySelector(s);
-const F=['ipg','mode','ipk','ipp','engine','src','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqx','sqid','asu','sqbg','ord','idpre'],CB=['hashn','blankn','pub','logo','ec','as','epg','cleanid'];
+const F=['ipk','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqid','sqbg','ord','idpre','epgu'],CB=['era','ec','as','epg','cleanid','logo'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 if(['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml','https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz'].includes($('#epgu').value))$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
-const upo=()=>{const k=$('#ipk').value.trim(),p=$('#ipp').value.trim();$('#ipo').href=`https://ipfs.io/ipns/${k}${p.startsWith('/')?p:'/'+p}`};
-document.addEventListener('input',()=>{save();upo()});upo();
-const getCfg=()=>({mode:$('#mode').value,ipnsKey:$('#ipk').value.trim(),ipnsPath:$('#ipp').value.trim(),ipnsGw:$('#ipg').value.trim(),engine:($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,''),src:$('#src').value.trim(),token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
-  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',hashn:$('#hashn').checked,blankn:$('#blankn').checked,cleanid:$('#cleanid').checked,idpre:$('#idpre').value.trim(),logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:$('#sqx').value.trim(),sqbg:$('#sqbg').value.trim(),ord:$('#ord').value,ec:$('#ec').checked,as:$('#as').checked,asu:$('#asu').value.trim()||'http://127.0.0.1:6878/pl.m3u',pub:$('#pub').checked,workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),
-  retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
+const upo=()=>{$('#ipo').href=`https://ipfs.io/ipns/${$('#ipk').value.trim()}/data/listas/listaplana.txt`};
+['input','change'].forEach(t=>document.addEventListener(t,()=>{save();upo()}));upo();
+let tt;const toast=t=>{const d=$('#toast');d.textContent=t;d.hidden=false;clearTimeout(tt);tt=setTimeout(()=>d.hidden=true,3500)};
+const tabs=document.querySelectorAll('nav button');
+function go(n){document.querySelectorAll('.pg').forEach(p=>p.hidden=p.id!=='pg-'+n);tabs.forEach(b=>b.classList.toggle('on',b.dataset.t===n));$('#selbar').hidden=true;scrollTo(0,0)}
+tabs.forEach(b=>b.onclick=()=>go(b.dataset.t));
+const getCfg=()=>({era:$('#era').checked,ipnsKey:$('#ipk').value.trim(),ipnsPath:'/data/listas/listaplana.txt',ipnsGw:'',engine:ENGINE,token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
+  epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',cleanid:$('#cleanid').checked,idpre:$('#idpre').value.trim(),logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:'',sqbg:$('#sqbg').value.trim(),ord:$('#ord').value,ec:$('#ec').checked,as:$('#as').checked,asu:ENGINE+'/pl.m3u',pub:false,
+  workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
-const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ✓ ${ok} funcionan`};
-let ctl=null;
-function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#stop').style.display=b?'inline-block':'none'}
+const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ${ok} funcionan`};
+const LK='m3ulast',loadLast=()=>{try{return JSON.parse(localStorage.getItem(LK)||'[]')}catch(e){return[]}},saveLast=l=>{try{localStorage.setItem(LK,JSON.stringify(l))}catch(e){log('⚠ No se pudo guardar la lista en el navegador.','e')}};
+let LIST=loadLast(),ctl=null,REUSE=false;
+const stats=()=>{$('#sCh').textContent=LIST.length;$('#sCa').textContent=Object.keys(loadSeen()).length;$('#sBl').textContent=Object.keys(loadBL()).length};
+function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#stop').hidden=!b;$('#go').classList.toggle('run',b)}
 $('#stop').onclick=()=>ctl&&ctl.abort();
-let REUSE=false;
 $('#goc').onclick=()=>{if(ctl)return;REUSE=true;$('#go').click()};
-$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;if(cfg.reuse)cfg.prev=loadLast();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').innerHTML='';$('#pb').style.width='0';let wl;
+$('#clrc').onclick=()=>{if(confirm('¿Vaciar la caché de 15 días? Los canales que ya no estén en las fuentes se perderán.')){saveSeen({});stats();toast('Caché vaciada')}};
+$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;if(cfg.reuse)cfg.prev=loadLast();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').hidden=true;$('#pb').style.width='0';$('#logd').open=true;let wl;
   try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
-    step(cfg.reuse?'1/4 Usando la lista guardada (sin conexión)…':'1/4 Descargando lista…');let text='';const f=$('#lfile').files[0];
-    try{if(cfg.reuse){}else if(f)text=await f.text();else if($('#paste').value.trim())text=$('#paste').value;else if(cfg.mode==='ipns'){log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,cfg.ipnsGw)}else{if(!cfg.src)throw new Error('Pon el enlace de la lista o elige un archivo.');
-      try{const r=await fetch(cfg.src);if(!r.ok)throw new Error('HTTP '+r.status);text=await r.text()}
-      catch(e){throw new Error(`No se pudo descargar (${e.message}). Si es un bloqueo CORS, descarga la lista y elígela en «archivo».`)}}}catch(e){if(!(cfg.ec||cfg.as))throw e;log('⚠ Fuente principal: '+esc(e.message),'e');text=''}
+    step(cfg.reuse?'1/4 Usando la última lista (sin conexión)…':'1/4 Descargando fuentes…');let text='';const paste=$('#paste').value.trim(),hasC=Object.keys(loadSeen()).length>0;
+    if(!cfg.reuse&&!cfg.era&&!cfg.ec&&!cfg.as&&!paste&&!hasC)throw new Error('Activa al menos una fuente en Ajustes.');
+    if(!cfg.reuse){if(paste)text=$('#paste').value;else if(cfg.era){try{log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,'')}catch(e){if(!(cfg.ec||cfg.as||hasC))throw e;log('⚠ ERA: '+esc(e.message),'e')}}}
     const extras=[];
-    if(cfg.ec&&!cfg.reuse){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,cfg.ipnsGw))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
+    if(cfg.ec&&!cfg.reuse){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,''))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
     if(cfg.as&&!cfg.reuse){try{log('AS: leyendo '+esc(cfg.asu));const ra=await fetch(cfg.asu,{signal:ctl.signal});if(!ra.ok)throw new Error('HTTP '+ra.status);extras.push({label:'AS',text:asToM3U(await ra.text())})}catch(e){log('✕ AS: '+esc(e.message==='Failed to fetch'?'sin respuesta (¿está abierto el motor AceStream?)':e.message),'e')}}
     cfg.extras=extras;
-    log('Primeras líneas: '+esc(text.split(/\r?\n/).slice(0,3).join(' ⏎ ').slice(0,200)));
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
-    $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`✅ Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist.`;
-    $('#res').innerHTML=`Enlace fijo (siempre la última versión):<br><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button id="cp">Copiar enlace</button><button id="dl">Descargar .m3u</button></div><div style="margin-top:12px">Addon (manifest):<br><a href="${bridgeUrl(r.link)}" target="_blank" rel="noopener">${bridgeUrl(r.link)}</a><div class="row"><button id="cpa">Copiar manifest del addon</button></div></div>`;
-    LIST=r.list;saveLast(LIST);renderRv(true);
-    $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);$('#cp').textContent='Copiado'}catch(e){}};
-    $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link));$('#cpa').textContent='Copiado'}catch(e){}};
+    $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist`;
+    $('#res').hidden=false;$('#res').innerHTML=`<small>Enlace fijo (siempre la última versión)</small><a href="${r.link}" target="_blank" rel="noopener">${r.link}</a><div class="row"><button class="btn t" id="cp"><svg class="i"><use href="#i-copy"/></svg>Copiar enlace</button><button class="btn t" id="dl"><svg class="i"><use href="#i-dl"/></svg>Descargar .m3u</button></div><small style="display:block;margin-top:14px">Addon (manifest)</small><a href="${bridgeUrl(r.link)}" target="_blank" rel="noopener">${bridgeUrl(r.link)}</a><div class="row"><button class="btn t" id="cpa"><svg class="i"><use href="#i-copy"/></svg>Copiar manifest</button></div>`;
+    LIST=r.list;saveLast(LIST);renderRv();
+    $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(r.link);toast('Enlace copiado')}catch(e){}};
+    $('#cpa').onclick=async()=>{try{await navigator.clipboard.writeText(bridgeUrl(r.link));toast('Manifest copiado')}catch(e){}};
     $('#dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.out],{type:'audio/x-mpegurl'}));a.download=cfg.file;a.click()};
-  }catch(e){$('#st').textContent='❌ '+e.message;log('❌ '+esc(e.message),'e')}
-  finally{try{wl&&wl.release()}catch(e){}ctl=null;busy(false)}};
-const LK='m3ulast',loadLast=()=>{try{return JSON.parse(localStorage.getItem(LK)||'[]')}catch(e){return[]}},saveLast=l=>{try{localStorage.setItem(LK,JSON.stringify(l))}catch(e){log('⚠ No se pudo guardar la lista en el navegador.','e')}};
-let LIST=loadLast();
+  }catch(e){$('#st').textContent='Error: '+e.message;log('❌ '+esc(e.message),'e')}
+  finally{try{wl&&wl.release()}catch(e){}ctl=null;busy(false);stats()}};
 const nameOf=e=>{const l=e.lines[0],i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return c>-1?l.slice(c+1).trim():'?'},grpOf=e=>{const m=e.lines[0].match(/group-title="([^"]*)"/);return m?m[1]:''};
 function renderBL(){const BL=loadBL(),ks=Object.keys(BL);$('#bln').textContent=ks.length;
-  $('#blv').innerHTML=ks.map((k,j)=>`<div class="rv"><span>${esc(BL[k])}<small>…${esc(k.slice(-10))}</small></span><button data-j="${j}">Restaurar</button></div>`).join('')||'<p style="color:var(--mute)">Ninguno.</p>'}
-function renderRv(open){let h='',lastG=null;const cnt={};
-  LIST.forEach((e,i)=>{const g=grpOf(e)||nameOf(e);if(g!==lastG){h+=`<div class="gh">${esc(g)}</div>`;lastG=g}const k=cnt[g]=(cnt[g]||0)+1;
-    h+=`<label class="rv"><input type="checkbox" value="${i}"><span class="n">${i+1}</span><span>${esc(nameOf(e))} · enlace ${k}<small>…${esc(String(e.key).slice(-10))} · ${e.ok?Math.round(e.speed)+' KB/s':'no comprobado'}</small></span></label>`});
-  $('#rvl').innerHTML=h||'<p style="color:var(--mute)">Aún no hay lista guardada. Pulsa «Actualizar todo».</p>';
-  $('#rvn').textContent=LIST.length;if(open)$('#rvd').open=true;renderBL()}
-$('#rvdel').onclick=async()=>{const sel=[...document.querySelectorAll('#rvl input:checked')].map(x=>+x.value);if(!sel.length){$('#rvs').textContent='Marca primero algún enlace.';return}
+  $('#blv').innerHTML=ks.map((k,j)=>`<div class="it"><span class="tx"><b>${esc(BL[k])}</b><small>…${esc(k.slice(-10))}</small></span><button class="btn x" data-j="${j}">Restaurar</button></div>`).join('')||'<p class="h">Ninguno.</p>'}
+function renderRv(){let h='',lastG=null;const cnt={},now=Date.now();
+  LIST.forEach((e,i)=>{const g=grpOf(e)||nameOf(e);if(g!==lastG){h+=`<div class="gh">${esc(g)}</div>`;lastG=g}const k=cnt[g]=(cnt[g]||0)+1,left=e.cached?Math.max(0,Math.ceil((e.t+TTL-now)/864e5)):0;
+    h+=`<label class="it"><input type="checkbox" value="${i}"><i class="ck"><svg class="i"><use href="#i-check"/></svg></i><span class="tx"><b>${esc(nameOf(e))}</b><small>Enlace ${k} · …${esc(String(e.key).slice(-8))} · ${e.ok?Math.round(e.speed)+' KB/s':'sin comprobar'}</small></span>${e.cached?`<em class="tag">Caché · ${left} d</em>`:''}</label>`});
+  $('#rvl').innerHTML=h||'<p class="h">Aún no hay lista guardada. Pulsa «Actualizar todo» en Inicio.</p>';$('#rvn').textContent=LIST.length;$('#selbar').hidden=true;renderBL();stats()}
+$('#rvl').onchange=()=>{const n=document.querySelectorAll('#rvl input:checked').length;$('#selbar').hidden=!n;$('#seln').textContent=n+(n===1?' seleccionado':' seleccionados')};
+$('#rvdel').onclick=async()=>{const sel=[...document.querySelectorAll('#rvl input:checked')].map(x=>+x.value);if(!sel.length)return;
   const keys=new Set(sel.map(i=>LIST[i].key));if(!confirm(`¿Descartar ${keys.size} enlace(s) para siempre y actualizar el Gist?`))return;
-  const nl=LIST.filter(e=>!keys.has(e.key));if(!nl.length){$('#rvs').textContent='No puedes dejar la lista vacía.';return}
-  const cfg=getCfg(),out='#EXTM3U\n'+nl.map(e=>e.lines.join('\n')+'\n').join('');$('#rvdel').disabled=true;$('#rvs').textContent='Subiendo al Gist…';
-  try{const up=await upload(cfg,out),BL=loadBL();sel.forEach(i=>{BL[LIST[i].key]=nameOf(LIST[i])});saveBL(BL);LIST=nl;saveLast(LIST);$('#gist').value=up.id;save();renderRv(true);
-    $('#rvs').innerHTML=`✅ Descartados ${keys.size}. Gist actualizado (${LIST.length} enlaces). <a href="${up.link}" target="_blank" rel="noopener">Abrir lista</a>`}
-  catch(e){$('#rvs').textContent='❌ '+e.message+' No se ha descartado nada.'}
+  const nl=LIST.filter(e=>!keys.has(e.key));if(!nl.length){toast('No puedes dejar la lista vacía');return}
+  const cfg=getCfg(),out='#EXTM3U\n'+nl.map(e=>e.lines.join('\n')+'\n').join('');$('#rvdel').disabled=true;toast('Subiendo al Gist…');
+  try{const up=await upload(cfg,out),BL=loadBL();sel.forEach(i=>{BL[LIST[i].key]=nameOf(LIST[i])});saveBL(BL);LIST=nl;saveLast(LIST);$('#gist').value=up.id;save();renderRv();toast(`Descartados ${keys.size}. Gist actualizado`)}
+  catch(e){toast('Error: '+e.message+' No se ha descartado nada.')}
   finally{$('#rvdel').disabled=false}};
-$('#blv').onclick=e=>{const b=e.target.closest('button[data-j]');if(!b)return;const BL=loadBL(),k=Object.keys(BL)[+b.dataset.j];delete BL[k];saveBL(BL);renderBL();$('#rvs').textContent='Restaurado: volverá a entrar en la próxima actualización.'};
-$('#blall').onclick=()=>{if(confirm('¿Restaurar todos los descartados?')){saveBL({});renderBL()}};
-renderRv(false);
+$('#blv').onclick=e=>{const b=e.target.closest('button[data-j]');if(!b)return;const BL=loadBL(),k=Object.keys(BL)[+b.dataset.j];delete BL[k];saveBL(BL);renderBL();stats();toast('Restaurado: volverá a entrar en la próxima actualización')};
+$('#blall').onclick=()=>{if(confirm('¿Restaurar todos los descartados?')){saveBL({});renderBL();stats()}};
+renderRv();
 $('#sqp').onclick=()=>{const cfg=getCfg(),id=($('#sqid').value.trim()||'CPDEP').replace(/\.png$/i,''),o=MOV+id+'.png',n=sqUrl(cfg,o),bg='background:repeating-conic-gradient(#8884 0 25%,transparent 0 50%) 0 0/16px 16px';
-  $('#sqpv').innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap">${[['Original',o],['Con wsrv.nl',n]].map(([t,u])=>`<div style="text-align:center;font-size:12px;color:var(--mute)">${t}<br><img src="${esc(u)}" style="${bg};min-width:64px;min-height:64px;max-width:160px;image-rendering:auto;border:1px solid var(--line)"><br><img src="${esc(u)}" style="${bg};width:48px;border:1px solid var(--line);margin-top:4px"></div>`).join('')}</div><div style="font-size:11px;color:var(--mute);word-break:break-all;margin-top:6px">${esc(n)}</div>`};
-$('#chkE').onclick=async()=>{const u=($('#engine').value.trim()||'http://127.0.0.1:6878').replace(/\/$/,'');
-  try{const j=await fj(u+'/webui/api/service?method=get_version',5000);log('✅ Motor responde en '+u+': '+JSON.stringify(j.result||j).slice(0,80))}
-  catch(e){log(`❌ Sin conexión con ${u} (${e.name}: ${e.message}). ¿Ace Stream abierto? Si lo está, el navegador lo bloquea.`,'e')}};
-$('#chkG').onclick=async()=>{const t=$('#token').value.trim();if(!t)return log('Pon el token primero','e');
-  try{const r=await fetch('https://api.github.com/user',{headers:{Authorization:'token '+t}});const j=await r.json();log(r.ok?'✅ Token válido: '+j.login:'❌ GitHub respondió '+r.status+' (token incorrecto o sin permiso)',r.ok?'':'e')}
-  catch(e){log('❌ '+e.message,'e')}};
-</script></main></body></html>
+  $('#sqpv').innerHTML=`<div class="pv">${[['Original',o],['Con wsrv.nl',n]].map(([t,u])=>`<div>${t}<br><img src="${esc(u)}" style="${bg}"><br><img src="${esc(u)}" style="${bg};width:48px;margin-top:4px"></div>`).join('')}</div><p class="h" style="word-break:break-all">${esc(n)}</p>`};
+$('#chkE').onclick=async()=>{try{const j=await fj(ENGINE+'/webui/api/service?method=get_version',5000);toast('Motor responde: '+JSON.stringify(j.result||j).slice(0,60))}catch(e){toast('Sin conexión con el motor ('+e.message+'). ¿Ace Stream abierto?')}};
+$('#chkG').onclick=async()=>{const t=$('#token').value.trim();if(!t)return toast('Pon el token primero');
+  try{const r=await fetch('https://api.github.com/user',{headers:{Authorization:'token '+t}}),j=await r.json();toast(r.ok?'Token válido: '+j.login:'GitHub respondió '+r.status+' (token incorrecto o sin permiso)')}catch(e){toast('Error: '+e.message)}};
+
+</script></body></html>
