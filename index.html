@@ -278,7 +278,7 @@ const cleanId=n=>String(n||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').
   .replace(/[\(\[\{]\s*[\)\]\}]/g,' ')
   .replace(/[^A-Z0-9+ ]+/g,' ')
   .replace(/\s+/g,' ').trim();
-const m3uHead=cfg=>cfg&&cfg.epg&&cfg.epgu?'#EXTM3U url-tvg="'+cfg.epgu+'" x-tvg-url="'+cfg.epgu+'"\n':'#EXTM3U\n';
+const m3uHead=cfg=>cfg&&cfg.epg&&cfg.epgu?'#EXTM3U url-tvg="'+cfg.epgu+'"\n':'#EXTM3U\n';
 const cleanUrl=u=>{const m=String(u||'').match(/https?:\/\/[^\s\]\)\[\(<>"']+/);return m?m[0]:String(u||'').trim()};
 async function fetchEpgChannels(u,ms,sig){u=cleanUrl(u);const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
   try{const r=await fetch(u,{signal:a.signal});if(!r.ok)throw new Error('HTTP '+r.status);
