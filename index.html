@@ -278,6 +278,7 @@ const cleanId=n=>String(n||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').
   .replace(/[\(\[\{]\s*[\)\]\}]/g,' ')
   .replace(/[^A-Z0-9+ ]+/g,' ')
   .replace(/\s+/g,' ').trim();
+const m3uHead=cfg=>cfg&&cfg.epg&&cfg.epgu?'#EXTM3U url-tvg="'+cfg.epgu+'" x-tvg-url="'+cfg.epgu+'"\n':'#EXTM3U\n';
 const cleanUrl=u=>{const m=String(u||'').match(/https?:\/\/[^\s\]\)\[\(<>"']+/);return m?m[0]:String(u||'').trim()};
 async function fetchEpgChannels(u,ms,sig){u=cleanUrl(u);const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
   try{const r=await fetch(u,{signal:a.signal});if(!r.ok)throw new Error('HTTP '+r.status);
@@ -556,7 +557,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   good=[...firsts,...rest];
   log(`<b>Orden: ${firsts.length} canales (mejor enlace de cada uno) y después ${rest.length} enlaces restantes.</b>`);
   if(cfg.dead==='move')good.push(...dead);
-  const out='#EXTM3U\n'+good.map(e=>e.lines.join('\n')+'\n').join('');
+  const out=m3uHead(cfg)+good.map(e=>e.lines.join('\n')+'\n').join('');
   step('4/4 Subiendo al Gist…');const up=await upload(cfg,out);
   return{out,nOk,total:entries.length,list:good.map(e=>({lines:e.lines,key:keyOf(e.url),cached:!!e.cached,t:e.t||0,speed:(res.get(e.url)||{}).speed||0,ok:!!ok(e)})),...up}}
 /*ENDCORE*/
@@ -614,7 +615,7 @@ $('#rvl').onchange=()=>{const n=document.querySelectorAll('#rvl input:checked').
 $('#rvdel').onclick=async()=>{const sel=[...document.querySelectorAll('#rvl input:checked')].map(x=>+x.value);if(!sel.length)return;
   const keys=new Set(sel.map(i=>LIST[i].key));if(!confirm(`¿Descartar ${keys.size} enlace(s) para siempre y actualizar el Gist?`))return;
   const nl=LIST.filter(e=>!keys.has(e.key));if(!nl.length){toast('No puedes dejar la lista vacía');return}
-  const cfg=getCfg(),out='#EXTM3U\n'+nl.map(e=>e.lines.join('\n')+'\n').join('');$('#rvdel').disabled=true;toast('Subiendo al Gist…');
+  const cfg=getCfg(),out=m3uHead(cfg)+nl.map(e=>e.lines.join('\n')+'\n').join('');$('#rvdel').disabled=true;toast('Subiendo al Gist…');
   try{const up=await upload(cfg,out),BL=loadBL();sel.forEach(i=>{BL[LIST[i].key]=nameOf(LIST[i])});saveBL(BL);LIST=nl;saveLast(LIST);$('#gist').value=up.id;save();renderRv();toast(`Descartados ${keys.size}. Gist actualizado`)}
   catch(e){toast('Error: '+e.message+' No se ha descartado nada.')}
   finally{$('#rvdel').disabled=false}};
