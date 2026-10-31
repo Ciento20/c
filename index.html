@@ -381,10 +381,10 @@ VAMOS720
 VAMOS
 M+ Vamos
 MOVISTAR VAMOS: VAMOHD
-MOVISTAR FANZONE
-M+ FANZONE
 MOVISTAR VAMOS 2
 VAMOS 2
+MOVISTAR FANZONE
+M+ FANZONE
 M+ VAMOS 2: VAM2SD
 MOVISTAR ELLAS
 M+ ELLAS VAMOS
@@ -515,7 +515,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     log(`<b>EPG: ${n} de ${entries.length} enlaces con tvg-id.</b>`);
     if(miss.size)log('Sin EPG ('+miss.size+'): '+esc([...miss].slice(0,60).join(' · ')),'e')}
   catch(e){if(sig&&sig.aborted)throw e;log('⚠ EPG no disponible, la lista sale sin tvg-id: '+esc(e.message),'e')}}
-  const ren=x=>String(x).replace(/\bLALIGA TV HYPERMOTION\b/gi,'HYPERMOTION').replace(/\bLA LIGA\b/gi,'LALIGA');
+  const ren=x=>String(x).replace(/\bLALIGA TV HYPERMOTION\b/gi,'HYPERMOTION').replace(/\bLA LIGA\b/gi,'LALIGA').replace(/\bDAZN LALIGA 1\b/gi,'DAZN LALIGA').replace(/\bFANZONE\b/gi,'VAMOS 2').replace(/\s*\bSPAIN\b\s*/gi,' ').replace(/\s{2,}/g,' ').trim();
   const upN=x=>ren(x.toUpperCase()).replace(/^(?:M\+|MOVISTAR\+?(?:\s+PLUS)?)$/,'MOVISTAR+ PLUS').replace(/^M\+\s*/,'MOVISTAR+ ').replace(/^MOVISTAR\s+PLUS\s+(?=\S)/,'MOVISTAR+ ').replace(/^MOVISTAR\s+(?!PLUS$)(?=\S)/,'MOVISTAR+ ').replace(/\s+/g,' ').trim().replace(/^MOVISTAR\+\s+(LIGA DE CAMPEONES\b)/,'$1');
   for(const e of entries){let l=e.lines[0];const g=groupOf(e);
     if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
