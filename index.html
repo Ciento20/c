@@ -65,6 +65,7 @@ DAZN 3
 DAZN 4
 DAZN LALIGA
 DAZN LALIGA 2
+DAZN BALONCESTO
 DAZN BALONCESTO 2
 DAZN BALONCESTO 3
 DAZN MOTOGP
@@ -304,6 +305,9 @@ DAZN LALIGA: DAZNLI
 DAZN LA LIGA 2
 DAZN LALIGA 5
 DAZN LALIGA 2: DAZNL2
+DAZN BALONCESTO 1
+DAZN ACB
+DAZN BALONCESTO: DAZBA
 ACB EVENTO 02
 DAZN ACB 2
 DAZN BALONCESTO 2: DAZB2
@@ -504,10 +508,10 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
     const gt0=(l.match(/group-title="([^"]*)"/)||[])[1],raw=stripQ(cfg.reuse&&gt0&&gt0!=='Caídos'?gt0:(c>-1?l.slice(c+1).trim():'')),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
-    l=l.replace(cfg.reuse?/\s(?:tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
+    l=l.replace(cfg.reuse?/\s(?:tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
     if(g)l=setName(l,g);e.lines[0]=l}
-  if(cfg.logo||cfg.keepall)await addLogos(cfg,entries,log);
-  if(cfg.logo&&!cfg.keepall){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
+  if((cfg.logo||cfg.keepall)&&!cfg.reuse)await addLogos(cfg,entries,log);
+  if(cfg.logo&&!cfg.keepall&&!cfg.reuse){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
   if(cfg.epg&&!cfg.reuse){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
     let n=0;const miss=new Set();
     for(const e of entries){const g=groupOf(e),h=epgMatch(epg,B,g);let l=e.lines[0];
@@ -521,7 +525,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
     {const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
     e.lines[0]=l}
-  if(cfg.cleanid)for(const e of entries){const id=e.mc?(cfg.idpre||'')+e.mc:cleanId(groupOf(e));if(id)e.lines[0]=setAttr(e.lines[0],'tvg-id',id)}
+  if(cfg.cleanid&&!cfg.reuse)for(const e of entries){const id=e.mc?(cfg.idpre||'')+e.mc:cleanId(groupOf(e));if(id)e.lines[0]=setAttr(e.lines[0],'tvg-id',id)}
   const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
   const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
   if(fm&&!cfg.reuse){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
