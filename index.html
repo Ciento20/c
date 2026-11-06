@@ -540,7 +540,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     e.lines[0]=l}
   if(cfg.cleanid&&!local)for(const e of entries){const id=e.mc?(cfg.idpre||'')+e.mc:cleanId(groupOf(e));if(id)e.lines[0]=setAttr(e.lines[0],'tvg-id',id)}
   const onlySet=!cfg.reuse&&cfg.only&&cfg.only.length?new Set(cfg.only):null;
-  const prevRes=new Map();if(local){for(const x of (cfg.prev||[]))prevRes.set(x.lines[x.lines.length-1],x)}
+  const prevRes=new Map();if(local||(cfg.only&&cfg.only.length)){for(const x of (cfg.prev||[]))prevRes.set(x.lines[x.lines.length-1],x)}
   if(cfg.reuse)log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>');
   let testUrls=null;
   if(onlySet){const chan=e=>nameOfE(e.lines[0]).toLowerCase(),n0=entries.length;
