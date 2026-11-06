@@ -49,8 +49,10 @@ nav .p{width:64px;height:32px;border-radius:16px;display:grid;place-items:center
  <div class="hero"><div class="s" id="st">Listo para empezar</div><div class="bar"><i id="pb"></i></div>
   <div class="row"><button class="btn" id="go"><svg class="i"><use href="#i-play"/></svg>Actualizar todo</button>
   <button class="btn t" id="goc" title="Reutiliza la última lista y su test: sin descargar, sin motor y sin probar"><svg class="i"><use href="#i-bolt"/></svg>Última lista</button>
+  <button class="btn t" id="gon" title="Prueba los enlaces de la última lista sin descargar las fuentes"><svg class="i"><use href="#i-check"/></svg>Probar lista</button>
   <button class="btn e" id="stop" hidden><svg class="i"><use href="#i-stop"/></svg>Detener</button></div></div>
  <div class="stats"><div class="st"><b id="sCh">0</b><span>En la lista</span></div><div class="st"><b id="sCa">0</b><span>En caché 15 d</span></div><div class="st"><b id="sBl">0</b><span>Descartados</span></div></div>
+ <details class="card" id="pick"><summary>Actualizar solo algunos canales<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><p class="h" style="margin-left:0">Elige los canales que quieres volver a probar. El resto de la lista se queda como está, sin probarlo otra vez, y se sube todo junto al Gist. «Probar sin descargar» usa solo la última lista, sin bajar las fuentes.</p><div class="f"><input id="chq" type="text" placeholder=" " autocomplete="off"><label for="chq">Buscar canal</label></div><div id="chl" style="max-height:50vh;overflow:auto"></div><div class="row"><button class="btn t" id="gosn"><svg class="i"><use href="#i-check"/></svg>Probar sin descargar</button><button class="btn" id="gos"><svg class="i"><use href="#i-play"/></svg>Actualizar elegidos (<span id="chn">0</span>)</button></div></div></details>
  <div class="card" id="res" hidden></div>
  <details class="card" id="logd"><summary>Registro<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd" style="padding:0"><div id="log"></div></div></details>
 </section>
@@ -130,7 +132,7 @@ M+ GOLF
 M+ GOLF 2
 
 EUROSPORT 1
-EUROSPORT 2</textarea><label for="ord">Un canal por línea</label></div><p class="h">Las líneas en blanco se ignoran; los canales que no estén aquí van después; vacío = orden automático. Después de todos ellos van los enlaces repetidos, en el mismo orden.</p></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-test"/></svg></span>Pruebas<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div class="g3"><div class="f"><input id="workers" type="number" placeholder=" " value="4" min="1" max="10"><label for="workers">A la vez</label></div><div class="f"><input id="timeout" type="number" placeholder=" " value="25" min="5" max="90"><label for="timeout">Espera (s)</label></div><div class="f"><input id="retries" type="number" placeholder=" " value="1" min="0" max="3"><label for="retries">Reintentos</label></div></div><div class="g2"><div class="f"><select id="dead"><option value="remove">Quitarlos</option><option value="move">Grupo «Caídos»</option><option value="keep">Al final de su grupo</option></select><label>Canales caídos</label></div><div class="f"><input id="minok" type="number" placeholder=" " value="1" min="1"><label for="minok">Mínimo OK</label></div></div><label class="sw"><span><b>Listar canales sin enlace que funcione</b><small>Si ningún enlace de un canal funciona, aparece igualmente con un enlace vacío (sin hash) en su sitio del orden. No aplica con «Al final de su grupo»</small></span><input type="checkbox" id="phold"><i></i></label><div class="f"><input id="minspd" type="number" placeholder=" " value="1000" min="0"><label for="minspd">Velocidad mínima (KB/s) para dar un canal por bueno</label></div><div class="row"><button class="btn t" id="chkE"><svg class="i"><use href="#i-check"/></svg>Comprobar motor</button></div></div></details>
+EUROSPORT 2</textarea><label for="ord">Un canal por línea</label></div><p class="h">Las líneas en blanco se ignoran; los canales que no estén aquí van después; vacío = orden automático. Después de todos ellos van los enlaces repetidos, en el mismo orden.</p></div></details><details class="sec"><summary><span class="ic"><svg class="i"><use href="#i-test"/></svg></span>Pruebas<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><div class="g3"><div class="f"><input id="workers" type="number" placeholder=" " value="4" min="1" max="20"><label for="workers">A la vez</label></div><div class="f"><input id="timeout" type="number" placeholder=" " value="25" min="5" max="90"><label for="timeout">Espera (s)</label></div><div class="f"><input id="retries" type="number" placeholder=" " value="1" min="0" max="3"><label for="retries">Reintentos</label></div></div><div class="g2"><div class="f"><select id="dead"><option value="remove">Quitarlos</option><option value="move">Grupo «Caídos»</option><option value="keep">Al final de su grupo</option></select><label>Canales caídos</label></div><div class="f"><input id="minok" type="number" placeholder=" " value="1" min="1"><label for="minok">Mínimo OK</label></div></div><label class="sw"><span><b>Listar canales sin enlace que funcione</b><small>Si ningún enlace de un canal funciona, aparece igualmente con un enlace vacío (sin hash) en su sitio del orden. No aplica con «Al final de su grupo»</small></span><input type="checkbox" id="phold"><i></i></label><div class="f"><input id="minspd" type="number" placeholder=" " value="1000" min="0"><label for="minspd">Velocidad mínima (KB/s) para dar un canal por bueno</label></div><div class="f"><input id="spl" type="number" placeholder=" " value="3" min="1" max="10"><label for="spl">Mediciones de velocidad por enlace (1 = más rápido)</label></div><p class="h">Cada medición añade ~1 s por enlace. Con 1 solo se lee la velocidad una vez; con más se promedia.</p><div class="f"><input id="stab" type="number" placeholder=" " value="3" min="0" max="10" step="0.5"><label for="stab">Espera antes de medir (s)</label></div><p class="h">Tiempo que se deja que el flujo se estabilice antes de la primera medición. Con 1 s o menos va mucho más rápido, pero la velocidad inicial puede ser menor y dar falsos «velocidad baja».</p><div class="row"><button class="btn t" id="chkE"><svg class="i"><use href="#i-check"/></svg>Comprobar motor</button></div></div></details>
  <p class="h">Los ajustes (incluido el token) se guardan solo en este navegador. Si no funcionan las conexiones, abre este archivo desde tu PWA o servidor local.</p>
 </section>
 </main>
@@ -142,6 +144,16 @@ EUROSPORT 2</textarea><label for="ord">Un canal por línea</label></div><p class
 const ENGINE='http://127.0.0.1:6878';
 const ACE=/^(https?:\/\/[^/]+)\/ace\/getstream\?(?:[^#]*&)?id=([0-9a-fA-F]{20,})/i;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function ensureEngine(base,sig,log,wait=45000){
+  const say=m=>{try{log&&log(m)}catch(e){}};
+  const up=async()=>{try{await fj(base+'/webui/api/service?method=get_version',3000,sig);return true}catch(e){return false}};
+  if(await up())return true;
+  if(sig&&sig.aborted)return false;
+  say('Motor Ace Stream apagado: intentando encenderlo…');
+  try{const l=document.createElement('a');l.href='acestream://';l.style.display='none';document.body.appendChild(l);l.click();l.remove()}catch(e){}
+  const t0=Date.now();
+  while(Date.now()-t0<wait){if(sig&&sig.aborted)return false;await sleep(2000);if(await up()){say('✓ Motor encendido');return true}}
+  say('✕ El motor no arrancó solo en '+Math.round(wait/1000)+' s','e');return false}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function parseM3U(text,base){let head='#EXTM3U',entries=[],cur=null;const conv=u=>base?u.replace(/^acestream:\/\/([0-9a-f]{40}).*/i,(m,h)=>`${base}/ace/getstream?id=${h.toLowerCase()}`):u;
   for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){const l=raw.trim();if(!l)continue;
@@ -160,15 +172,15 @@ const extOut=(cfg,e,i,N)=>{let l=e.lines[0];const nm=nameOfE(l).toLowerCase();if
 function setName(l,n){const i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return (c>-1?l.slice(0,c):l)+','+n}
 async function fj(u,ms,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,ms);sig&&sig.addEventListener('abort',f);
   try{const r=await fetch(u,{signal:a.signal});return await r.json()}finally{clearTimeout(t);sig&&sig.removeEventListener('abort',f)}}
-async function testAce(m,tmo,sig,minSpd){const base=m[1],id=m[2],pid='p'+Math.random().toString(36).slice(2,10);let r;
+async function testAce(m,tmo,sig,minSpd,spl,stab){stab=Math.max(0,Math.min(10,isNaN(stab)?3:stab));spl=Math.max(1,Math.min(10,spl||3));const base=m[1],id=m[2],pid='p'+Math.random().toString(36).slice(2,10);let r;
   try{r=await fj(`${base}/ace/getstream?id=${id}&format=json&pid=${pid}`,15000,sig)}catch(e){return{ok:false,why:'motor: '+e.message}}
   if(!r.response)return{ok:false,why:String(r.error||'rechazado').slice(0,60)};
   const {stat_url,command_url}=r.response,t0=Date.now();
-  try{while(Date.now()-t0<tmo*1000&&!sig.aborted){await sleep(1500);let s;
+  try{while(Date.now()-t0<tmo*1000&&!sig.aborted){await sleep(600);let s;
       try{s=(await fj(stat_url,8000,sig)).response||{}}catch(e){continue}
-      if(s.status==='dl'||(s.peers>0&&s.speed_down>0)){await sleep(3000);
+      if(s.status==='dl'||(s.peers>0&&s.speed_down>0)){await sleep(stab*1000);
         const v=[];let peers=s.peers||0;
-        for(let k=0;k<3&&!sig.aborted;k++){try{const x=(await fj(stat_url,8000,sig)).response||{};v.push(x.speed_down||0);peers=x.peers||peers}catch(e){}if(k<2)await sleep(1500)}
+        for(let k=0;k<spl&&!sig.aborted;k++){try{const x=(await fj(stat_url,8000,sig)).response||{};v.push(x.speed_down||0);peers=x.peers||peers}catch(e){}if(k<spl-1)await sleep(1000)}
         const avg=v.length?v.reduce((a,b)=>a+b,0)/v.length:0;
         if(avg<(minSpd||0))return{ok:false,why:'velocidad baja '+Math.round(avg)+' KB/s (mín. '+minSpd+')'};
         return{ok:true,speed:avg,peers}}}
@@ -176,7 +188,7 @@ async function testAce(m,tmo,sig,minSpd){const base=m[1],id=m[2],pid='p'+Math.ra
   finally{fetch(command_url+'?method=stop').catch(()=>{})}}
 async function testHttp(u,tmo,sig){const a=new AbortController(),f=()=>a.abort(),t=setTimeout(f,Math.min(tmo,15)*1000);sig.addEventListener('abort',f);
   try{await fetch(u,{mode:'no-cors',signal:a.signal});return{ok:true,speed:0}}catch(e){return{ok:false,why:e.message}}finally{clearTimeout(t);a.abort();sig.removeEventListener('abort',f)}}
-async function testOne(u,tmo,sig,minSpd){try{const m=u.match(ACE);return m?await testAce(m,tmo,sig,minSpd):await testHttp(u,tmo,sig)}catch(e){return{ok:false,why:e.message}}}
+async function testOne(u,tmo,sig,minSpd,spl,stab){try{const m=u.match(ACE);return m?await testAce(m,tmo,sig,minSpd,spl,stab):await testHttp(u,tmo,sig)}catch(e){return{ok:false,why:e.message}}}
 const HASH40=/(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/i;
 const isValidEra=t=>t&&(t.includes('#EXTINF')||HASH40.test(t));
 function sanitizeName(n){return String(n||'')
@@ -490,11 +502,12 @@ const stripQ=n=>{const r=String(n||'').replace(/\*+/g,' ').replace(/[\(\[]\s*ES\
 const SEENK='m3useen',TTL=15*864e5,loadSeen=()=>{try{return JSON.parse(localStorage.getItem(SEENK)||'{}')}catch(e){return{}}},saveSeen=o=>{try{localStorage.setItem(SEENK,JSON.stringify(o));return true}catch(e){return false}};
 const BLK='m3udead',loadBL=()=>{try{return JSON.parse(localStorage.getItem(BLK)||'{}')}catch(e){return{}}},saveBL=o=>{try{localStorage.setItem(BLK,JSON.stringify(o))}catch(e){}},keyOf=u=>{const m=String(u).match(ACE);return m?m[2].toLowerCase():u};
 async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
-  if(cfg.reuse&&!(cfg.prev||[]).length)throw new Error('No hay ninguna lista guardada en este navegador. Usa antes «Actualizar todo». No se toca el Gist.');
-  const {head,entries}=cfg.reuse?{head:'#EXTM3U',entries:cfg.prev.map(x=>({lines:[...x.lines],url:x.lines[x.lines.length-1],cached:x.cached,t:x.t}))}:parseEra(text,cfg.engine);
-  if(cfg.reuse){const k=entries.filter(e=>!String(e.url).startsWith(PH));entries.splice(0,entries.length,...k)}
-  for(const x of (cfg.reuse?[]:(cfg.extras||[]))){const have=new Set(entries.map(e=>keyOf(e.url)));let n=0,tot=0;for(const e of parseEra(x.text,cfg.engine).entries){tot++;const k=keyOf(e.url);if(!have.has(k)){have.add(k);entries.push(e);n++}}log(`Fuente ${x.label}: ${tot} enlaces, ${n} nuevos añadidos.`)}
-  if(!cfg.reuse){const now=Date.now(),seen=loadSeen(),have=new Set(),nSrc=entries.length;let rec=0,exp=0;
+  const local=cfg.reuse||cfg.nodl;
+  if(local&&!(cfg.prev||[]).length)throw new Error('No hay ninguna lista guardada en este navegador. Usa antes «Actualizar todo». No se toca el Gist.');
+  const {head,entries}=local?{head:'#EXTM3U',entries:cfg.prev.map(x=>({lines:[...x.lines],url:x.lines[x.lines.length-1],cached:x.cached,t:x.t}))}:parseEra(text,cfg.engine);
+  if(local){const k=entries.filter(e=>!String(e.url).startsWith(PH));entries.splice(0,entries.length,...k)}
+  for(const x of (local?[]:(cfg.extras||[]))){const have=new Set(entries.map(e=>keyOf(e.url)));let n=0,tot=0;for(const e of parseEra(x.text,cfg.engine).entries){tot++;const k=keyOf(e.url);if(!have.has(k)){have.add(k);entries.push(e);n++}}log(`Fuente ${x.label}: ${tot} enlaces, ${n} nuevos añadidos.`)}
+  if(!local){const now=Date.now(),seen=loadSeen(),have=new Set(),nSrc=entries.length;let rec=0,exp=0;
     for(const e of entries){const k=keyOf(e.url);have.add(k);e.t=now;seen[k]={l:[...e.lines],t:now}}
     for(const k of Object.keys(seen)){if(have.has(k))continue;const s=seen[k];
       if(now-s.t>TTL){if(nSrc){delete seen[k];exp++}continue}
@@ -506,13 +519,13 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
   log(`${entries.length} canales.`);step('2/4 Limpiando nombres…');
   const first=new Map();
   for(const e of entries){let l=e.lines[0];const m=e.url.match(ACE),i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));
-    const gt0=(l.match(/group-title="([^"]*)"/)||[])[1],raw=stripQ(cfg.reuse&&gt0&&gt0!=='Caídos'?gt0:(c>-1?l.slice(c+1).trim():'')),key=raw.toLowerCase().replace(/\s+/g,' ');
+    const gt0=(l.match(/group-title="([^"]*)"/)||[])[1],raw=stripQ(local&&gt0&&gt0!=='Caídos'?gt0:(c>-1?l.slice(c+1).trim():'')),key=raw.toLowerCase().replace(/\s+/g,' ');
     if(!first.has(key))first.set(key,raw);const g=first.get(key);
-    l=l.replace(cfg.reuse?/\s(?:tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
+    l=l.replace(local?/\s(?:tvg-country|tvg-language|tvg-chno)="[^"]*"/gi:/\s(?:tvg-id|tvg-name|tvg-logo|tvg-country|tvg-language|tvg-chno)="[^"]*"/gi,'');if(g)l=setAttr(l,'group-title',g);l=setAttr(l,'tvg-country','ES');l=setAttr(l,'tvg-language','ES');
     if(g)l=setName(l,g);e.lines[0]=l}
-  if((cfg.logo||cfg.keepall)&&!cfg.reuse)await addLogos(cfg,entries,log);
-  if(cfg.logo&&!cfg.keepall&&!cfg.reuse){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
-  if(cfg.epg&&!cfg.reuse){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
+  if((cfg.logo||cfg.keepall)&&!local)await addLogos(cfg,entries,log);
+  if(cfg.logo&&!cfg.keepall&&!local){const k=entries.filter(e=>/tvg-logo="[^"]+"/.test(e.lines[0]));const q=entries.length-k.length;entries.splice(0,entries.length,...k);log(`<b>Descartados ${q} canales fuera de la lista. Quedan ${entries.length}.</b>`);if(!entries.length)throw new Error('Ningún canal coincide con la lista de logos. No se toca el Gist.')}
+  if(cfg.epg&&!local){step('EPG: asignando tvg-id y tvg-name…');try{const epg=await fetchEpgChannels(cfg.epgu,60000,sig),B=parseLogoGist(BUILTIN_LOGOS);log(`EPG: ${new Set([...epg.values()]).size} canales leídos.`);
     let n=0;const miss=new Set();
     for(const e of entries){const g=groupOf(e),h=epgMatch(epg,B,g);let l=e.lines[0];
       if(h){l=setAttr(l,'tvg-id',h.id);l=setAttr(l,'tvg-name',h.name);n++}else miss.add(g);e.lines[0]=l}
@@ -525,15 +538,23 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
     if(g&&g!==upN(g))l=setAttr(l,'group-title',upN(g));
     {const n=nameOfE(l);if(n&&n!==upN(n))l=setName(l,upN(n))}
     e.lines[0]=l}
-  if(cfg.cleanid&&!cfg.reuse)for(const e of entries){const id=e.mc?(cfg.idpre||'')+e.mc:cleanId(groupOf(e));if(id)e.lines[0]=setAttr(e.lines[0],'tvg-id',id)}
-  const urls=[...new Set(entries.map(e=>e.url))],fm=urls.map(u=>u.match(ACE)).find(Boolean);
-  const prevRes=new Map();if(cfg.reuse){for(const x of cfg.prev)prevRes.set(x.lines[x.lines.length-1],x);log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>')}
-  if(fm&&!cfg.reuse){try{await fj(fm[1]+'/webui/api/service?method=get_version',5000,sig)}catch(e){
-    throw new Error(`El motor Ace Stream no responde en ${fm[1]} (${e.name}: ${e.message}). Comprueba que está abierto; si lo está, el navegador bloquea la conexión. No se sube nada.`)}}
+  if(cfg.cleanid&&!local)for(const e of entries){const id=e.mc?(cfg.idpre||'')+e.mc:cleanId(groupOf(e));if(id)e.lines[0]=setAttr(e.lines[0],'tvg-id',id)}
+  const onlySet=!cfg.reuse&&cfg.only&&cfg.only.length?new Set(cfg.only):null;
+  const prevRes=new Map();if(local){for(const x of (cfg.prev||[]))prevRes.set(x.lines[x.lines.length-1],x)}
+  if(cfg.reuse)log('<b>Modo caché: sin descargar la lista, sin motor y sin probar enlaces. Se usan los resultados del último test.</b>');
+  let testUrls=null;
+  if(onlySet){const chan=e=>nameOfE(e.lines[0]).toLowerCase(),n0=entries.length;
+    const keep=entries.filter(e=>onlySet.has(chan(e))||prevRes.has(e.url));entries.splice(0,entries.length,...keep);
+    testUrls=[...new Set(entries.filter(e=>onlySet.has(chan(e))).map(e=>e.url))];
+    log(`<b>Solo se prueban ${onlySet.size} canales elegidos (${testUrls.length} enlaces). El resto conserva su último test${n0>keep.length?`; ${n0-keep.length} enlaces nuevos de otros canales se dejan para la próxima actualización completa`:''}.</b>`);
+    if(!testUrls.length)throw new Error('Ningún enlace de los canales elegidos aparece en las fuentes. No se sube nada.')}
+  const urls=[...new Set(entries.map(e=>e.url))],tst=testUrls||urls,fm=tst.map(u=>u.match(ACE)).find(Boolean);
+  if(fm&&!cfg.reuse){if(!await ensureEngine(fm[1],sig,log)){
+    throw new Error(`El motor Ace Stream no responde en ${fm[1]} y no se pudo encender solo. Ábrelo a mano; si ya está abierto, el navegador bloquea la conexión. No se sube nada.`)}}
   step('3/4 Probando enlaces…');const res=new Map();for(const [u,x] of prevRes)res.set(u,{ok:!!x.ok,speed:x.speed||0});
-  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=cfg.reuse?[]:ronda?urls.filter(u=>!res.get(u).ok):urls;if(!todo.length)break;
+  for(let ronda=0;ronda<=cfg.retries;ronda++){const todo=cfg.reuse?[]:ronda?tst.filter(u=>!res.get(u).ok):tst;if(!todo.length)break;
     log(ronda?`<b>Reintento ${ronda}: ${todo.length} enlaces</b>`:`<b>Probando ${todo.length} enlaces (${cfg.workers} a la vez)</b>`);let i=0,done=0;
-    const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig,cfg.minspd);if(sig.aborted)return;
+    const w=async()=>{while(i<todo.length&&!sig.aborted){const u=todo[i++],r=await testOne(u,cfg.timeout,sig,cfg.minspd,cfg.spl,cfg.stab);if(sig.aborted)return;
       res.set(u,r);done++;log(`${r.ok?'✓':'✕'} …${esc(u.slice(-12))} ${r.ok?Math.round(r.speed)+' KB/s':esc(r.why)}`);
       prog(done,todo.length,[...res.values()].filter(x=>x.ok).length)}};
     await Promise.all(Array.from({length:cfg.workers},w));if(sig.aborted)throw new Error('Detenido. No se sube nada.')}
@@ -564,7 +585,7 @@ async function runAll(cfg,text,io){const {log,prog,step,sig}=io;
 /*ENDCORE*/
 
 const $=s=>document.querySelector(s);
-const F=['ipk','token','gist','file','workers','timeout','retries','dead','minok','minspd','sqs','sqf','sqlist','sqid','sqbg','ord','idpre','epgu'],CB=['era','ec','as','epg','cleanid','hidename','logo','numb','keepall','phold'];
+const F=['ipk','token','gist','file','workers','timeout','retries','dead','minok','minspd','spl','stab','sqs','sqf','sqlist','sqid','sqbg','ord','idpre','epgu'],CB=['era','ec','as','epg','cleanid','hidename','logo','numb','keepall','phold'];
 try{const s=JSON.parse(localStorage.getItem('m3uauto')||'{}');F.forEach(k=>{if(s[k]!=null)$('#'+k).value=s[k]});CB.forEach(k=>{if(s[k]!=null)$('#'+k).checked=s[k]})}catch(e){}
 if(['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/EPG_dobleM.xml','https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv_sincolor.xml.gz'].includes($('#epgu').value))$('#epgu').value='https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml';
 const save=()=>{try{const s={};F.forEach(k=>s[k]=$('#'+k).value);CB.forEach(k=>s[k]=$('#'+k).checked);localStorage.setItem('m3uauto',JSON.stringify(s))}catch(e){}};
@@ -576,25 +597,34 @@ function go(n){document.querySelectorAll('.pg').forEach(p=>p.hidden=p.id!=='pg-'
 tabs.forEach(b=>b.onclick=()=>go(b.dataset.t));
 const getCfg=()=>({era:$('#era').checked,ipnsKey:$('#ipk').value.trim(),ipnsPath:'/data/listas/listaplana.txt',ipnsGw:'',engine:ENGINE,token:$('#token').value.trim(),gistId:$('#gist').value.trim(),file:$('#file').value.trim()||'canales.m3u',
   epg:$('#epg').checked,epgu:cleanUrl($('#epgu').value)||'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml',cleanid:$('#cleanid').checked,hidename:$('#hidename').checked,numb:$('#numb').checked,phold:$('#phold').checked,keepall:$('#keepall').checked,idpre:$('#idpre').value.trim(),logo:$('#logo').checked,sqlist:$('#sqlist').value,sqs:Math.max(16,Math.min(1024,+$('#sqs').value||216)),sqf:$('#sqf').value,sqx:'',sqbg:$('#sqbg').value.trim(),ord:$('#ord').value,ec:$('#ec').checked,as:$('#as').checked,asu:ENGINE+'/pl.m3u',pub:false,
-  workers:Math.max(1,Math.min(10,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),api:'https://api.github.com'});
+  workers:Math.max(1,Math.min(20,+$('#workers').value||4)),timeout:Math.max(5,+$('#timeout').value||25),retries:Math.max(0,+$('#retries').value||0),dead:$('#dead').value,minok:Math.max(1,+$('#minok').value||1),minspd:Math.max(0,+$('#minspd').value||0),spl:Math.max(1,Math.min(10,+$('#spl').value||3)),stab:Math.max(0,Math.min(10,$('#stab').value===''?3:+$('#stab').value)),api:'https://api.github.com'});
 const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.innerHTML=h;const L=$('#log');L.appendChild(d);L.scrollTop=L.scrollHeight};
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
 const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ${ok} funcionan`};
 const LK='m3ulast',loadLast=()=>{try{return JSON.parse(localStorage.getItem(LK)||'[]')}catch(e){return[]}},saveLast=l=>{try{localStorage.setItem(LK,JSON.stringify(l))}catch(e){log('⚠ No se pudo guardar la lista en el navegador.','e')}};
-let LIST=loadLast(),ctl=null,REUSE=false;
+let LIST=loadLast(),ctl=null,REUSE=false,ONLY=null,NODL=false;
 const stats=()=>{$('#sCh').textContent=LIST.length;$('#sCa').textContent=Object.keys(loadSeen()).length;$('#sBl').textContent=Object.keys(loadBL()).length};
-function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#stop').hidden=!b;$('#go').classList.toggle('run',b)}
+function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#gos').disabled=b;$('#gon').disabled=b;$('#gosn').disabled=b;$('#stop').hidden=!b;$('#go').classList.toggle('run',b)}
 $('#stop').onclick=()=>ctl&&ctl.abort();
 $('#goc').onclick=()=>{if(ctl)return;REUSE=true;$('#go').click()};
+$('#gos').onclick=()=>{if(ctl)return;const sel=[...document.querySelectorAll('#chl input:checked')].map(x=>x.value);if(!sel.length)return toast('Elige al menos un canal');if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');ONLY=sel;$('#go').click()};
+$('#gon').onclick=()=>{if(ctl)return;if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');NODL=true;$('#go').click()};
+$('#gosn').onclick=()=>{if(ctl)return;const sel=[...document.querySelectorAll('#chl input:checked')].map(x=>x.value);if(!sel.length)return toast('Elige al menos un canal');if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');ONLY=sel;NODL=true;$('#go').click()};
+$('#chl').onchange=()=>{$('#chn').textContent=document.querySelectorAll('#chl input:checked').length};
+$('#chq').oninput=()=>{const q=$('#chq').value.trim().toLowerCase();document.querySelectorAll('#chl label').forEach(l=>{l.style.display=!q||l.dataset.n.includes(q)?'':'none'})};
+function renderCh(){const m=new Map();for(const e of LIST){const k=nameOf(e).toLowerCase();if(!m.has(k))m.set(k,{n:nameOf(e),c:0});m.get(k).c++}
+  const keep=new Set([...document.querySelectorAll('#chl input:checked')].map(x=>x.value));
+  $('#chl').innerHTML=[...m].map(([k,v])=>`<label class="it" data-n="${esc(k)}"><input type="checkbox" value="${esc(k)}"${keep.has(k)?' checked':''}><i class="ck"><svg class="i"><use href="#i-check"/></svg></i><span class="tx"><b>${esc(v.n)}</b><small>${v.c} ${v.c===1?'enlace':'enlaces'}</small></span></label>`).join('')||'<p class="h">Aún no hay lista guardada.</p>';
+  $('#chn').textContent=keep.size;$('#chq').oninput()}
 $('#clrc').onclick=()=>{if(confirm('¿Vaciar la caché de 15 días? Los canales que ya no estén en las fuentes se perderán.')){saveSeen({});stats();toast('Caché vaciada')}};
-$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;if(cfg.reuse)cfg.prev=loadLast();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').hidden=true;$('#pb').style.width='0';$('#logd').open=true;let wl;
+$('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;cfg.only=ONLY;ONLY=null;cfg.nodl=NODL;NODL=false;if(cfg.reuse||cfg.only||cfg.nodl)cfg.prev=loadLast();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').hidden=true;$('#pb').style.width='0';$('#logd').open=true;let wl;
   try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
-    step(cfg.reuse?'1/4 Usando la última lista (sin conexión)…':'1/4 Descargando fuentes…');let text='';const paste=$('#paste').value.trim(),hasC=Object.keys(loadSeen()).length>0;
-    if(!cfg.reuse&&!cfg.era&&!cfg.ec&&!cfg.as&&!paste&&!hasC)throw new Error('Activa al menos una fuente en Ajustes.');
-    if(!cfg.reuse){if(paste)text=$('#paste').value;else if(cfg.era){try{log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,'')}catch(e){if(!(cfg.ec||cfg.as||hasC))throw e;log('⚠ ERA: '+esc(e.message),'e')}}}
+    step(cfg.reuse?'1/4 Usando la última lista (sin conexión)…':cfg.nodl?'1/4 Usando la última lista, sin descargar fuentes…':'1/4 Descargando fuentes…');let text='';const paste=$('#paste').value.trim(),hasC=Object.keys(loadSeen()).length>0;
+    if(!cfg.reuse&&!cfg.nodl&&!cfg.era&&!cfg.ec&&!cfg.as&&!paste&&!hasC)throw new Error('Activa al menos una fuente en Ajustes.');
+    if(!cfg.reuse&&!cfg.nodl){if(paste)text=$('#paste').value;else if(cfg.era){try{log('Buscando el archivo en pasarelas IPFS (IPNS)…');text=await fetchIpns(cfg.ipnsKey,cfg.ipnsPath,ctl.signal,log,'')}catch(e){if(!(cfg.ec||cfg.as||hasC))throw e;log('⚠ ERA: '+esc(e.message),'e')}}}
     const extras=[];
-    if(cfg.ec&&!cfg.reuse){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,''))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
-    if(cfg.as&&!cfg.reuse){try{log('AS: leyendo '+esc(cfg.asu));const ra=await fetch(cfg.asu,{signal:ctl.signal});if(!ra.ok)throw new Error('HTTP '+ra.status);extras.push({label:'AS',text:asToM3U(await ra.text())})}catch(e){log('✕ AS: '+esc(e.message==='Failed to fetch'?'sin respuesta (¿está abierto el motor AceStream?)':e.message),'e')}}
+    if(cfg.ec&&!cfg.reuse&&!cfg.nodl){try{log('EC: descargando Elcano…');extras.push({label:'EC',text:elcanoToM3U(await fetchElcano(ctl.signal,log,''))})}catch(e){log('✕ EC: '+esc(e.message),'e')}}
+    if(cfg.as&&!cfg.reuse&&!cfg.nodl){try{log('AS: leyendo '+esc(cfg.asu));await ensureEngine(ENGINE,ctl.signal,log);const ra=await fetch(cfg.asu,{signal:ctl.signal});if(!ra.ok)throw new Error('HTTP '+ra.status);extras.push({label:'AS',text:asToM3U(await ra.text())})}catch(e){log('✕ AS: '+esc(e.message==='Failed to fetch'?'sin respuesta (¿está abierto el motor AceStream?)':e.message),'e')}}
     cfg.extras=extras;
     const r=await runAll(cfg,text,{log,prog,step,sig:ctl.signal});
     $('#gist').value=r.id;save();$('#pb').style.width='100%';$('#st').textContent=`Listo: ${r.nOk} de ${r.total} funcionan y están en el Gist`;
@@ -607,10 +637,11 @@ $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REU
 const nameOf=e=>{const l=e.lines[0],i=l.lastIndexOf('"'),c=l.indexOf(',',Math.max(i,0));return (c>-1?l.slice(c+1).trim():'')||((l.match(/group-title="([^"]*)"/)||[])[1])||'?'},grpOf=e=>{const m=e.lines[0].match(/group-title="([^"]*)"/);return m?m[1]:''};
 function renderBL(){const BL=loadBL(),ks=Object.keys(BL);$('#bln').textContent=ks.length;
   $('#blv').innerHTML=ks.map((k,j)=>`<div class="it"><span class="tx"><b>${esc(BL[k])}</b><small>…${esc(k.slice(-10))}</small></span><button class="btn x" data-j="${j}">Restaurar</button></div>`).join('')||'<p class="h">Ninguno.</p>'}
-function renderRv(){let h='',lastG=null;const cnt={},now=Date.now();
-  LIST.forEach((e,i)=>{const g=grpOf(e)||nameOf(e);if(g!==lastG){h+=`<div class="gh">${esc(g)}</div>`;lastG=g}const k=cnt[g]=(cnt[g]||0)+1,left=e.cached?Math.max(0,Math.ceil((e.t+TTL-now)/864e5)):0;
-    h+=`<label class="it"><input type="checkbox" value="${i}"><i class="ck"><svg class="i"><use href="#i-check"/></svg></i><span class="tx"><b>${esc(nameOf(e))}</b><small>Enlace ${k} · …${esc(String(e.key).slice(-8))} · ${e.ok?Math.round(e.speed)+' KB/s':'sin comprobar'}</small></span>${e.cached?`<em class="tag">Caché · ${left} d</em>`:''}</label>`});
-  $('#rvl').innerHTML=h||'<p class="h">Aún no hay lista guardada. Pulsa «Actualizar todo» en Inicio.</p>';$('#rvn').textContent=LIST.length;$('#selbar').hidden=true;renderBL();stats()}
+function renderRv(){let h='';const cnt={},now=Date.now(),ord=[],by=new Map();
+  LIST.forEach((e,i)=>{const g=nameOf(e).toLowerCase();if(!by.has(g)){by.set(g,[]);ord.push(g)}by.get(g).push(i)});
+  ord.forEach(g=>{const ids=by.get(g);h+=`<div class="gh">${esc(nameOf(LIST[ids[0]]))}</div>`;ids.forEach(i=>{const e=LIST[i],k=cnt[g]=(cnt[g]||0)+1,left=e.cached?Math.max(0,Math.ceil((e.t+TTL-now)/864e5)):0;
+    h+=`<label class="it"><input type="checkbox" value="${i}"><i class="ck"><svg class="i"><use href="#i-check"/></svg></i><span class="tx"><b>${esc(nameOf(e))}</b><small>Enlace ${k} · …${esc(String(e.key).slice(-8))} · ${e.ok?Math.round(e.speed)+' KB/s':'sin comprobar'}</small></span>${e.cached?`<em class="tag">Caché · ${left} d</em>`:''}</label>`})});
+  $('#rvl').innerHTML=h||'<p class="h">Aún no hay lista guardada. Pulsa «Actualizar todo» en Inicio.</p>';$('#rvn').textContent=LIST.length;$('#selbar').hidden=true;renderBL();renderCh();stats()}
 $('#rvl').onchange=()=>{const n=document.querySelectorAll('#rvl input:checked').length;$('#selbar').hidden=!n;$('#seln').textContent=n+(n===1?' seleccionado':' seleccionados')};
 $('#rvdel').onclick=async()=>{const sel=[...document.querySelectorAll('#rvl input:checked')].map(x=>+x.value);if(!sel.length)return;
   const keys=new Set(sel.map(i=>LIST[i].key));if(!confirm(`¿Descartar ${keys.size} enlace(s) para siempre y actualizar el Gist?`))return;
@@ -624,7 +655,7 @@ $('#blall').onclick=()=>{if(confirm('¿Restaurar todos los descartados?')){saveB
 renderRv();
 $('#sqp').onclick=()=>{const cfg=getCfg(),id=($('#sqid').value.trim()||'CPDEP').replace(/\.png$/i,''),o=MOV+id+'.png',n=sqUrl(cfg,o),bg='background:repeating-conic-gradient(#8884 0 25%,transparent 0 50%) 0 0/16px 16px';
   $('#sqpv').innerHTML=`<div class="pv">${[['Original',o],['Con wsrv.nl',n]].map(([t,u])=>`<div>${t}<br><img src="${esc(u)}" style="${bg}"><br><img src="${esc(u)}" style="${bg};width:48px;margin-top:4px"></div>`).join('')}</div><p class="h" style="word-break:break-all">${esc(n)}</p>`};
-$('#chkE').onclick=async()=>{try{const j=await fj(ENGINE+'/webui/api/service?method=get_version',5000);toast('Motor responde: '+JSON.stringify(j.result||j).slice(0,60))}catch(e){toast('Sin conexión con el motor ('+e.message+'). ¿Ace Stream abierto?')}};
+$('#chkE').onclick=async()=>{toast('Comprobando motor…');if(await ensureEngine(ENGINE,null,null)){try{const j=await fj(ENGINE+'/webui/api/service?method=get_version',5000);toast('Motor responde: '+JSON.stringify(j.result||j).slice(0,60))}catch(e){toast('Motor responde')}}else toast('Sin conexión con el motor y no se pudo encender solo. ¿Ace Stream instalado?')};
 $('#chkG').onclick=async()=>{const t=$('#token').value.trim();if(!t)return toast('Pon el token primero');
   try{const r=await fetch('https://api.github.com/user',{headers:{Authorization:'token '+t}}),j=await r.json();toast(r.ok?'Token válido: '+j.login:'GitHub respondió '+r.status+' (token incorrecto o sin permiso)')}catch(e){toast('Error: '+e.message)}};
 
