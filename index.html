@@ -52,7 +52,7 @@ nav .p{width:64px;height:32px;border-radius:16px;display:grid;place-items:center
   <button class="btn t" id="gon" title="Prueba los enlaces de la última lista sin descargar las fuentes"><svg class="i"><use href="#i-check"/></svg>Probar lista</button>
   <button class="btn e" id="stop" hidden><svg class="i"><use href="#i-stop"/></svg>Detener</button></div></div>
  <div class="stats"><div class="st"><b id="sCh">0</b><span>En la lista</span></div><div class="st"><b id="sCa">0</b><span>En caché 15 d</span></div><div class="st"><b id="sBl">0</b><span>Descartados</span></div></div>
- <details class="card" id="pick"><summary>Actualizar solo algunos canales<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><p class="h" style="margin-left:0">Elige los canales que quieres volver a probar. El resto de la lista se queda como está, sin probarlo otra vez, y se sube todo junto al Gist. «Probar sin descargar» usa solo la última lista, sin bajar las fuentes.</p><div class="f"><input id="chq" type="text" placeholder=" " autocomplete="off"><label for="chq">Buscar canal</label></div><div id="chl" style="max-height:50vh;overflow:auto"></div><div class="row"><button class="btn t" id="gosn"><svg class="i"><use href="#i-check"/></svg>Probar sin descargar</button><button class="btn" id="gos"><svg class="i"><use href="#i-play"/></svg>Actualizar elegidos (<span id="chn">0</span>)</button></div></div></details>
+ <details class="card" id="pick"><summary>Actualizar solo algunos canales<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd"><p class="h" style="margin-left:0">Elige los canales que quieres volver a probar. El resto de la lista se queda como está, sin probarlo otra vez, y se sube todo junto al Gist. «Probar sin descargar» usa solo la última lista, sin bajar las fuentes.</p><div class="f"><input id="chq" type="text" placeholder=" " autocomplete="off"><label for="chq">Buscar canal</label></div><div class="row"><button class="btn t" id="gosn"><svg class="i"><use href="#i-check"/></svg>Probar sin descargar</button><button class="btn" id="gos"><svg class="i"><use href="#i-play"/></svg>Actualizar elegidos (<span id="chn">0</span>)</button></div><div id="chl" style="max-height:50vh;overflow:auto;margin-top:8px"></div></div></details>
  <div class="card" id="res" hidden></div>
  <details class="card" id="logd"><summary>Registro<svg class="i ch"><use href="#i-exp"/></svg></summary><div class="bd" style="padding:0"><div id="log"></div></div></details>
 </section>
@@ -602,20 +602,21 @@ const log=(h,c)=>{const d=document.createElement('div');if(c)d.className=c;d.inn
 const step=t=>{$('#st').textContent=t;log('<b>'+t+'</b>')};
 const prog=(d,t,ok)=>{$('#pb').style.width=(100*d/t)+'%';$('#st').textContent=`Probando ${d}/${t} · ${ok} funcionan`};
 const LK='m3ulast',loadLast=()=>{try{return JSON.parse(localStorage.getItem(LK)||'[]')}catch(e){return[]}},saveLast=l=>{try{localStorage.setItem(LK,JSON.stringify(l))}catch(e){log('⚠ No se pudo guardar la lista en el navegador.','e')}};
+const SELK='m3usel',SEL=new Set((()=>{try{return JSON.parse(localStorage.getItem(SELK)||'[]')}catch(e){return[]}})()),saveSel=()=>{try{localStorage.setItem(SELK,JSON.stringify([...SEL]))}catch(e){}};
 let LIST=loadLast(),ctl=null,REUSE=false,ONLY=null,NODL=false;
 const stats=()=>{$('#sCh').textContent=LIST.length;$('#sCa').textContent=Object.keys(loadSeen()).length;$('#sBl').textContent=Object.keys(loadBL()).length};
 function busy(b){$('#go').disabled=b;$('#goc').disabled=b;$('#gos').disabled=b;$('#gon').disabled=b;$('#gosn').disabled=b;$('#stop').hidden=!b;$('#go').classList.toggle('run',b)}
 $('#stop').onclick=()=>ctl&&ctl.abort();
 $('#goc').onclick=()=>{if(ctl)return;REUSE=true;$('#go').click()};
-$('#gos').onclick=()=>{if(ctl)return;const sel=[...document.querySelectorAll('#chl input:checked')].map(x=>x.value);if(!sel.length)return toast('Elige al menos un canal');if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');ONLY=sel;$('#go').click()};
+$('#gos').onclick=()=>{if(ctl)return;const sel=[...document.querySelectorAll('#chl input')].filter(x=>SEL.has(x.value)).map(x=>x.value);if(!sel.length)return toast('Elige al menos un canal');if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');ONLY=sel;$('#go').click()};
 $('#gon').onclick=()=>{if(ctl)return;if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');NODL=true;$('#go').click()};
-$('#gosn').onclick=()=>{if(ctl)return;const sel=[...document.querySelectorAll('#chl input:checked')].map(x=>x.value);if(!sel.length)return toast('Elige al menos un canal');if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');ONLY=sel;NODL=true;$('#go').click()};
-$('#chl').onchange=()=>{$('#chn').textContent=document.querySelectorAll('#chl input:checked').length};
+$('#gosn').onclick=()=>{if(ctl)return;const sel=[...document.querySelectorAll('#chl input')].filter(x=>SEL.has(x.value)).map(x=>x.value);if(!sel.length)return toast('Elige al menos un canal');if(!LIST.length)return toast('Antes usa «Actualizar todo» para tener una lista');ONLY=sel;NODL=true;$('#go').click()};
+$('#chl').onchange=e=>{const t=e.target;if(t&&t.value!=null){t.checked?SEL.add(t.value):SEL.delete(t.value);saveSel()}$('#chn').textContent=document.querySelectorAll('#chl input:checked').length};
 $('#chq').oninput=()=>{const q=$('#chq').value.trim().toLowerCase();document.querySelectorAll('#chl label').forEach(l=>{l.style.display=!q||l.dataset.n.includes(q)?'':'none'})};
 function renderCh(){const m=new Map();for(const e of LIST){const k=nameOf(e).toLowerCase();if(!m.has(k))m.set(k,{n:nameOf(e),c:0});m.get(k).c++}
-  const keep=new Set([...document.querySelectorAll('#chl input:checked')].map(x=>x.value));
+  const keep=SEL;
   $('#chl').innerHTML=[...m].map(([k,v])=>`<label class="it" data-n="${esc(k)}"><input type="checkbox" value="${esc(k)}"${keep.has(k)?' checked':''}><i class="ck"><svg class="i"><use href="#i-check"/></svg></i><span class="tx"><b>${esc(v.n)}</b><small>${v.c} ${v.c===1?'enlace':'enlaces'}</small></span></label>`).join('')||'<p class="h">Aún no hay lista guardada.</p>';
-  $('#chn').textContent=keep.size;$('#chq').oninput()}
+  $('#chn').textContent=document.querySelectorAll('#chl input:checked').length;$('#chq').oninput()}
 $('#clrc').onclick=()=>{if(confirm('¿Vaciar la caché de 15 días? Los canales que ya no estén en las fuentes se perderán.')){saveSeen({});stats();toast('Caché vaciada')}};
 $('#go').onclick=async()=>{if(ctl)return;save();const cfg=getCfg();cfg.reuse=REUSE;REUSE=false;cfg.only=ONLY;ONLY=null;cfg.nodl=NODL;NODL=false;if(cfg.reuse||cfg.only||cfg.nodl)cfg.prev=loadLast();ctl=new AbortController();busy(true);$('#log').innerHTML='';$('#res').hidden=true;$('#pb').style.width='0';$('#logd').open=true;let wl;
   try{try{wl=await navigator.wakeLock.request('screen')}catch(e){}
